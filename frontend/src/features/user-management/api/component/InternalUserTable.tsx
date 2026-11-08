@@ -46,6 +46,20 @@ const getColumns = (onEdit: (user: User) => void): ColumnDef<User>[] => [
     //     },
     // },
     {
+        id: "team",
+        header: "Team",
+        cell: ({ row }) => {
+            const team = row.original.current_team;
+            if (!team) return <span className="text-sm text-slate-400">—</span>;
+            return (
+                <span className="text-sm font-medium">
+                    {team.name}
+                    {team.member_role === "leader" && <span className="ml-1 text-xs text-golden-deep">(leader)</span>}
+                </span>
+            );
+        },
+    },
+    {
         id: "sector",
         header: "Sector",
         cell: ({ row }) => {

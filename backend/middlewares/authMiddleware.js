@@ -35,7 +35,6 @@ const authenticateToken = async (req, res, next) => {
       full_name: user.full_name,
       permissions: authContext.permissions,
       roles: authContext.roles,
-      isGlobalAdmin: authContext.isGlobalAdmin,
     };
 
     next();
@@ -143,8 +142,19 @@ const requireAnyRole = (roleNames) => {
   };
 };
 
+/**
+ * Login + permission in one step, for use directly on a route:
+ *   router.post("/", authorize("users", "create"), createUser)
+ */
+const authorize = (resource, action) => [authenticateToken, checkPermission(resource, action)];
+
+/** Login + at least one of the given [resource, action] permissions. */
+const authorizeAny = (permissionPairs) => [authenticateToken, checkAnyPermission(permissionPairs)];
+
 module.exports = {
   authenticateToken,
+  authorize,
+  authorizeAny,
   checkPermission,
   checkAnyPermission,
   requireRole,

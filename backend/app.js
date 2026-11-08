@@ -29,6 +29,15 @@ const profileRoute = require("./routers/user-routes/profileRoutes");
 // ================== Organization (Sector) Routes ==========================
 const sectorRoute = require("./routers/sector-routes/sectorRoutes");
 
+// ================== Location (Region / Zone / Woreda) Routes ==================
+const adminAreaRoute = require("./routers/location-routes/adminAreaRoutes");
+
+// ================== Company, License & Mineral Routes ==================
+const companyRoutes = require("./routers/company-routes/companyRoutes");
+
+// ================== Team Routes ==================
+const teamRoutes = require("./routers/team-routes/teamRoutes");
+
 // ================== Attachment Routes ==========================
 const attachmentRoute = require("./routers/attachment-routes/attachmentRoute");
 
@@ -143,6 +152,19 @@ app.use("/api/notifications", notificationRoute);
 
 // ================== Api Organization (Sector) Routes =====================
 app.use("/api/sector-nodes", sectorRoute);
+
+// ================== Api Location Routes =====================
+app.use("/api/admin-areas", adminAreaRoute);
+
+// ================== Api Company, License & Mineral Routes =====================
+app.use("/api/companies", companyRoutes.companies);
+app.use("/api/licenses", companyRoutes.licenses);
+app.use("/api/minerals", companyRoutes.minerals);
+app.use("/api/mineral-categories", companyRoutes.mineralCategories);
+
+// ================== Api Team Routes =====================
+app.use("/api/teams", teamRoutes.teams);
+app.use("/api/team-members", teamRoutes.members);
 
 // ================== Api Attachment Routes =====================
 app.use("/api/attachments", attachmentRoute);

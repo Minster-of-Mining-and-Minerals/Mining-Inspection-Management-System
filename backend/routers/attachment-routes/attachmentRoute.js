@@ -9,7 +9,7 @@ const {
 } = require("../../controllers/attachment-controller/attachmentController");
 const { authenticateToken } = require("../../middlewares/authMiddleware");
 
-router.post("/", upload.array("files", 10), uploadFiles);
+router.post("/", authenticateToken, upload.array("files", 10), uploadFiles);
 
 router.get("/", authenticateToken, getAllAttachments);
 

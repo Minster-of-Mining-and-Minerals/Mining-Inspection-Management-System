@@ -114,6 +114,18 @@ export function formatDate(value: unknown): string {
   });
 }
 
+/**
+ * A calendar date with no time, e.g. a license issue date "2025-09-23" -> "Sep 23, 2025".
+ * Never shifted by timezone (formatDate would treat it as midnight UTC).
+ */
+export function formatCalendarDate(value: string | null | undefined): string {
+  if (!value) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
+  if (!m) return String(value);
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
+}
+
 /** e.g. 14:30 */
 export function formatTime(value: unknown): string {
   return formatWithTimezone(value, {

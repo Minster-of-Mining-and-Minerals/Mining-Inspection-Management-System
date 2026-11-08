@@ -20,3 +20,6 @@ logs/
 # Build outputs
 /backend/dist/
 /backend/build/
+
+# Import reports (contain company data)
+/backend/reports/

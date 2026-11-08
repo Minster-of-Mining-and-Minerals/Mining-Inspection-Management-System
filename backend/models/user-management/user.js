@@ -2,8 +2,18 @@
 "use strict";
 const { Model } = require("sequelize");
 
+// Never part of an API response, whatever query loaded the user
+const SECRET_FIELDS = ["password", "otp", "otp_expiry"];
+
 module.exports = (sequelize, DataTypes) => {
   class User extends Model {
+    /** res.json(user) and JSON.stringify(user) leave out the password hash and one-time codes. */
+    toJSON() {
+      const values = { ...super.toJSON() };
+      for (const field of SECRET_FIELDS) delete values[field];
+      return values;
+    }
+
     static associate(models) {
       // User belongs to UserType
       User.belongsTo(models.UserType, {
@@ -27,6 +37,11 @@ module.exports = (sequelize, DataTypes) => {
       User.belongsTo(models.SectorNode, {
         foreignKey: "department_id",
         as: "department",
+      });
+      // Team memberships (at most one active at a time; past ones kept as history)
+      User.hasMany(models.TeamMember, {
+        foreignKey: "user_id",
+        as: "teamMemberships",
       });
       // User belongs to Attachment as profile image
       User.belongsTo(models.Attachment, {

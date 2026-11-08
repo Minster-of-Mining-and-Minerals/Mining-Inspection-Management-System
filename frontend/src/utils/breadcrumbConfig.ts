@@ -15,10 +15,41 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
     "/basedata": [
         { title: "Base Data", path: "/basedata" },
     ],
+    "/basedata/mineral-categories": [
+        { title: "Base Data", path: "/basedata" },
+        { title: "Minerals", path: "/basedata/minerals" },
+        { title: "Categories", path: "/basedata/mineral-categories" },
+    ],
+    "/basedata/minerals": [
+        { title: "Base Data", path: "/basedata" },
+        { title: "Minerals", path: "/basedata/minerals" },
+    ],
+    "/basedata/locations": [
+        { title: "Base Data", path: "/basedata" },
+        { title: "Locations", path: "/basedata/locations" },
+    ],
     "/basedata/sectors": [
         { title: "Base Data", path: "/basedata" },
         { title: "Organization", path: "/basedata/sectors" },
     ],
+    // ================================================
+    // Teams Routes
+    // ================================================
+    "/teams": [{ title: "Teams", path: "/teams" }],
+    "/teams/[teamId]": [
+        { title: "Teams", path: "/teams" },
+        { title: "Team Details", path: "/teams/[teamId]" },
+    ],
+
+    // ================================================
+    // Companies Routes
+    // ================================================
+    "/companies": [{ title: "Companies", path: "/companies" }],
+    "/companies/[companyId]": [
+        { title: "Companies", path: "/companies" },
+        { title: "Company Details", path: "/companies/[companyId]" },
+    ],
+
     // ================================================
     // Notifications Routes
     // ================================================

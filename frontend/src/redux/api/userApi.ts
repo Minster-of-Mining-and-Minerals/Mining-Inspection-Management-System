@@ -8,6 +8,13 @@ import {
 
 import { PaginatedResponse, PaginationParams } from "../types/common";
 
+/** When the email could not be sent, the API returns the temporary password once. */
+export interface AccountPasswordResult {
+  message: string;
+  email_sent: boolean;
+  temporary_password?: string;
+}
+
 export const userApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     /** ---------------------------
@@ -43,13 +50,18 @@ export const userApi = baseApi.injectEndpoints({
     /** ---------------------------
      * CREATE USER
      * --------------------------- */
-    createUser: builder.mutation<User, CreateUserPayload>({
+    createUser: builder.mutation<AccountPasswordResult & { user: User }, CreateUserPayload>({
       query: (body) => ({
         url: "/users",
         method: "POST",
         body,
       }),
-      transformResponse: (response: any): User => response.data,
+      transformResponse: (response: any) => ({
+        user: response.data as User,
+        message: response.message,
+        email_sent: response.email_sent !== false,
+        temporary_password: response.temporary_password,
+      }),
       invalidatesTags: ["User"],
     }),
 
@@ -99,7 +111,7 @@ export const userApi = baseApi.injectEndpoints({
     /** ---------------------------
      * RESET USER PASSWORD
      * --------------------------- */
-    resetUserPassword: builder.mutation<{ message: string }, string>({
+    resetUserPassword: builder.mutation<AccountPasswordResult, string>({
       query: (id) => ({
         url: `/users/${id}/reset-password`,
         method: "POST",

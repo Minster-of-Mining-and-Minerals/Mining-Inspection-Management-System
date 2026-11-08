@@ -6,7 +6,17 @@ const {
   validateUpdateRole,
 } = require("../../validators/user-validators/roleValidator");
 
-const { authenticateToken } = require("../../middlewares/authMiddleware");
+const { authorize } = require("../../middlewares/authMiddleware");
+
+// Setting a role's permissions (permission_ids in the body) also needs roles:assign_permission
+const requirePermissionChangeRight = (req, res, next) => {
+  if (req.body?.permission_ids === undefined) return next();
+  if (req.user?.permissions?.includes("roles:assign_permission")) return next();
+  return res.status(403).json({
+    success: false,
+    message: "Access denied: Required permission roles:assign_permission",
+  });
+};
 
 const {
   createRole,
@@ -16,11 +26,11 @@ const {
   deleteRole,
 } = require("../../controllers/user-controllers/roleController");
 
-router.post("/", validateCreateRole, createRole);
-router.get("/", getRoles);
-router.get("/:id", getRoleById);
-router.put("/:id", validateUpdateRole, updateRole);
-router.delete("/:id", deleteRole);
+router.post("/", authorize("roles", "create"), requirePermissionChangeRight, validateCreateRole, createRole);
+router.get("/", authorize("roles", "read"), getRoles);
+router.get("/:id", authorize("roles", "read"), getRoleById);
+router.put("/:id", authorize("roles", "update"), requirePermissionChangeRight, validateUpdateRole, updateRole);
+router.delete("/:id", authorize("roles", "delete"), deleteRole);
 
 /**
  * @swagger

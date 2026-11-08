@@ -17,10 +17,47 @@ export const routePermissions: RouteConfig[] = [
       anyPermissions: ["DASHBOARD:VIEW"],
     },
   },
+  // Most specific first: the first matching path wins
+  {
+    path: "/teams",
+    permissions: {
+      anyPermissions: ["TEAMS:READ"],
+    },
+  },
+  {
+    path: "/companies",
+    permissions: {
+      anyPermissions: ["COMPANIES:READ"],
+    },
+  },
+  {
+    path: "/basedata/mineral-categories",
+    permissions: {
+      anyPermissions: ["MINERALS:READ", "MINERALS:UPDATE"],
+    },
+  },
+  {
+    path: "/basedata/minerals",
+    permissions: {
+      anyPermissions: ["MINERALS:READ", "MINERALS:UPDATE"],
+    },
+  },
+  {
+    path: "/basedata/locations",
+    permissions: {
+      allPermissions: ["ADMIN_AREAS:READ"],
+    },
+  },
+  {
+    path: "/basedata/sectors",
+    permissions: {
+      allPermissions: ["SECTOR:READ"],
+    },
+  },
   {
     path: "/basedata",
     permissions: {
-      allPermissions: ["SECTOR:READ"],
+      anyPermissions: ["SECTOR:READ", "ADMIN_AREAS:READ", "MINERALS:READ", "MINERALS:UPDATE"],
     },
   },
   {

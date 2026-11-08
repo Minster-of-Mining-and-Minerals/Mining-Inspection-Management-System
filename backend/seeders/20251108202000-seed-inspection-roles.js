@@ -14,6 +14,7 @@ const ROLES = {
       "users:read",
       "sector:read",
       "admin_areas:read",
+      "minerals:read",
       "companies:read", "companies:update",
       "teams:create", "teams:read", "teams:update", "teams:manage_members",
       "forms:read", "forms:assign",

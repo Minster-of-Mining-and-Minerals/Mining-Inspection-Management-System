@@ -12,8 +12,8 @@ const {
   getUserTypes,
   getUserPositions,
 } = require("../../controllers/user-controllers/userController");
-const { authenticateToken } = require("../../middlewares/authMiddleware");
-const { validateUpdateUser } = require("../../validators/user-validators/userValidator");
+const { authenticateToken, authorize } = require("../../middlewares/authMiddleware");
+const { validateCreateUser, validateUpdateUser } = require("../../validators/user-validators/userValidator");
 
 // Middleware for authentication if needed (example)
 // const { authenticate } = require("../middlewares/authMiddleware");
@@ -35,7 +35,7 @@ const { validateUpdateUser } = require("../../validators/user-validators/userVal
  *       200:
  *         description: List of user types
  */
-router.get("/types", getUserTypes);
+router.get("/types", authenticateToken, getUserTypes);
 
 /**
  * @swagger
@@ -47,7 +47,7 @@ router.get("/types", getUserTypes);
  *       200:
  *         description: List of user positions
  */
-router.get("/positions", getUserPositions);
+router.get("/positions", authenticateToken, getUserPositions);
 
 /**
  * @swagger
@@ -75,7 +75,7 @@ router.get("/positions", getUserPositions);
  *       200:
  *         description: List of users
  */
-router.get("/", getUsers);
+router.get("/", authorize("users", "read"), getUsers);
 
 /**
  * @swagger
@@ -94,7 +94,7 @@ router.get("/", getUsers);
  *       200:
  *         description: User details
  */
-router.get("/:id", getUserById);
+router.get("/:id", authorize("users", "read"), getUserById);
 
 /**
  * @swagger
@@ -106,7 +106,7 @@ router.get("/:id", getUserById);
  *       200:
  *         description: User profile
  */
-router.get("/profile/me", getProfile);
+router.get("/profile/me", authenticateToken, getProfile);
 
 /**
  * @swagger
@@ -141,7 +141,7 @@ router.get("/profile/me", getProfile);
  *       201:
  *         description: User created
  */
-router.post("/", createUser);
+router.post("/", authorize("users", "create"), validateCreateUser, createUser);
 
 /**
  * @swagger
@@ -180,7 +180,7 @@ router.post("/", createUser);
  *       200:
  *         description: User updated
  */
-router.put("/:id", authenticateToken, validateUpdateUser, updateUser);
+router.put("/:id", authorize("users", "update"), validateUpdateUser, updateUser);
 
 /**
  * @swagger
@@ -198,7 +198,7 @@ router.put("/:id", authenticateToken, validateUpdateUser, updateUser);
  *       200:
  *         description: User deactivated
  */
-router.delete("/:id", deleteUser);
+router.delete("/:id", authorize("users", "delete"), deleteUser);
 
 /**
  * @swagger
@@ -225,7 +225,7 @@ router.delete("/:id", deleteUser);
  *       200:
  *         description: Status updated
  */
-router.patch("/:id/toggle-status", toggleUserActiveStatus);
+router.patch("/:id/toggle-status", authorize("users", "update"), toggleUserActiveStatus);
 
 /**
  * @swagger
@@ -243,6 +243,6 @@ router.patch("/:id/toggle-status", toggleUserActiveStatus);
  *       200:
  *         description: Password reset successfully
  */
-router.post("/:id/reset-password", resetUserPassword);
+router.post("/:id/reset-password", authorize("users", "update"), resetUserPassword);
 
 module.exports = router;

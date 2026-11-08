@@ -3,7 +3,10 @@ const { v4: uuidv4 } = require("uuid");
 
 const assignRolesToUser = async (req, res) => {
   try {
-    const { user_id, role_ids, assigned_by } = req.body;
+    const { user_id, role_ids } = req.body;
+    if (!Array.isArray(role_ids) || role_ids.length === 0) {
+      return res.status(400).json({ message: "Choose at least one role." });
+    }
 
     // Validate user
     const user = await User.findByPk(user_id);
@@ -12,27 +15,35 @@ const assignRolesToUser = async (req, res) => {
     }
 
     // Validate roles
-    const roles = await Role.findAll({ where: { role_id: role_ids } });
-    if (roles.length !== role_ids.length) {
+    const uniqueRoleIds = [...new Set(role_ids)];
+    const roles = await Role.findAll({ where: { role_id: uniqueRoleIds } });
+    if (roles.length !== uniqueRoleIds.length) {
       return res.status(400).json({
         message: "Some of the provided role IDs are invalid.",
       });
     }
 
-    // Assign roles
-    const assignments = roles.map((role) =>
-      UserRoles.create({
+    // Assign roles: skip ones the user already has, switch removed ones back on.
+    // The assigner is whoever is signed in (not taken from the request body).
+    const existing = await UserRoles.findAll({ where: { user_id: user.user_id, role_id: uniqueRoleIds } });
+    const byRole = new Map(existing.map((ur) => [ur.role_id, ur]));
+    for (const role of roles) {
+      const current = byRole.get(role.role_id);
+      if (current) {
+        if (!current.is_active) {
+          await current.update({ is_active: true, assigned_by: req.user.user_id, assigned_at: new Date() });
+        }
+        continue;
+      }
+      await UserRoles.create({
         user_role_id: uuidv4(),
         user_id: user.user_id,
-        user_type: user.user_type_id,
         role_id: role.role_id,
-        assigned_by: assigned_by || null,
+        assigned_by: req.user.user_id,
         assigned_at: new Date(),
         is_active: true,
-      })
-    );
-
-    await Promise.all(assignments);
+      });
+    }
 
     // Fetch user with roles
     const userWithRoles = await User.findOne({

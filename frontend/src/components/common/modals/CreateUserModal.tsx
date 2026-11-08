@@ -1,6 +1,6 @@
 "use client";
 import { useSession } from "next-auth/react";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -26,10 +26,17 @@ import {
 } from "@/components/ui/popover";
 import { useGetSectorNodesQuery, useGetSectorNodesWithFlatChildrenQuery } from "@/redux/api/sectorNodeApi";
 import { SectorNode } from "@/redux/types/sectorNode";
+import { TemporaryPasswordDialog } from "./TemporaryPasswordDialog";
+import { useGetTeamsQuery } from "@/redux/api/teamApi";
+import { usePermissions } from "@/hooks/usePermissions";
+
+const NO_TEAM = "none";
 
 interface CreateUserModalProps {
   user_type?: string;
   sector_node_id?: string;
+  /** Opened from a team page: the new user goes into this team */
+  presetTeamId?: string;
   isOpen: boolean;
   onClose: () => void;
 }
@@ -37,9 +44,25 @@ interface CreateUserModalProps {
 export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   user_type,
   sector_node_id,
+  presetTeamId,
   isOpen,
   onClose,
 }) => {
+  const { check } = usePermissions();
+  const canAssignTeam = check({ allPermissions: ["TEAMS:MANAGE_MEMBERS"] });
+  const [teamId, setTeamId] = useState(presetTeamId || NO_TEAM);
+  const [teamLeader, setTeamLeader] = useState(false);
+  const { data: teamsResponse } = useGetTeamsQuery({ is_active: true, limit: 100 }, { skip: !isOpen || !canAssignTeam });
+  const teams = teamsResponse?.data ?? [];
+  const hasTeam = teamId !== NO_TEAM;
+
+  // Each time the form opens from a team page, start with that team
+  useEffect(() => {
+    if (isOpen) {
+      setTeamId(presetTeamId || NO_TEAM);
+      setTeamLeader(false);
+    }
+  }, [isOpen, presetTeamId]);
   const { data: session, status } = useSession();
   // console.log("session: ", session)
   const [fullName, setFullName] = useState("");
@@ -49,6 +72,8 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const [sectorId, setSectorId] = useState("");
   const [departments, setDepartments] = useState<SectorNode[]>([]);
   const [departmentId, setDepartmentId] = useState("");
+  // Set when the welcome email failed: the password is shown once to hand over
+  const [tempPassword, setTempPassword] = useState<{ password: string; email: string } | null>(null);
 
   const { data: rolesResponse } = useGetRolesQuery();
   const { data = [] } = useGetSectorNodesWithFlatChildrenQuery();
@@ -76,7 +101,8 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!fullName || !email || !selectedRoles.length) {
+    // A role is required, unless the person joins a team (that gives the inspector role)
+    if (!fullName || !email || (!selectedRoles.length && !hasTeam)) {
       toast.error("Please fill all required fields");
       return;
     }
@@ -101,11 +127,17 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
       ...(departmentId && { department_id: departmentId }),
       ...(phoneNumber && { phone_number: phoneNumber }),
       ...(userTypeId && { user_type_id: userTypeId }),
+      ...(hasTeam && { team_id: teamId, team_role: teamLeader ? "leader" : "member" }),
     };
 
     try {
-      await createUser(payload).unwrap();
-      toast.success("User created successfully!");
+      const result = await createUser(payload).unwrap();
+      if (!result.email_sent && result.temporary_password) {
+        toast.warning("User created, but the welcome email could not be sent.");
+        setTempPassword({ password: result.temporary_password, email });
+      } else {
+        toast.success("User created. The temporary password was sent by email.");
+      }
       handleClose();
     } catch (error: any) {
       toast.error(error?.data?.message || "Failed to create user");
@@ -117,14 +149,28 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     setEmail("");
     setPhoneNumber("");
     setSelectedRoles([]);
+    setSectorId("");
+    setDepartmentId("");
+    setDepartments([]);
+    setTeamId(presetTeamId || NO_TEAM);
+    setTeamLeader(false);
     onClose();
   };
+
+  const passwordDialog = (
+    <TemporaryPasswordDialog
+      password={tempPassword?.password ?? null}
+      email={tempPassword?.email}
+      onClose={() => setTempPassword(null)}
+    />
+  );
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) handleClose();
   };
 
-  if (!isOpen) return null;
+  // Keep the password dialog alive after the form itself closes
+  if (!isOpen) return passwordDialog;
 
   return (
     <div
@@ -151,7 +197,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             {!sector_node_id && user_type === "internal" && (
               <div className="w-full space-y-2">
                 <Label className="block text-sm text-golden-dark font-medium mb-2">
-                  Sector <span className="text-red-500">*</span>
+                  Sector <span className="text-xs font-normal text-slate-400">(optional)</span>
                 </Label>
 
                 <Select
@@ -177,7 +223,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             {/* Department Selection */}
             <div className="w-full space-y-2">
               <Label className="block text-sm text-golden-dark font-medium mb-2">
-                Department <span className="text-red-500">*</span>
+                Department <span className="text-xs font-normal text-slate-400">(optional)</span>
               </Label>
 
               <Select
@@ -215,7 +261,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             </div>
             <div className="space-y-2">
               <Label className="block text-sm text-golden-dark font-medium mb-2">
-                Phone Number <span className="text-red-500">*</span>
+                Phone Number <span className="text-xs font-normal text-slate-400">(optional)</span>
               </Label>
               <Input
                 value={phoneNumber}
@@ -323,7 +369,43 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   </div>
                 </PopoverContent>
               </Popover>
+              {hasTeam && !selectedRoles.length && (
+                <p className="text-xs text-slate-500">Team members get the inspector role automatically.</p>
+              )}
             </div>
+
+            {/* TEAM (optional): a person can be in one team only */}
+            {canAssignTeam && (
+              <div className="w-full space-y-2">
+                <Label className="block text-sm text-golden-dark font-medium mb-2">
+                  Team <span className="text-xs font-normal text-slate-400">(optional)</span>
+                </Label>
+                <Select value={teamId} onValueChange={setTeamId} disabled={isLoading || !!presetTeamId}>
+                  <SelectTrigger className="w-full h-12 border border-golden-dark rounded-md px-4 text-primary bg-white">
+                    <SelectValue placeholder="No team" />
+                  </SelectTrigger>
+                  <SelectContent className="text-primary bg-white max-h-64 overflow-y-auto">
+                    <SelectItem value={NO_TEAM}>No team</SelectItem>
+                    {teams.map((t) => (
+                      <SelectItem key={t.team_id} value={t.team_id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {hasTeam && (
+                  <label className="flex items-center gap-2 text-sm text-primary">
+                    <input
+                      type="checkbox"
+                      checked={teamLeader}
+                      onChange={(e) => setTeamLeader(e.target.checked)}
+                      className="h-4 w-4 accent-primary"
+                    />
+                    Team leader
+                  </label>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

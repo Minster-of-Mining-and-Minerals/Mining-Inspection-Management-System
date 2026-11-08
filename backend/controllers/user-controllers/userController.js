@@ -5,12 +5,27 @@ const {
   Role,
   UserRoles,
   SectorNode,
+  Team,
+  TeamMember,
   sequelize,
 } = require("../../models");
 const { v4: uuidv4, validate: isUuid } = require("uuid");
-const { Op } = require("sequelize");
+const { Op, literal } = require("sequelize");
+const { likeContains } = require("../../utils/search");
 const bcrypt = require("bcrypt");
 const { generateRandomPassword } = require("../../utils/password");
+const { addUserToTeam } = require("../../services/teamMembershipService");
+
+// Returns true when the email went out; never throws.
+const trySendEmail = async (...args) => {
+  try {
+    await sendEmail(...args);
+    return true;
+  } catch (err) {
+    console.error("Email not sent:", err.message);
+    return false;
+  }
+};
 const { sendEmail } = require("../../utils/sendEmail");
 
 const getUserTypes = async (req, res) => {
@@ -115,15 +130,17 @@ const createUser = async (req, res) => {
       }
     }
 
-    // ====== Validate department if provided ======
-    const department = await SectorNode.findByPk(department_id, {
-      transaction: t,
-    });
-    if (!department) {
-      await t.rollback();
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid department." });
+    // ====== Validate department if provided (the organization tree is optional) ======
+    if (department_id) {
+      const department = await SectorNode.findByPk(department_id, {
+        transaction: t,
+      });
+      if (!department) {
+        await t.rollback();
+        return res
+          .status(400)
+          .json({ success: false, message: "Invalid department." });
+      }
     }
 
     // ====== MULTIPLE ROLE VALIDATION ======
@@ -142,9 +159,8 @@ const createUser = async (req, res) => {
       }
     }
 
-    // ====== Generate password ======
-    // const password = generateRandomPassword();
-    const password = "password";
+    // ====== Generate a random temporary password (changed on first login) ======
+    const password = generateRandomPassword(12);
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // ====== Create User ======
@@ -154,9 +170,9 @@ const createUser = async (req, res) => {
         full_name,
         email,
         password: hashedPassword,
-        phone_number,
+        phone_number: phone_number || null,
         user_type_id,
-        sector_node_id,
+        sector_node_id: sector_node_id || null,
         department_id: department_id || null,
         is_first_logged_in: true,
         is_active: true,
@@ -182,10 +198,28 @@ const createUser = async (req, res) => {
       await UserRoles.bulkCreate(roleAssignments, { transaction: t });
     }
 
+    // ====== Optional: put the new user straight into a team ======
+    // (also gives the inspector role, and team_leader when leading)
+    if (req.body.team_id) {
+      if (!req.user?.permissions?.includes("teams:manage_members")) {
+        await t.rollback();
+        return res.status(403).json({ success: false, message: "Access denied: Required permission teams:manage_members" });
+      }
+      await addUserToTeam({
+        teamId: req.body.team_id,
+        userId: user.user_id,
+        role: req.body.team_role || "member",
+        createdBy: req.user?.user_id || null,
+        transaction: t,
+      });
+    }
+
     await t.commit();
 
     // ====== Send welcome email ======
-    await sendEmail(
+    // The account exists even if email delivery fails; the admin then gets the
+    // temporary password once in the response to hand over.
+    const emailSent = await trySendEmail(
       email,
       `Welcome to ${process.env.APP_NAME}!`,
       `
@@ -197,13 +231,20 @@ const createUser = async (req, res) => {
     `,
     );
 
+    const { password: _hash, otp, otp_expiry, ...safeUser } = user.get({ plain: true });
     return res.status(201).json({
       success: true,
-      message: "User registered globally (no roles assigned yet)",
-      data: user,
+      message: emailSent
+        ? "User created. The temporary password was sent by email."
+        : "User created, but the email could not be sent. Give the temporary password to the user.",
+      data: safeUser,
+      email_sent: emailSent,
+      ...(emailSent ? {} : { temporary_password: password }),
     });
   } catch (error) {
     if (!t.finished) await t.rollback();
+    // Team problems (full team leader slot, inactive team, …) come with a message for the user
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
     console.error("Error creating user:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -382,23 +423,47 @@ const getUsers = async (req, res) => {
     if (is_active !== undefined) whereClause.is_active = is_active === "true";
 
     if (search) {
+      const term = likeContains(search);
       whereClause[Op.or] = [
-        { full_name: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } },
-        { phone_number: { [Op.iLike]: `%${search}%` } },
+        { full_name: { [Op.iLike]: term } },
+        { email: { [Op.iLike]: term } },
+        { phone_number: { [Op.iLike]: term } },
         // To search in associated fields, we can use the following pattern:
-        { "$sectorNode.name$": { [Op.iLike]: `%${search}%` } },
-        { "$department.name$": { [Op.iLike]: `%${search}%` } },
-        { "$userType.name$": { [Op.iLike]: `%${search}%` } },
+        { "$sectorNode.name$": { [Op.iLike]: term } },
+        { "$department.name$": { [Op.iLike]: term } },
+        { "$userType.name$": { [Op.iLike]: term } },
+        { "$teamMemberships.team.name$": { [Op.iLike]: term } },
+      ];
+    }
+
+    // ====== Team filter: team id, or "none" for people not in any team ======
+    const { team_id } = req.query;
+    if (team_id === "none") {
+      whereClause[Op.and] = [literal(`NOT EXISTS (SELECT 1 FROM team_members tm WHERE tm.user_id = "User"."user_id" AND tm.left_on IS NULL)`)];
+    } else if (team_id) {
+      if (!isUuid(team_id)) return res.status(400).json({ success: false, message: "Invalid team_id." });
+      whereClause[Op.and] = [
+        literal(`EXISTS (SELECT 1 FROM team_members tm WHERE tm.user_id = "User"."user_id" AND tm.left_on IS NULL AND tm.team_id = ${sequelize.escape(team_id)})`),
       ];
     }
 
     // ====== Fetch users with associations and count ======
     const { count, rows: users } = await User.findAndCountAll({
       where: whereClause,
+      // Never send password hashes or one-time codes to the browser
+      attributes: { exclude: ["password", "otp", "otp_expiry"] },
       subQuery: false, // Required when filtering by associated models with limit/offset
       distinct: true,
       include: [
+        // Current team (a person is in at most one team at a time)
+        {
+          model: TeamMember,
+          as: "teamMemberships",
+          required: false,
+          where: { left_on: null },
+          attributes: ["team_member_id", "role", "joined_on"],
+          include: [{ model: Team, as: "team", attributes: ["team_id", "name", "code"] }],
+        },
         {
           model: UserType,
           as: "userType",
@@ -420,10 +485,16 @@ const getUsers = async (req, res) => {
       offset: offset,
     });
 
+    const data = users.map((u) => {
+      const { teamMemberships, ...rest } = u.toJSON();
+      const m = teamMemberships?.[0];
+      return { ...rest, current_team: m ? { ...m.team, member_role: m.role, joined_on: m.joined_on } : null };
+    });
+
     return res.status(200).json({
       success: true,
       message: "Users fetched successfully.",
-      data: users,
+      data,
       meta: {
         totalItems: count,
         totalPages: Math.ceil(count / limitInt),
@@ -448,8 +519,14 @@ const getUserById = async (req, res) => {
 
     // console.log("user_id: ", user_id);
 
+    if (!isUuid(user_id)) {
+      return res.status(400).json({ success: false, message: "Invalid user id." });
+    }
+
     // ====== Find user with relations ======
     const user = await User.findByPk(user_id, {
+      // Never send password hashes or one-time codes to the browser
+      attributes: { exclude: ["password", "otp", "otp_expiry"] },
       include: [
         {
           model: UserType,
@@ -461,7 +538,16 @@ const getUserById = async (req, res) => {
           as: "roles",
           through: { attributes: [] },
         },
+        // Team history: current team first, then past teams
+        {
+          model: TeamMember,
+          as: "teamMemberships",
+          required: false,
+          attributes: ["team_member_id", "role", "joined_on", "left_on"],
+          include: [{ model: Team, as: "team", attributes: ["team_id", "name", "code", "is_active"] }],
+        },
       ],
+      order: [[{ model: TeamMember, as: "teamMemberships" }, "left_on", "DESC NULLS FIRST"]],
     });
 
     if (!user) {
@@ -603,7 +689,7 @@ const resetUserPassword = async (req, res) => {
     }
 
     // Generate and hash new password
-    const newPassword = generateRandomPassword();
+    const newPassword = generateRandomPassword(12);
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await user.update(
@@ -618,8 +704,8 @@ const resetUserPassword = async (req, res) => {
 
     await t.commit();
 
-    // Send email notification
-    await sendEmail(
+    // Send email notification (the reset stands even if the email fails)
+    const emailSent = await trySendEmail(
       user.email,
       `Password Reset - ${process.env.APP_NAME}`,
       `
@@ -633,11 +719,14 @@ const resetUserPassword = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message:
-        "Password reset successfully. The new password has been sent via email.",
+      message: emailSent
+        ? "Password reset successfully. The new password has been sent via email."
+        : "Password reset, but the email could not be sent. Give the temporary password to the user.",
+      email_sent: emailSent,
+      ...(emailSent ? {} : { temporary_password: newPassword }),
     });
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     return res.status(500).json({
       success: false,
       message: "Error resetting user password",

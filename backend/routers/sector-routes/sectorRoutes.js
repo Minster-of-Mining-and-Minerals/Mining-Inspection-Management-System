@@ -14,7 +14,7 @@ const {
   getSectorsWithFlatChildren,
 } = require("../../controllers/sector-controllers/sectorController");
 
-const { authenticateToken } = require("../../middlewares/authMiddleware");
+const { authorize, authorizeAny } = require("../../middlewares/authMiddleware");
 
 const {
   validateCreateSectorNode,
@@ -49,7 +49,7 @@ const {
  *       200:
  *         description: List of sector nodes
  */
-router.get("/", getSectorNodes);
+router.get("/", authorize("sector", "read"), getSectorNodes);
 
 /**
  * @swagger
@@ -72,7 +72,7 @@ router.get("/", getSectorNodes);
  *       200:
  *         description: List of sector nodes with flat children 
  */
-router.get("/flat", getSectorsWithFlatChildren);
+router.get("/flat", authorize("sector", "read"), getSectorsWithFlatChildren);
 
 /**
  * @swagger
@@ -91,7 +91,7 @@ router.get("/flat", getSectorsWithFlatChildren);
  *       200:
  *         description: List of users under the sector node
  */
-router.get("/children-users/:id", getSectorNodeChildrenUsers);
+router.get("/children-users/:id", authorize("sector", "read"), getSectorNodeChildrenUsers);
 
 /**
  * @swagger
@@ -110,7 +110,7 @@ router.get("/children-users/:id", getSectorNodeChildrenUsers);
  *       200:
  *         description: List of users directly under the sector node
  */
-router.get("/users/:id", getSectorNodeUsers);
+router.get("/users/:id", authorize("sector", "read"), getSectorNodeUsers);
 
 /**
  * @swagger
@@ -129,7 +129,7 @@ router.get("/users/:id", getSectorNodeUsers);
  *       200:
  *         description: Sector node details
  */
-router.get("/:id", getSectorNodeById);
+router.get("/:id", authorize("sector", "read"), getSectorNodeById);
 
 /**
  * @swagger
@@ -158,7 +158,7 @@ router.get("/:id", getSectorNodeById);
  *       201:
  *         description: Sector node created successfully
  */
-router.post("/", validateCreateSectorNode, createSectorNode);
+router.post("/", authorize("sector", "create"), validateCreateSectorNode, createSectorNode);
 
 /**
  * @swagger
@@ -194,7 +194,7 @@ router.post("/", validateCreateSectorNode, createSectorNode);
  *       200:
  *         description: Sector node updated successfully
  */
-router.put("/:id", validateUpdateSectorNode, updateSectorNode);
+router.put("/:id", authorizeAny([["sector", "update"], ["sector_head", "delegate"], ["sector_head", "update"]]), validateUpdateSectorNode, updateSectorNode);
 
 /**
  * @swagger
@@ -213,7 +213,7 @@ router.put("/:id", validateUpdateSectorNode, updateSectorNode);
  *       200:
  *         description: Sector node deactivated successfully
  */
-router.delete("/:id", deleteSectorNode);
+router.delete("/:id", authorize("sector", "delete"), deleteSectorNode);
 
 /**
  * @swagger
@@ -232,6 +232,6 @@ router.delete("/:id", deleteSectorNode);
  *       200:
  *         description: Sector node status updated
  */
-router.patch("/:id/toggle-status", toggleSectorNodeActiveStatus);
+router.patch("/:id/toggle-status", authorize("sector", "update"), toggleSectorNodeActiveStatus);
 
 module.exports = router;

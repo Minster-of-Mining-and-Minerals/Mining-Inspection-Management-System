@@ -137,7 +137,7 @@ const getSectorNodes = async (req, res) => {
         {
           model: User,
           as: "head",
-          attributes: { exclude: ["password"] },
+          attributes: { exclude: ["password", "otp", "otp_expiry"] },
         },
       ],
       order: [["created_at", "ASC"]],
@@ -274,7 +274,7 @@ const getSectorNodeById = async (req, res) => {
         {
           model: User,
           as: "head",
-          attributes: { exclude: ["password"] },
+          attributes: { exclude: ["password", "otp", "otp_expiry"] },
         },
       ],
     });
@@ -483,7 +483,7 @@ const getSectorNodeUsers = async (req, res) => {
         {
           model: User,
           as: "users",
-          attributes: { exclude: ["password"] },
+          attributes: { exclude: ["password", "otp", "otp_expiry"] },
         },
         { model: SectorNode, as: "parent" },
         { model: SectorNode, as: "children" },
@@ -555,7 +555,7 @@ const getSectorNodeChildrenUsers = async (req, res) => {
       where: {
         sector_node_id: childNodeIds,
       },
-      attributes: { exclude: ["password"] },
+      attributes: { exclude: ["password", "otp", "otp_expiry"] },
       include: [
         {
           model: SectorNode,

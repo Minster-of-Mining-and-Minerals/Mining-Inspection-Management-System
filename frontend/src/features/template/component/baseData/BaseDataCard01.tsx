@@ -3,13 +3,29 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Building } from "lucide-react";
+import { Building, Gem, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PermissionGuard } from "@/components/auth/InlinePermissionGuard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PermissionKey } from "@/lib/permissions";
 
 const dataCards: DataCardItem[] = [
+  {
+    id: 3,
+    title: "Minerals",
+    subtitle: "Standard minerals list",
+    icon: Gem,
+    link: "/basedata/minerals",
+    permission: ["MINERALS:READ", "MINERALS:UPDATE"],
+  },
+  {
+    id: 2,
+    title: "Locations",
+    subtitle: "Regions, zones and woredas",
+    icon: MapPin,
+    link: "/basedata/locations",
+    permission: ["ADMIN_AREAS:READ"],
+  },
   {
     id: 1,
     title: "Organization",

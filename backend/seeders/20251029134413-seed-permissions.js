@@ -50,6 +50,11 @@ module.exports = {
       { resource: "companies", action: "delete" },
       { resource: "companies", action: "import" },
 
+      // Standard minerals list
+      { resource: "minerals", action: "create" },
+      { resource: "minerals", action: "read" },
+      { resource: "minerals", action: "update" },
+
       // Inspection teams
       { resource: "teams", action: "create" },
       { resource: "teams", action: "read" },

@@ -137,21 +137,28 @@ const getMePermissions = async (req, res) => {
   try {
     const userId = req.user.user_id;
 
+    // Same rules as the API checks (permissionService): only active links count
     const user = await User.findOne({
       where: { user_id: userId },
       include: [
         {
           model: Role,
           as: "roles",
-          through: { attributes: [] },
+          where: { is_active: true },
+          required: false,
+          through: { attributes: [], where: { is_active: true } },
           include: [
             {
               model: RolePermission,
               as: "rolePermissions",
+              where: { is_active: true },
+              required: false,
               include: [
                 {
                   model: Permission,
                   as: "permission",
+                  where: { is_active: true },
+                  required: false,
                   attributes: ["permission_id", "resource", "action"],
                 },
               ],
@@ -168,11 +175,13 @@ const getMePermissions = async (req, res) => {
     const userRoles = user.roles.map((role) => ({
       role_id: role.role_id,
       name: role.name,
-      permissions: role.rolePermissions.map((rp) => ({
-        permission_id: rp.permission_id,
-        resource: rp.permission?.resource,
-        action: rp.permission?.action,
-      })),
+      permissions: role.rolePermissions
+        .filter((rp) => rp.permission)
+        .map((rp) => ({
+          permission_id: rp.permission_id,
+          resource: rp.permission.resource,
+          action: rp.permission.action,
+        })),
     }));
 
     const permissions = userRoles.flatMap((r) => r.permissions);

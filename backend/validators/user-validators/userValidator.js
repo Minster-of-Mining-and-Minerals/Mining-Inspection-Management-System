@@ -12,11 +12,12 @@ const createUserSchema = Joi.object({
     "string.email": "Please provide a valid email address.",
   }),
 
+  // Optional: inspector accounts imported from the license list have no phone yet
   phone_number: Joi.string()
     .pattern(ETHIOPIAN_PHONE_REGEX)
-    .required()
+    .allow(null, "")
+    .optional()
     .messages({
-      "string.empty": "Phone number is required.",
       "string.pattern.base":
         "Phone number must be a valid Ethiopian format (e.g., +2519XXXXXXXX or 09XXXXXXXX).",
     }),
@@ -26,11 +27,11 @@ const createUserSchema = Joi.object({
     "any.required": "User type ID is required.",
   }),
 
-  sector_node_id: Joi.string().guid({ version: "uuidv4" }).optional().messages({
+  sector_node_id: Joi.string().guid({ version: "uuidv4" }).allow(null, "").optional().messages({
     "string.guid": "Sector node ID must be a valid UUID.",
   }),
 
-  department_id: Joi.string().guid({ version: "uuidv4" }).optional().messages({
+  department_id: Joi.string().guid({ version: "uuidv4" }).allow(null, "").optional().messages({
     "string.guid": "Department ID must be a valid UUID.",
   }),
 
@@ -45,6 +46,10 @@ const createUserSchema = Joi.object({
     .messages({
       "array.base": "Role ID must be an array of UUIDs.",
     }),
+
+  // Optional: put the new user straight into an inspection team
+  team_id: Joi.string().guid().allow(null, "").optional().messages({ "string.guid": "Team must be a valid id." }),
+  team_role: Joi.string().valid("member", "leader").optional(),
 });
 
 // =================== Update User Schema ===================

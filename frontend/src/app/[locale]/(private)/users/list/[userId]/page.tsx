@@ -2,7 +2,7 @@
 
 import { useParams } from "next/navigation"
 import { useGetUserByIdQuery } from "@/redux/api/userApi"
-import { formatDateTime } from "@/utils/date";
+import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { User2Icon } from "lucide-react";
 
 const UserViewPage = () => {
@@ -85,6 +85,29 @@ const UserViewPage = () => {
                                 <p className="font-medium">{mappedUser.createdAt}</p>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Teams: current team first, then history */}
+                    <div className="border-t px-6 py-6">
+                        <h3 className="font-semibold mb-4 text-primary">Team</h3>
+                        {!user?.teamMemberships?.length ? (
+                            <p className="text-sm text-gray-500">Not in a team.</p>
+                        ) : (
+                            <ul className="space-y-2 text-sm">
+                                {user.teamMemberships.map((m) => (
+                                    <li key={m.team_member_id} className="flex flex-wrap items-center gap-2">
+                                        <a href={`/teams/${m.team.team_id}`} className="font-medium text-primary hover:underline">
+                                            {m.team.name}
+                                        </a>
+                                        {m.role === "leader" && <span className="rounded-full bg-golden-dark/10 px-2 py-0.5 text-[11px] font-semibold text-golden-deep">Leader</span>}
+                                        <span className="text-gray-500">
+                                            {formatCalendarDate(m.joined_on)} – {m.left_on ? formatCalendarDate(m.left_on) : "now"}
+                                        </span>
+                                        {!m.left_on && <span className="rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-800">Current</span>}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
                     </div>
                 </div>
 

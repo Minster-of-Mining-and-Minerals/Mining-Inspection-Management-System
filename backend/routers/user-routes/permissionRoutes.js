@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const permissionController = require("../../controllers/user-controllers/permissionController");
+const { authorize } = require("../../middlewares/authMiddleware");
 
 /**
  * @swagger
@@ -19,7 +20,7 @@ const permissionController = require("../../controllers/user-controllers/permiss
  *       200:
  *         description: List of permissions
  */
-router.get("/", permissionController.getPermissions);
+router.get("/", authorize("permissions", "read"), permissionController.getPermissions);
 
 /**
  * @swagger
@@ -38,7 +39,7 @@ router.get("/", permissionController.getPermissions);
  *       200:
  *         description: Permission activated
  */
-router.put("/activate/:permission_id", permissionController.activatePermission);
+router.put("/activate/:permission_id", authorize("permissions", "update"), permissionController.activatePermission);
 
 /**
  * @swagger
@@ -59,6 +60,7 @@ router.put("/activate/:permission_id", permissionController.activatePermission);
  */
 router.put(
   "/deactivate/:permission_id",
+  authorize("permissions", "update"),
   permissionController.deactivatePermission
 );
 
@@ -79,6 +81,6 @@ router.put(
  *       200:
  *         description: Permission status toggled
  */
-router.put("/toggle/:permission_id", permissionController.togglePermission);
+router.put("/toggle/:permission_id", authorize("permissions", "update"), permissionController.togglePermission);
 
 module.exports = router;

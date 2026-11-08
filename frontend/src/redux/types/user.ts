@@ -51,6 +51,16 @@ export interface User {
   sectorNode?: SectorNode;
   department?: SectorNode;
   roles?: Role[];
+  /** Users list: the team the person is in now */
+  current_team?: { team_id: string; name: string; code: string | null; member_role: "leader" | "member"; joined_on: string } | null;
+  /** User page: all team memberships, current first */
+  teamMemberships?: {
+    team_member_id: string;
+    role: "leader" | "member";
+    joined_on: string;
+    left_on: string | null;
+    team: { team_id: string; name: string; code: string | null; is_active: boolean };
+  }[];
 }
 
 // Payloads
@@ -62,6 +72,9 @@ export interface CreateUserPayload {
   sector_node_id?: string;
   department_id?: string;
   role_ids?: string[];
+  /** Optional: put the new user straight into a team */
+  team_id?: string;
+  team_role?: "member" | "leader";
 }
 
 export interface UpdateUserPayload {

@@ -6,6 +6,11 @@ import {
   Shield,
   Key,
   Building2,
+  MapPin,
+  Factory,
+  Gem,
+  Tags,
+  UsersRound,
 } from "lucide-react";
 
 export type NavItem = {
@@ -29,13 +34,45 @@ export const NAVIGATION: NavItem[] = [
     anyPermissions: ["DASHBOARD:VIEW"],
   },
   {
+    title: "Companies",
+    url: "/companies",
+    icon: Factory,
+    section: "Registry",
+    anyPermissions: ["COMPANIES:READ"],
+  },
+  {
+    title: "Teams",
+    url: "/teams",
+    icon: UsersRound,
+    section: "Registry",
+    anyPermissions: ["TEAMS:READ"],
+  },
+  {
     title: "Base Data",
     section: "Administration",
     url: "/basedata",
     icon: FileText,
     // Shown if the user can see either section; each child is filtered by its own permission
-    anyPermissions: ["SECTOR:READ"],
+    anyPermissions: ["SECTOR:READ", "ADMIN_AREAS:READ", "MINERALS:READ", "MINERALS:UPDATE"],
     children: [
+      {
+        title: "Minerals",
+        url: "/basedata/minerals",
+        icon: Gem,
+        anyPermissions: ["MINERALS:READ", "MINERALS:UPDATE"],
+      },
+      {
+        title: "Mineral Categories",
+        url: "/basedata/mineral-categories",
+        icon: Tags,
+        anyPermissions: ["MINERALS:READ", "MINERALS:UPDATE"],
+      },
+      {
+        title: "Locations",
+        url: "/basedata/locations",
+        icon: MapPin,
+        allPermissions: ["ADMIN_AREAS:READ"],
+      },
       {
         title: "Organization",
         url: "/basedata/sectors",

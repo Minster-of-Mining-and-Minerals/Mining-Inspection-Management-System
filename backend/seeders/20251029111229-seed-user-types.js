@@ -5,6 +5,7 @@ module.exports = {
   async up(queryInterface, Sequelize) {
     const now = new Date();
 
+    // Seeders are not tracked, so `npm run seed` re-runs this: skip types that already exist
     await queryInterface.bulkInsert("user_types", [
       {
         user_type_id: uuidv4(),
@@ -20,7 +21,7 @@ module.exports = {
         created_at: now,
         updated_at: now,
       },
-    ]);
+    ], { ignoreDuplicates: true });
   },
 
   async down(queryInterface, Sequelize) {
