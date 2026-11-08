@@ -13,6 +13,30 @@ Domain: **https://inspection.mom.gov.et** · Docker Compose · free HTTPS certif
 Users always open `https://inspection.mom.gov.et`. HTTPS is required: browsers only give the inspector's
 GPS location and the camera to `https://` pages.
 
+## Quick start: `deploy.sh`
+
+```bash
+git clone -b inspection-system https://github.com/Minster-of-Mining-and-Minerals/Mining-Inspection-Management-System.git
+cd Mining-Inspection-Management-System
+chmod +x deploy.sh
+./deploy.sh
+```
+
+On the first run it creates `.env`, `backend/.env` and `frontend/.env` with new random secrets and a
+database password, checks Docker, DNS and ports 80/443, builds and starts everything, waits for the
+backend and the HTTPS certificate, and prints the address and first login.
+
+| Command | Does |
+|---|---|
+| `./deploy.sh` | deploy (also after editing settings) |
+| `./deploy.sh update` | `git pull`, then deploy |
+| `./deploy.sh status` | containers and health |
+| `./deploy.sh logs` | follow the logs |
+| `./deploy.sh backup` | database + inspection files into `./backups/` |
+| `./deploy.sh stop` | stop everything (data kept) |
+
+The sections below explain the same steps by hand.
+
 ---
 
 ## 1. Before you start
