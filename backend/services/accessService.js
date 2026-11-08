@@ -1,5 +1,4 @@
-const { SectorNode, User, SectorRepresentative } = require("../models");
-const { Op } = require("sequelize");
+const { SectorNode, User } = require("../models");
 
 /**
  * Recursively gets all descendant sector node IDs for a given sector node.
@@ -61,23 +60,7 @@ const getUserAccessSectors = async (user_id) => {
     attributes: ["sector_node_id"],
   });
 
-  // Find sectors where user is an active REPRESENTATIVE with manage rights
-  const now = new Date();
-  const sectorsWhereRep = await SectorRepresentative.findAll({
-    where: {
-      user_id,
-      can_manage: true,
-      is_active: true,
-      valid_from: { [Op.lte]: now },
-      [Op.or]: [{ valid_until: null }, { valid_until: { [Op.gte]: now } }],
-    },
-    attributes: ["sector_node_id"],
-  });
-
-  const manageableBaseIds = [
-    ...sectorsWhereHead.map((s) => s.sector_node_id),
-    ...sectorsWhereRep.map((s) => s.sector_node_id),
-  ];
+  const manageableBaseIds = sectorsWhereHead.map((s) => s.sector_node_id);
 
   // Collect all descendants for these sectors
   let accessSectorIds = [...manageableBaseIds];

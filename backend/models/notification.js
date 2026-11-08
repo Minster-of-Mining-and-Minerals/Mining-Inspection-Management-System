@@ -8,18 +8,6 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "recipient_id",
         as: "recipient",
       });
-
-      this.belongsTo(models.Complaint, {
-        foreignKey: "related_entity_id",
-        constraints: false,
-        as: "complaint",
-      });
-
-      this.belongsTo(models.Feedback, {
-        foreignKey: "related_entity_id",
-        constraints: false,
-        as: "feedback",
-      });
     }
   }
 

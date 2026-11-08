@@ -1,5 +1,4 @@
-const { Notification, Complaint, Feedback } = require("../../models");
-const { Op } = require("sequelize");
+const { Notification } = require("../../models");
 
 const getMyNotifications = async (req, res) => {
   try {
@@ -7,10 +6,6 @@ const getMyNotifications = async (req, res) => {
 
     const notifications = await Notification.findAll({
       where: { recipient_id: user_id },
-      include: [
-        { model: Complaint, as: "complaint", attributes: ["ticketing_code"] },
-        { model: Feedback, as: "feedback", attributes: ["feedback_id", "full_name"] },
-      ],
       order: [["created_at", "DESC"]],
     });
 

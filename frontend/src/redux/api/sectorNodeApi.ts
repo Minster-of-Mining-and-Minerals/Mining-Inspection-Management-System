@@ -41,12 +41,6 @@ export const sectorNodeApi = baseApi.injectEndpoints({
       providesTags: ["SectorNode"],
     }),
 
-    getMySectorDepartments: builder.query<SectorNode[], void>({
-      query: () => "/sector-nodes/my-departments",
-      transformResponse: (response: any): SectorNode[] => response.data ?? [],
-      providesTags: ["SectorNode"],
-    }),
-
     /** ---------------------------
      * GET SECTOR NODE BY ID
      * --------------------------- */
@@ -142,7 +136,6 @@ export const sectorNodeApi = baseApi.injectEndpoints({
 export const {
   useGetSectorNodesQuery,
   useGetSectorNodesWithFlatChildrenQuery,
-  useGetMySectorDepartmentsQuery,
   useGetSectorNodeByIdQuery,
   useCreateSectorNodeMutation,
   useUpdateSectorNodeMutation,

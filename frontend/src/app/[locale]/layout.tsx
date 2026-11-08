@@ -30,8 +30,8 @@ type Props = {
 };
 
 export const metadata: Metadata = {
-  title: "Complaint Management System | Ministry of Mines",
-  description: "Submit, track and manage complaints and feedback to the Ministry of Mines, Ethiopia.",
+  title: "Mining Inspection Management System | Ministry of Mines",
+  description: "Field inspection and compliance monitoring of licensed mining and exploration companies — Ministry of Mines, Ethiopia.",
   icons: {
     icon: [
       { url: "/favicon_io/favicon-32x32.png", sizes: "32x32", type: "image/png" },

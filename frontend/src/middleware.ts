@@ -7,9 +7,6 @@ const intlMiddleware = createMiddleware(routing);
 const publicRoutes = [
   "/",
   "/login",
-  "/feedback",
-  "/complaint",
-  "/track-complaint",
   "/forgot-password",
 ];
 const authRoutes = ["/login"];
@@ -25,7 +22,7 @@ export default function middleware(req: NextRequest) {
     routing.locales.find((l) => pathname.startsWith(`/${l}`)) ??
     routing.defaultLocale;
 
-  // Strip the locale prefix and any trailing slash so "/en/complaint/" matches "/complaint"
+  // Strip the locale prefix and any trailing slash so "/en/login/" matches "/login"
   const pathnameWithoutLocale =
     pathname.replace(new RegExp(`^/${locale}(?=/|$)`), "").replace(/\/+$/, "") || "/";
 

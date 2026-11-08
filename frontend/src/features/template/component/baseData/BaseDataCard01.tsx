@@ -3,30 +3,21 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Eye, FileText, Users, Car, Building } from "lucide-react";
+import { Building } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { PermissionGuard } from "@/features/complaint-management/component/PermissionGuard";
+import { PermissionGuard } from "@/components/auth/InlinePermissionGuard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { PermissionKey } from "@/lib/permissions";
 
 const dataCards: DataCardItem[] = [
   {
     id: 1,
-    title: "Sectors",
-    subtitle: "All registered sectors",
+    title: "Organization",
+    subtitle: "Ministry units and departments",
     icon: Building,
     link: "/basedata/sectors",
     permission: ["SECTOR:READ", "SECTOR:UPDATE", "SECTOR:DELETE", "SECTOR:CREATE"],
   },
-  {
-    id: 0,
-    title: "Complaint Categories",
-    subtitle: "All registered complaint categories",
-    icon: FileText,
-    link: "/basedata/complaint-categories",
-    permission: ["COMPLAINT_CATEGORIES:READ", "COMPLAINT_CATEGORIES:UPDATE", "COMPLAINT_CATEGORIES:DELETE", "COMPLAINT_CATEGORIES:CREATE"],
-  },
-
 ];
 
 

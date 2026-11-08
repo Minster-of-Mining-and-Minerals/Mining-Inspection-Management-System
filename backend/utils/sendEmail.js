@@ -29,7 +29,7 @@ const sendEmail = async (to, subject, text) => {
 
     // Define mail options
     const mailOptions = {
-      from: `"${process.env.APP_NAME || "Compliant Management System"}" <${process.env.EMAIL_USER}>`,
+      from: `"${process.env.APP_NAME || "Mining Inspection Management System"}" <${process.env.EMAIL_USER}>`,
       to,
       subject,
       text,

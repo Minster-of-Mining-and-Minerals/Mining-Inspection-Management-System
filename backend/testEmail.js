@@ -8,7 +8,7 @@ const { sendEmail } = require("./utils/sendEmail");
     await sendEmail(
       process.env.EMAIL_USER,
       "Email",
-      "This email is from MoM Complaints and Compliments Management System."
+      "This email is from MoM Mining Inspection Management System."
     );
 
     console.log("Email sent successfully!");

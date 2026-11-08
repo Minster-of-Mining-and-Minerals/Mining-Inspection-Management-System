@@ -6,10 +6,9 @@ import {
     Bell,
     CheckCircle,
     AlertCircle,
-    MessageSquare,
+    AlertTriangle,
+    ClipboardCheck,
     CheckCheck,
-    X,
-    User,
     Shield,
     ChevronRight,
 } from "lucide-react";
@@ -24,49 +23,27 @@ import {
 } from "@/redux/api/notificationApi";
 import { Notification } from "@/redux/types/notification";
 import { formatRelativeTime } from "@/utils/date";
-
-/* ================= CATEGORY MAP ================= */
-
-const CATEGORY_MAP = {
-  COMPLAINT: [
-    "COMPLAINT_SUBMITTED",
-    "COMPLAINT_ASSIGNED",
-    "COMPLAINT_RESOLVED",
-    "COMPLAINT_ASSIGNMENT_UPDATE",
-    "SUBMISSION_SUCCESS",
-  ],
-  FEEDBACK: ["FEEDBACK_SUBMITTED"],
-  SYSTEM: ["SYSTEM_ALERT"],
-};
-
-import { usePermissions } from "@/hooks/usePermissions";
+import { getNotificationCategory, getNotificationLink } from "@/utils/notificationCategories";
 
 /* ================= HELPERS ================= */
 
 export const getNotificationIcon = (type: string) => {
-  switch (true) {
-    case CATEGORY_MAP.COMPLAINT.includes(type as any):
-      switch (type) {
-        case "COMPLAINT_ASSIGNED":
-        case "COMPLAINT_SUBMITTED":
-        case "SUBMISSION_SUCCESS":
-          return <Bell className="h-5 w-5 text-blue-500" />;
-        case "COMPLAINT_RESOLVED":
-          return <CheckCircle className="h-5 w-5 text-green-500" />;
-        case "COMPLAINT_ASSIGNMENT_UPDATE":
-           return <AlertCircle className="h-5 w-5 text-orange-500" />;
-        default:
-          return <Bell className="h-5 w-5 text-gray-500" />;
-      }
+  switch (type) {
+    case "INSPECTION_APPROVED":
+    case "FINDING_CLOSED":
+      return <CheckCircle className="h-5 w-5 text-green-500" />;
+    case "INSPECTION_RETURNED":
+    case "INSPECTION_OVERDUE":
+      return <AlertCircle className="h-5 w-5 text-orange-500" />;
+  }
 
-    case CATEGORY_MAP.FEEDBACK.includes(type as any):
-      return <MessageSquare className="h-5 w-5 text-purple-500" />;
-
-    case CATEGORY_MAP.SYSTEM.includes(type as any):
-      return <Shield className="h-5 w-5 text-gray-700" />;
-
+  switch (getNotificationCategory(type)) {
+    case "INSPECTION":
+      return <ClipboardCheck className="h-5 w-5 text-blue-500" />;
+    case "FINDING":
+      return <AlertTriangle className="h-5 w-5 text-red-500" />;
     default:
-      return <Bell className="h-5 w-5 text-gray-400" />;
+      return <Shield className="h-5 w-5 text-gray-700" />;
   }
 };
 
@@ -118,7 +95,6 @@ const NotificationItem = ({
 export default function NotificationDropdown({ variant = "light" }: { variant?: "light" | "dark" } = {}) {
   const { data: session } = useSession();
   const router = useRouter();
-  const { can } = usePermissions();
 
   const [isOpen, setIsOpen] = useState(false);
 
@@ -137,14 +113,9 @@ export default function NotificationDropdown({ variant = "light" }: { variant?: 
       await markAsRead(notification.notification_id).unwrap();
     }
 
-    // Navigation logic based on entity and permissions
-    if (notification.related_entity_type === "complaint" && notification.related_entity_id) {
-      const baseUrl = can("COMPLAINT:READ_ALL") ? "/compliants" : "/my-complaints";
-      router.push(`${baseUrl}/${notification.related_entity_id}`);
-    } else if (notification.related_entity_type === "feedback") {
-      router.push("/feedbacks");
-    }
-    
+    const link = getNotificationLink(notification);
+    if (link) router.push(link);
+
     setIsOpen(false);
   };
 

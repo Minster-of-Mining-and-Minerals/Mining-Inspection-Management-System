@@ -1,34 +1,20 @@
 import PublicHeader from "@/components/layout/public-header";
 import { Link } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { AlertTriangle, ArrowRight, MessageSquare, Search } from "lucide-react";
-import QuickTrackCard from "@/features/public-interface-management/component/QuickTrackCard";
+import { ArrowRight, Building2, ClipboardCheck, MapPin, Users } from "lucide-react";
+import StaffAccessCard from "@/components/layout/StaffAccessCard";
 
 export default function Home() {
   const t = useTranslations("HomePage");
 
-  const services = [
-    {
-      key: "complaint",
-      href: "/complaint",
-      icon: AlertTriangle,
-      featured: true,
-    },
-    {
-      key: "track",
-      href: "/track-complaint",
-      icon: Search,
-      featured: false,
-    },
-    {
-      key: "feedback",
-      href: "/feedback",
-      icon: MessageSquare,
-      featured: false,
-    },
+  const features = [
+    { key: "companies", icon: Building2, featured: true },
+    { key: "teams", icon: Users, featured: false },
+    { key: "checklists", icon: ClipboardCheck, featured: false },
+    { key: "verification", icon: MapPin, featured: false },
   ] as const;
 
-  const steps = ["submit", "review", "resolve"] as const;
+  const steps = ["plan", "checkin", "inspect", "review"] as const;
 
   return (
     <div className="min-h-screen flex flex-col bg-white font-sans">
@@ -56,73 +42,64 @@ export default function Home() {
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
               <Link
-                href="/complaint"
+                href="/login"
                 className="group inline-flex items-center justify-center gap-2 rounded-xl bg-golden-bright px-7 py-4 text-base font-bold text-primary transition-colors hover:bg-golden-bright/90 focus:outline-none focus:ring-2 focus:ring-golden-bright focus:ring-offset-2 focus:ring-offset-primary"
               >
-                {t("actions.complaint")}
+                {t("actions.signIn")}
                 <ArrowRight className="h-5 w-5 transition-transform group-hover:translate-x-0.5" />
               </Link>
-              <Link
-                href="/feedback"
+              <a
+                href="#how-it-works"
                 className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/45 bg-[#04263A]/35 px-7 py-4 text-base font-semibold text-white transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-primary"
               >
-                {t("actions.feedback")}
-              </Link>
+                {t("actions.howItWorks")}
+              </a>
             </div>
           </div>
 
-          {/* Quick tracking */}
+          {/* Staff access */}
           <div className="lg:col-span-5">
             <div className="mx-auto max-w-md lg:max-w-none">
-              <QuickTrackCard />
+              <StaffAccessCard />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Services */}
-      <section className="border-b border-slate-200 bg-slate-50">
+      {/* Features */}
+      <section id="features" className="scroll-mt-20 border-b border-slate-200 bg-slate-50">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
-          <h2 className="text-[length:clamp(1.5rem,4.5vw,1.875rem)] font-bold text-slate-900">{t("services.title")}</h2>
-          <p className="mt-2 text-slate-600">{t("services.subtitle")}</p>
+          <h2 className="text-[length:clamp(1.5rem,4.5vw,1.875rem)] font-bold text-slate-900">{t("features.title")}</h2>
+          <p className="mt-2 text-slate-600">{t("features.subtitle")}</p>
 
-          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-3 md:gap-6">
-            {services.map(({ key, href, icon: Icon, featured }) => (
-              <Link
+          <div className="mt-8 grid grid-cols-1 gap-5 md:grid-cols-2 md:gap-6 xl:grid-cols-4">
+            {features.map(({ key, icon: Icon, featured }) => (
+              <div
                 key={key}
-                href={href}
-                className={`group flex min-h-[13.5rem] flex-col gap-3.5 rounded-2xl p-7 transition-shadow hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-offset-2
-                  ${featured
-                    ? "bg-primary text-white focus:ring-primary"
-                    : "border border-slate-200 bg-white text-slate-900 focus:ring-primary"
-                  }`}
+                className={`flex min-h-[13.5rem] flex-col gap-3.5 rounded-2xl p-7
+                  ${featured ? "bg-primary text-white" : "border border-slate-200 bg-white text-slate-900"}`}
               >
                 <span
                   className={`flex h-12 w-12 items-center justify-center rounded-xl ${featured ? "bg-white/10 text-golden-bright" : "bg-golden-dark/10 text-golden-deep"}`}
                 >
                   <Icon className="h-6 w-6" />
                 </span>
-                <span className="text-xl font-bold">{t(`services.${key}.title`)}</span>
+                <span className="text-xl font-bold">{t(`features.${key}.title`)}</span>
                 <span className={`flex-1 text-[0.9375rem] leading-relaxed ${featured ? "text-slate-300" : "text-slate-600"}`}>
-                  {t(`services.${key}.text`)}
+                  {t(`features.${key}.text`)}
                 </span>
-                <span
-                  className={`inline-flex items-center gap-1.5 font-semibold ${featured ? "text-golden-bright" : "text-primary"}`}
-                >
-                  {t(`services.${key}.cta`)}
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                </span>
-              </Link>
+              </div>
             ))}
           </div>
         </div>
       </section>
 
       {/* How it works */}
-      <section className="bg-white">
+      <section id="how-it-works" className="scroll-mt-20 bg-white">
         <div className="mx-auto max-w-7xl px-4 py-14 sm:px-6 lg:px-8 lg:py-16">
           <h2 className="text-center text-2xl font-bold text-slate-900">{t("howItWorks.title")}</h2>
-          <ol className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+          <p className="mt-2 text-center text-slate-600">{t("howItWorks.subtitle")}</p>
+          <ol className="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
             {steps.map((step, index) => (
               <li key={step} className="flex items-start gap-4">
                 <span
@@ -147,9 +124,9 @@ export default function Home() {
             © {new Date().getFullYear()} {t("footer.rights")}
           </p>
           <nav className="flex flex-wrap justify-center gap-5 text-white/80">
-            <Link href="/complaint" className="hover:text-white">{t("actions.complaint")}</Link>
-            <Link href="/track-complaint" className="hover:text-white">{t("actions.track")}</Link>
-            <Link href="/feedback" className="hover:text-white">{t("actions.feedback")}</Link>
+            <a href="#features" className="hover:text-white">{t("footer.features")}</a>
+            <a href="#how-it-works" className="hover:text-white">{t("footer.howItWorks")}</a>
+            <Link href="/login" className="hover:text-white">{t("actions.signIn")}</Link>
           </nav>
         </div>
       </footer>

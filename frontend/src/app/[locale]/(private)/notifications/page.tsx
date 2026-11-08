@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { Bell, AlertCircle, MessageSquare, Shield, CheckCheck, ChevronRight } from "lucide-react";
+import { Bell, CheckCheck, ChevronRight } from "lucide-react";
 import clsx from "clsx";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -12,32 +12,15 @@ import {
 } from "@/redux/api/notificationApi";
 import { Notification } from "@/redux/types/notification";
 import { compareUtcDates, formatDateLabel, formatTime } from "@/utils/date";
-import { usePermissions } from "@/hooks/usePermissions";
+import {
+    NOTIFICATION_CATEGORIES as CATEGORIES,
+    NotificationCategory as Category,
+    getNotificationCategory as getCategory,
+    getNotificationLink,
+    matchesNotificationCategory as matchesCategory,
+} from "@/utils/notificationCategories";
 
-/* =========================
-   CATEGORY CONFIG
-========================= */
-
-const CATEGORY_MAP = {
-    COMPLAINT: [
-        "COMPLAINT_SUBMITTED",
-        "COMPLAINT_ASSIGNED",
-        "COMPLAINT_RESOLVED",
-        "COMPLAINT_ASSIGNMENT_UPDATE",
-        "SUBMISSION_SUCCESS",
-    ],
-    FEEDBACK: ["FEEDBACK_SUBMITTED"],
-    SYSTEM: ["SYSTEM_ALERT", "BROADCAST_MESSAGE"],
-} as const;
-
-type Category = keyof typeof CATEGORY_MAP;
 type StatusFilter = "ALL" | "UNREAD" | "READ";
-
-const CATEGORIES: { key: Category; label: string; icon: React.ElementType }[] = [
-    { key: "COMPLAINT", label: "Complaints", icon: AlertCircle },
-    { key: "FEEDBACK", label: "Feedback", icon: MessageSquare },
-    { key: "SYSTEM", label: "System", icon: Shield },
-];
 
 const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
     { key: "ALL", label: "All" },
@@ -49,40 +32,16 @@ const STATUS_OPTIONS: { key: StatusFilter; label: string }[] = [
    HELPERS
 ========================= */
 
-const matchesCategory = (category: Category, type: string): boolean =>
-    (CATEGORY_MAP[category] as readonly string[]).includes(type);
-
-const getCategory = (type: string): Category =>
-    CATEGORIES.find((c) => matchesCategory(c.key, type))?.key ?? "SYSTEM";
-
 const typeLabel = (type: string) =>
     type.replace(/_/g, " ").toLowerCase().replace(/^\w/, (c) => c.toUpperCase());
-
-/** Highlights the complaint ticket code inside the message text. */
-const renderMessage = (n: Notification) => {
-    const code = n.complaint?.ticketing_code;
-    if (!code || !n.message.includes(code)) return n.message;
-    const parts = n.message.split(code);
-    return parts.map((part, i) => (
-        <React.Fragment key={i}>
-            {part}
-            {i < parts.length - 1 && (
-                <span className="mx-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-semibold text-primary">
-                    {code}
-                </span>
-            )}
-        </React.Fragment>
-    ));
-};
 
 /* =========================
    COMPONENT
 ========================= */
 const Notifications = () => {
     const router = useRouter();
-    const { can } = usePermissions();
 
-    const [activeCategory, setActiveCategory] = useState<Category>("COMPLAINT");
+    const [activeCategory, setActiveCategory] = useState<Category>("INSPECTION");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
     const { data: notifications = [], isLoading } = useGetMyNotificationsQuery(undefined, {
@@ -92,14 +51,14 @@ const Notifications = () => {
     const [markAllAsRead, { isLoading: isMarkingAll }] = useMarkAllAsReadMutation();
 
     const unreadByCategory = useMemo(() => {
-        const counts: Record<Category, number> = { COMPLAINT: 0, FEEDBACK: 0, SYSTEM: 0 };
+        const counts: Record<Category, number> = { INSPECTION: 0, FINDING: 0, SYSTEM: 0 };
         notifications.forEach((n) => {
             if (!n.is_read) counts[getCategory(n.type)] += 1;
         });
         return counts;
     }, [notifications]);
 
-    const totalUnread = unreadByCategory.COMPLAINT + unreadByCategory.FEEDBACK + unreadByCategory.SYSTEM;
+    const totalUnread = unreadByCategory.INSPECTION + unreadByCategory.FINDING + unreadByCategory.SYSTEM;
 
     /* =========================
        HANDLERS
@@ -120,12 +79,8 @@ const Notifications = () => {
             );
         }
 
-        if (notification.related_entity_type === "complaint" && notification.related_entity_id) {
-            const baseUrl = can("COMPLAINT:READ_ALL") ? "/compliants" : "/my-complaints";
-            router.push(`${baseUrl}/${notification.related_entity_id}`);
-        } else if (notification.related_entity_type === "feedback") {
-            router.push("/feedbacks");
-        }
+        const link = getNotificationLink(notification);
+        if (link) router.push(link);
     };
 
     const filteredNotifications = useMemo(() => {
@@ -294,7 +249,7 @@ const Notifications = () => {
                                                     n.is_read ? "text-slate-500" : "text-slate-700"
                                                 )}
                                             >
-                                                {renderMessage(n)}
+                                                {n.message}
                                             </p>
 
                                             <div className="mt-2 flex items-center gap-2">

@@ -442,48 +442,6 @@ const getUsers = async (req, res) => {
 };
 
 
-const { getSameSectorInternalUsers, resolveFilerSectorNodeId } = require("../../services/sectorScopeService");
-
-const getSameSectorUsers = async (req, res) => {
-  try {
-    const userId = req.user?.user_id;
-    const filerSectorNodeId = await resolveFilerSectorNodeId(userId);
-
-    if (!filerSectorNodeId) {
-      return res.status(400).json({
-        success: false,
-        message: "You must belong to a sector or department to list colleagues.",
-      });
-    }
-
-    const { search, page = 1, limit = 50 } = req.query;
-    const result = await getSameSectorInternalUsers(
-      userId,
-      filerSectorNodeId,
-      { search, page, limit },
-    );
-
-    return res.status(200).json({
-      success: true,
-      message: "Same-sector users fetched successfully.",
-      data: result.rows,
-      meta: {
-        totalItems: result.count,
-        totalPages: Math.ceil(result.count / parseInt(limit, 10)),
-        currentPage: parseInt(page, 10),
-        itemsPerPage: parseInt(limit, 10),
-      },
-    });
-  } catch (error) {
-    console.error("Error fetching same-sector users:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch same-sector users.",
-      error: error.message,
-    });
-  }
-};
-
 const getUserById = async (req, res) => {
   try {
     const { id: user_id } = req.params;
@@ -736,7 +694,6 @@ const getProfile = async (req, res) => {
 module.exports = {
   createUser,
   getUsers,
-  getSameSectorUsers,
   getUserById,
   updateUser,
   deleteUser,

@@ -1,7 +1,7 @@
 import React from "react";
 import { BiToggleLeft, BiToggleRight } from "react-icons/bi";
 import { Permission } from "../../types/permission";
-import { PermissionGuard } from "@/features/complaint-management/component/PermissionGuard";
+import { PermissionGuard } from "@/components/auth/InlinePermissionGuard";
 
 interface PermissionItemProps {
   permission: Permission;

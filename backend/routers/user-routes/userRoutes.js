@@ -3,7 +3,6 @@ const router = express.Router();
 const {
   createUser,
   getUsers,
-  getSameSectorUsers,
   getUserById,
   updateUser,
   deleteUser,
@@ -77,8 +76,6 @@ router.get("/positions", getUserPositions);
  *         description: List of users
  */
 router.get("/", getUsers);
-
-router.get("/same-sector", authenticateToken, getSameSectorUsers);
 
 /**
  * @swagger

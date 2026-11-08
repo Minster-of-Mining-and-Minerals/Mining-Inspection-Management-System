@@ -4,20 +4,10 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class Attachment extends Model {
     static associate(models) {
-      // Junction: Attachment ↔ Complaint
-      Attachment.hasMany(models.ComplaintAttachment, {
-        foreignKey: "attachment_id",
-        as: "complaintAttachments",
-      });
-      // Junction: Attachment ↔ ResolutionAttachemnt
-      Attachment.hasMany(models.ResolutionAttachment, {
-        foreignKey: "attachment_id",
-        as: "resolutionAttachments",
-      });
-      // Junction: Attachment ↔ ComplaintNote
-      Attachment.hasMany(models.ComplaintNote, {
-        foreignKey: "attachment_id",
-        as: "complaintNotes",
+      Attachment.belongsTo(models.User, {
+        foreignKey: "uploaded_by",
+        constraints: false,
+        as: "uploader",
       });
     }
   }

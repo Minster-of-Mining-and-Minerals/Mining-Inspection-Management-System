@@ -22,17 +22,6 @@ export const userApi = baseApi.injectEndpoints({
       providesTags: ["User"],
     }),
 
-    getSameSectorUsers: builder.query<
-      PaginatedResponse<User>,
-      { search?: string; page?: number; limit?: number } | void
-    >({
-      query: (params) =>
-        params
-          ? { url: "/users/same-sector", params }
-          : { url: "/users/same-sector" },
-      providesTags: ["User"],
-    }),
-
     /** ---------------------------
      * GET USER BY ID
      * --------------------------- */
@@ -172,7 +161,6 @@ export const userApi = baseApi.injectEndpoints({
 
 export const {
   useGetUsersQuery,
-  useGetSameSectorUsersQuery,
   useGetUserByIdQuery,
   useGetProfileQuery,
   useCreateUserMutation,

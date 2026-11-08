@@ -15,7 +15,7 @@ import { SectorNode } from "@/redux/types/sectorNode";
 import { CustomNodeProps, D3TreeNode, HierarchyD3TreeProps } from "@/types/d3treeNode";
 import { CreateChildModal } from "@/components/common/modals/CreateChildModal";
 import { buildSectorTree } from "@/utils/buildSectorTree";
-import { PermissionGuard } from "@/features/complaint-management/component/PermissionGuard";
+import { PermissionGuard } from "@/components/auth/InlinePermissionGuard";
 
 /**
  * Converts a StructureNode to D3Tree format

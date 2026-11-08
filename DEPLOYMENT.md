@@ -8,9 +8,9 @@ This guide walks through deploying the application to production using Let's Enc
 Before starting the deployment, ensure your DNS A record points to the public IP address of your server.
 You can verify this by running:
 ```bash
-nslookup complaint.mom.gov.et
+nslookup inspection.mom.gov.et
 # OR
-dig complaint.mom.gov.et
+dig inspection.mom.gov.et
 ```
 The output should return your server's public IP address. **Do not proceed** until DNS has propagated, as Let's Encrypt will fail to validate the domain.
 
@@ -21,7 +21,7 @@ Ensure the following inbound ports are open and accessible from the public inter
 
 You can verify port 80 is open from an external machine:
 ```bash
-curl -I http://complaint.mom.gov.et
+curl -I http://inspection.mom.gov.et
 ```
 
 ---
@@ -46,7 +46,7 @@ Run the initialization script. This will use Certbot to request a certificate vi
 ### 3. Verify
 Once `./init-letsencrypt.sh` finishes, it will automatically restart Nginx. Nginx will detect the new certificates and switch to "Production Mode" (serving HTTPS on port 443).
 
-Navigate to `https://complaint.mom.gov.et` in your browser. The site should load securely with a valid Let's Encrypt certificate.
+Navigate to `https://inspection.mom.gov.et` in your browser. The site should load securely with a valid Let's Encrypt certificate.
 
 ---
 
@@ -55,7 +55,7 @@ Navigate to `https://complaint.mom.gov.et` in your browser. The site should load
 The `certbot` container runs a background loop that checks for expiring certificates every 12 hours.
 ```bash
 while :; do
-  certbot renew --deploy-hook "docker exec cms_nginx nginx -s reload"
+  certbot renew --deploy-hook "docker exec mims_nginx nginx -s reload"
   sleep 12h
 done
 ```

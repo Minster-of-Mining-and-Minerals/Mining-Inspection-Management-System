@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Eye, Edit, Trash, Plus } from "lucide-react";
 import { ActionButton, FilterField } from "@/types/tableLayout";
 import { CreateSectorModal } from "@/components/common/modals/CreateSectorModal";
-import { PermissionGuard } from "@/features/complaint-management/component/PermissionGuard";
+import { PermissionGuard } from "@/components/auth/InlinePermissionGuard";
 
 export default function ChildSectorList() {
     const params = useParams();

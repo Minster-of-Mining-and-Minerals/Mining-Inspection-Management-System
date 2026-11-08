@@ -35,7 +35,7 @@ const baseQueryWithReauth: BaseQueryFn = async (args, api, extraOptions) => {
 
   if (result.error && result.error.status === 401 && !isChangePassword) {
     // Only log out users who actually have a session — anonymous visitors on
-    // public pages (complaint, feedback, tracking) must never be sent to login.
+    // pages (e.g. login, forgot password) must never be sent to login.
     const session = await getSession();
     if (session?.accessToken) {
       console.warn("Unauthorized! Forced logout triggered.");
@@ -53,15 +53,8 @@ export const baseApi = createApi({
     "Roles",
     "Permissions",
     "SectorNode",
-    "Complaint",
-    "ComplaintCategory",
-    "ComplaintAssignment",
-    "ComplaintSectorAssignment",
-    "ComplaintResolution",
     "Attachment",
-    "Feedback",
     "Dashboard",
-    "Representative",
     "Notification",
     "Profile",
   ],

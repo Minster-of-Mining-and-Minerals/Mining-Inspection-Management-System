@@ -1,332 +1,80 @@
 {
   "HomePage": {
-    "badge": "ይፋዊ የህዝብ ቅሬታና አስተያየት መድረክ",
+    "badge": "ይፋዊ የመስክ ቁጥጥርና የሕግ ተገዢነት መድረክ",
     "heading": {
-      "line1": "ግልጽነትና ተጠያቂነትን ማረጋገጥ",
-      "line2": "በማዕድን ዘርፍ"
+      "line1": "የተረጋገጠ የመስክ ቁጥጥር",
+      "line2": "ለተጠያቂ የማዕድን ዘርፍ"
     },
-    "description": "በማዕድን ሚኒስቴር የተቋቋመ ደህንነቱ የተጠበቀና ግልጽ ዲጂታል መድረክ፣ የህዝብ ቅሬታዎችንና አስተያየቶችን ለመቀበል፣ ለመከታተልና ለመፍታት። ዜጎችን ማበረታታት፣ አገልግሎትን ማሻሻልና ተጠያቂነትን ማጠናከር።",
+    "description": "የፍለጋና የማውጣት ፈቃድ በወሰዱ የማዕድን ኩባንያዎች ላይ በመላ ሀገሪቱ የሚካሄደውን የመስክ ቁጥጥር ለማቀድ፣ ለማካሄድና ለመገምገም በማዕድን ሚኒስቴር የተዘጋጀ ዲጂታል መድረክ። የቁጥጥር ቡድኖች ደረጃውን የጠበቀ ቼክሊስት በሳይት ላይ ይሞላሉ፣ እያንዳንዱ ጉብኝት በቦታ መረጃ ይረጋገጣል፣ ውጤቱም እንደቀረበ ለውሳኔ ሰጪዎች ይደርሳል።",
     "actions": {
-      "complaint": "ቅሬታ ያቅርቡ",
-      "feedback": "አስተያየት ይስጡ",
-      "track": "ቅሬታ ይከታተሉ",
-      "feedbackPrompt": "አስተያየት አለዎት?"
+      "signIn": "ግባ",
+      "howItWorks": "እንዴት ይሰራል"
     },
-    "ministry": "የማዕድን ሚኒስቴር፣ ኢትዮጵያ",
-    "trust": {
-      "secure": "ደህንነቱ የተጠበቀ እና ሚስጥራዊ",
-      "anonymous": "ስም ሳይገልጹ ማቅረብ ይቻላል",
-      "track": "ሂደቱን በማንኛውም ጊዜ ይከታተሉ"
+    "staffAccess": {
+      "title": "የሠራተኞችና የተቆጣጣሪዎች መግቢያ",
+      "subtitle": "ለማዕድን ሚኒስቴር ሠራተኞችና ለተመደቡ የቁጥጥር ቡድኖች።",
+      "points": {
+        "assigned": "ለቡድንዎ የተመደቡ ኩባንያዎችንና ቁጥጥሮችን ይመልከቱ",
+        "checklist": "የመስክ ክትትል ቼክሊስቱን በስልክዎ ከፎቶና ማስረጃ ጋር ይሙሉ",
+        "location": "የሳይት ጉብኝቱን ለማረጋገጥ ሲገቡና ሲያስረክቡ ያሉበት ቦታ ይመዘገባል"
+      },
+      "button": "ግባ",
+      "hint": "መለያዎች የሚፈጠሩት በሲስተም አስተዳዳሪው ነው። መግቢያ ከፈለጉ ተቆጣጣሪዎን ያነጋግሩ።"
     },
-    "quickTrack": {
-      "title": "ቅሬታዎን ይከታተሉ",
-      "subtitle": "አስቀድመው አቅርበዋል? ሁኔታውን ይመልከቱ።",
-      "label": "የመከታተያ ቁጥር",
-      "button": "ተከታተል",
-      "required": "እባክዎ የመከታተያ ቁጥርዎን ያስገቡ።",
-      "hint": "ይህን ቁጥር ቅሬታዎን ሲያቀርቡ ተቀብለዋል።"
+    "features": {
+      "title": "ሲስተሙ የሚሸፍናቸው",
+      "subtitle": "ፈቃድ ያላቸው ኩባንያዎች፣ የቁጥጥር ቡድኖች፣ ቼክሊስቶችና ውጤቶች በአንድ ቦታ።",
+      "companies": {
+        "title": "ኩባንያዎችና ፈቃዶች",
+        "text": "የፍለጋና የማውጣት ፈቃድ ያላቸውን ከፈቃድ ቁጥር፣ ከማዕድን ዓይነት፣ ከክልል፣ ዞንና ወረዳ ጋር ይመዝግቡ።"
+      },
+      "teams": {
+        "title": "የቁጥጥር ቡድኖች",
+        "text": "የተቆጣጣሪዎች ቡድን ያዋቅሩ፣ ለኩባንያዎች ይመድቡ እና ተደጋጋሚ የቁጥጥር ዙሮችን ያቅዱ።"
+      },
+      "checklists": {
+        "title": "ዲጂታል ቼክሊስቶች",
+        "text": "ቼክሊስት አንድ ጊዜ አዘጋጅተው ለብዙ ኩባንያዎች ይጠቀሙ — የሕግ ተገዢነት፣ የሥራ ደህንነት፣ አካባቢ፣ ማኅበረሰብና ምርት።"
+      },
+      "verification": {
+        "title": "በሳይት ላይ ማረጋገጫ",
+        "text": "በእያንዳንዱ ቁጥጥር የGPS ቦታና የመሣሪያ መረጃ ይመዘገባል፤ ተቆጣጣሪዎች ጉብኝቱ በእርግጥ መካሄዱን ያውቃሉ።"
+      }
     },
     "howItWorks": {
       "title": "እንዴት ይሰራል",
-      "subtitle": "ከማቅረብ እስከ መፍትሄ ሶስት ቀላል ደረጃዎች።",
+      "subtitle": "ዙርን ከማቀድ እስከ የተገመገመ የቁጥጥር ሪፖርት።",
       "steps": {
-        "submit": {
-          "title": "ያቅርቡ",
-          "text": "ቅሬታዎን ይግለጹ እና ማስረጃ ያያይዙ። ስምዎን ሳይገልጹ ማቅረብ ይችላሉ።"
+        "plan": {
+          "title": "ዙሩን ያቅዱ",
+          "text": "ተቆጣጣሪዎች የቁጥጥር ዙር ከፍተው ቡድኖችንና ቼክሊስቶችን ለኩባንያዎች ይመድባሉ።"
+        },
+        "checkin": {
+          "title": "በሳይት ላይ ይግቡ",
+          "text": "ተቆጣጣሪዎች በኩባንያው ሳይት ላይ ይገባሉ፤ ቦታና መሣሪያ ይመዘገባሉ።"
+        },
+        "inspect": {
+          "title": "ይቆጣጠሩና ያስረክቡ",
+          "text": "ቡድኑ ቼክሊስቱን ከማስረጃና ፎቶ ጋር ሞልቶ በፊርማ ያስረክባል።"
         },
         "review": {
-          "title": "እንገመግማለን",
-          "text": "ቅሬታዎ ወደሚመለከተው ዘርፍ ተልኮ ለባለሙያ ይመደባል።"
-        },
-        "resolve": {
-          "title": "ምላሽ ያግኙ",
-          "text": "በመከታተያ ቁጥርዎ ሂደቱን ይከታተሉ እና ኦፊሴላዊ ምላሹን ያንብቡ።"
+          "title": "ይገምግሙና ይከታተሉ",
+          "text": "ሪፖርቱ ይገመገማል፣ ግኝቶች እስኪዘጉ ይከታተላሉ፣ ዳሽቦርዱም ይዘምናል።"
         }
       }
     },
     "footer": {
-      "rights": "የማዕድን ሚኒስቴር፣ የኢትዮጵያ ፌዴራላዊ ዴሞክራሲያዊ ሪፐብሊክ።"
-    },
-    "services": {
-      "title": "ዛሬ እንዴት ልንረዳዎ እንችላለን?",
-      "subtitle": "ለመጀመር አገልግሎት ይምረጡ።",
-      "complaint": {
-        "title": "ቅሬታ ያቅርቡ",
-        "text": "የተፈጠረውን ይግለጹ እና ማስረጃ ያያይዙ። ስም ሳይገልጹ ማቅረብ ይቻላል።",
-        "cta": "አሁን ይጀምሩ"
-      },
-      "track": {
-        "title": "ቅሬታ ይከታተሉ",
-        "text": "ሁኔታውን፣ የተወሰዱ እርምጃዎችን እና ኦፊሴላዊ ምላሹን ይመልከቱ።",
-        "cta": "ሁኔታውን ይመልከቱ"
-      },
-      "feedback": {
-        "title": "አስተያየት ይስጡ",
-        "text": "አገልግሎታችንን ለማሻሻል ሀሳብ ያጋሩ ወይም አገልግሎታችንን ይገምግሙ።",
-        "cta": "አስተያየት ያጋሩ"
-      }
+      "rights": "የማዕድን ሚኒስቴር፣ የኢትዮጵያ ፌዴራላዊ ዴሞክራሲያዊ ሪፐብሊክ።",
+      "features": "ባህሪያት",
+      "howItWorks": "እንዴት ይሰራል"
     }
   },
   "PublicHeader": {
-    "logoLine1": "የማዕድን ሚኒስቴር",
-    "tabs": {
-      "home": "መነሻ",
-      "complaint": "ቅሬታ",
-      "feedback": "አስተያየት",
-      "trackComplaint": "ቅሬታ ይከታተሉ"
-    },
-    "login": "ግባ",
-    "openMenu": "ምናሌ ክፈት",
-    "closeMenu": "ምናሌ ዝጋ"
-  },
-  "ComplaintPage": {
-    "title": "ቅሬታ ያቅርቡ",
-    "subtitle": "ቅሬታዎን ለማቅረብ ከታች ያለውን ቅጽ በትክክል ይሙሉ። ትክክለኛና ሙሉ መረጃ መስጠት ቅሬታዎን በፍጥነት እንዲከናወን ይረዳል።",
-    "personalInfo": {
-      "title": "የግል መረጃ",
-      "optional": "(አማራጭ)",
-      "fullName": "ሙሉ ስም",
-      "fullNamePlaceholder": "ሙሉ ስምዎን ያስገቡ",
-      "phone": "ስልክ ቁጥር",
-      "phonePlaceholder": "የስልክ ቁጥርዎን ያስገቡ",
-      "email": "ኢሜይል",
-      "emailPlaceholder": "የኢሜይል አድራሻዎን ያስገቡ",
-      "city": "ከተማ / ክልል",
-      "cityPlaceholder": "ከተማዎን ወይም ክልሎትን ያስገቡ",
-      "subCityPlaceholder": "ክፍለ ከተማዎን ወይም ዞኑን ያስገቡ",
-      "subCity": "ክፍለ ከተማ / ዞን",
-      "woreda": "ወረዳ",
-      "woredaPlaceholder": "ወረዳዎን ያስገቡ",
-      "shareHint": "ስለ ቅሬታዎ ለማሳወቅ እንድንችል የመገኛ መረጃዎን ያጋሩ።",
-      "anonymousTip": "መረጃዎን ማጋራት አይፈልጉም? “ስም ሳይገለጽ ቀጥል” የሚለውን ይምረጡ። የመከታተያ ቁጥርዎን በጥንቃቄ ያስቀምጡ — ስም ያልተገለጸበትን ቅሬታ ለመከታተል ብቸኛው መንገድ ነው።",
-      "anonymousHint": "ስምዎን ሳይገልጹ እያስገቡ ነው።",
-      "anonymousNotice": "ቅሬታዎ ስም ሳይገለጽ ይላካል። የመከታተያ ቁጥርዎን በጥንቃቄ ያስቀምጡ — ቅሬታዎን ለመከታተል ብቸኛው መንገድ ነው።",
-      "hide": "ስም ሳይገለጽ ላክ",
-      "show": "የመገኛ መረጃዬን አጋራ"
-    },
-    "details": {
-      "title": "የቅሬታ ዝርዝሮች",
-      "category": "ምድብ",
-      "categoryPlaceholder": "ምድብ ይምረጡ",
-      "incidentDate": "የክስተቱ ቀን",
-      "sector": "{category}ን የሚቀበል ዘርፍ",
-      "sectorPlaceholder": "ዘርፍ ያስገቡ",
-      "department": "{category}ን የሚቀበል ክፍል",
-      "departmentPlaceholder": "{category}ን የሚቀበል ክፍል ያስገቡ",
-      "personConcerned": "የተመለከተው ሰው ስም",
-      "personConcernedPlaceholder": "የተመለከተው ሰው ስም ያስገቡ",
-      "description": "የ{category} መግለጫ",
-      "descriptionPlaceholder": "የ{category} ዝርዝር መግለጫ ያቀርቡ",
-      "requestedAction": "የሚፈለገው እርምጃ",
-      "requestedActionPlaceholder": "የሚወሰነውን እርምጃ ያስSpecify",
-      "evidence": "ማስረጃ",
-      "evidencePlaceholder": "የሚያግዙ ሰነዶች ወይም ማስረጃዎችን ያስገቡ",
-      "optional": "አማራጭ",
-      "noDepartment": "የተለየ ክፍል የለም",
-      "categoryFallback": "ቅሬታ"
-    },
-    "toast": {
-      "success": {
-        "submitted": "ቅሬታዎ በተሳካ ሁኔታ ተልኳል።",
-        "errors": "አንዳንድ ስህተቶች ነበሩ። እባክዎ ቅጹን ያረጋግጡ እና ደግመው ይሞክሩ።"
-      },
-      "error": {
-        "unexpected": "የአገልጋይ ስህተት ተፈጥሯል። እባክዎ እንደገና ይሞክሩ።",
-        "errors": "አንዳንድ ስህተቶች አሉ። እባክዎ ቅጹን አረጋግጠው እንደገና ይሞክሩ።"
-      }
-    },
-    "buttons": {
-      "cancel": "ሰርዝ",
-      "submit": "{category} አስገባ",
-      "next": "ቀጣይ",
-      "continueAnonymously": "ስም ሳይገለጽ ቀጥል",
-      "back": "ተመለስ",
-      "submitting": "{category} በመላክ ላይ..."
-    },
-    "tips": {
-      "title": "የቅሬታ መመሪያዎች",
-      "items": [
-        "መግለጫዎን ግልጽና አጭር ያድርጉ።",
-        "ተገቢ ቀናትና ዝርዝሮችን ያካትቱ።",
-        "አስፈላጊ ከሆነ የሚያግዙ ሰነዶችን ያያዙ።",
-        "ለክትትል የመገኛ መረጃዎን ያቅርቡ።",
-        "ያልተሟላ ወይም ግልጽ ያልሆነ ቅሬታ ለረዘም ጊዜ ሊወስድ ይችላል።"
-      ]
-    },
-    "steps": {
-      "label": "የቅጽ ሂደት",
-      "mobile": "ደረጃ {current} ከ{total}፡ {label}",
-      "personal": "የእርስዎ መረጃ",
-      "details": "የቅሬታ ዝርዝር",
-      "review": "ማስረጃ እና ማረጋገጫ"
-    },
-    "validation": {
-      "descriptionRequired": "እባክዎ ቅሬታዎን ይግለጹ።",
-      "descriptionMin": "መግለጫው ቢያንስ {min} ፊደላት መሆን አለበት።",
-      "sectorDepartmentRequired": "እባክዎ ቅሬታዎን የሚቀበለውን ዘርፍ ይምረጡ።",
-      "categoryRequired": "እባክዎ ምድብ ይምረጡ።",
-      "fullNameMin": "ሙሉ ስም ቢያንስ 3 ፊደላት መሆን አለበት።",
-      "emailInvalid": "እባክዎ ትክክለኛ የኢሜይል አድራሻ ያስገቡ።",
-      "phoneInvalid": "ስልክ ቁጥር ከ7 እስከ 20 አሃዞች መሆን አለበት።",
-      "personConcernedMin": "ስሙ ቢያንስ 10 ፊደላት መሆን አለበት፣ ወይም ባዶ ይተዉት።"
-    },
-    "review": {
-      "title": "ቅሬታዎን ይገምግሙ",
-      "edit": "አስተካክል",
-      "anonymous": "ስም አልተገለጸም",
-      "evidenceHint": "ቅሬታዎን የሚደግፉ ፎቶዎች፣ ሰነዶች ወይም PDF ፋይሎች።",
-      "files": "{count, plural, =0 {ምንም ፋይል አልተያያዘም} other {# ፋይል(ሎች) ተያይዟል}}"
-    }
-  },
-  "Feedback": {
-    "title": "አስተያየት ያቅርቡ",
-    "description": "እባክዎ ከታች ያለውን ፎርም በመሙላት አስተያየትዎን ያቅርቡ። አስተያየትዎ በትክክል እንዲታወቅ ትክክለኛና ሙሉ መረጃ ያቅርቡ።",
-    "fields": {
-      "fullName": "ሙሉ ስም",
-      "fullNamePlaceholder": "ሙሉ ስምዎን ያስገቡ",
-      "fullNameOptional": "(አማራጭ)",
-      "sector": "ዘርፍ የሚቀበል አስተያየት",
-      "sectorPlaceholder": "ዘርፍ ይምረጡ",
-      "feedbackDescription": "መግለጫ",
-      "feedbackPlaceholder": "አስተያየትዎን በዝርዝር ይግለጹ",
-      "rating": "ደረጃ",
-      "selectRating": "ደረጃ ይምረጡ",
-      "noSectors": "ምንም ዘርፍ የለም",
-      "sectorOptional": "(አማራጭ)"
-    },
-    "toast": {
-      "success": {
-        "submitted": "አስተያየትዎ በተሳካ ሁኔታ ተልኳል።"
-      },
-      "error": {
-        "unexpected": "ያልታወቀ ስህተት አጋጥሟል። እባክዎ ከዚያ በኋላ ደግመው ይሞክሩ።",
-        "errors": "አንዳንድ ስህተቶች ነበሩ። እባክዎ ቅጹን ያረጋግጡ እና ደግመው ይሞክሩ።"
-      }
-    },
-    "actions": {
-      "submit": "አስተያየት ያቅርቡ",
-      "cancel": "ሰርዝ",
-      "submitting": "በመላክ ላይ..."
-    },
-    "aside": {
-      "title": "አስተያየት ወይስ ቅሬታ?",
-      "text": "አስተያየት አገልግሎታችንን ለማሻሻል ይረዳናል። የሆነ ችግር ተፈጥሮ እርምጃ ከፈለጉ፣ በምትኩ ቅሬታ ያቅርቡ።",
-      "cta": "ቅሬታ ያቅርቡ"
-    },
-    "error": {
-      "sectors": "ዘርፎችን መጫን አልተቻለም"
-    },
-    "loading": {
-      "sectors": "ዘርፎችን በመጫን ላይ..."
-    },
-    "validation": {
-      "feedbackRequired": "እባክዎ አስተያየትዎን ይጻፉ።",
-      "ratingRequired": "እባክዎ ደረጃ ይምረጡ።"
-    }
+    "logoLine1": "የማዕድን ቁጥጥር ሲስተም",
+    "login": "ግባ"
   },
   "LocaleSwitcher": {
     "label": "ቋንቋ",
     "locale": "{locale, select, en {እንግሊዝኛ} am {አማርኛ} other {ያልታወቀ}}"
-  },
-  "ComplaintSuccess": {
-    "title": "ቅሬታዎ በተሳካ ሁኔታ ገብቷል",
-    "message": "እናመሰግናለን። በ{date} ለማዕድን ሚኒስቴር ያቀረቡት ቅሬታ ደርሶናል። በተቻለ ፍጥነት ምላሽ እንሰጥዎታለን።",
-    "sentTo": "የተላከለት፡",
-    "trackingNumber": "የመከታተያ ቁጥር",
-    "keepNumber": "ቅሬታዎን ለመከታተል ይህን ቁጥር ያስቀምጡ።",
-    "copy": "የመከታተያ ቁጥሩን ቅዳ",
-    "copied": "የመከታተያ ቁጥሩ ተቀድቷል",
-    "copyFailed": "መቅዳት አልተቻለም። እባክዎ ቁጥሩን ይጻፉት።",
-    "scanToTrack": "ቅሬታዎን ለመከታተል ይቃኙ",
-    "trackNow": "አሁን ይከታተሉ",
-    "download": "ምስል አውርድ",
-    "close": "ዝጋ"
-  },
-  "ComplaintTrackPage": {
-    "details": {
-      "time": "ሰዓት",
-      "attachments": "የቀረቡ አባሪዎች",
-      "title": "የቅሬታ ዝርዝር",
-      "trackingId": "የመከታተያ ቁጥር",
-      "category": "የቅሬታ ምድብ",
-      "sector": "ዘርፍ",
-      "department": "ክፍል",
-      "incidentDate": "ጉዳዩ የተፈጠረበት ቀን",
-      "submittedAt": "የቀረበበት ቀን",
-      "description": "የቅሬታ መግለጫ",
-      "requestedAction": "የተጠየቀ እርምጃ"
-    },
-    "statusLabels": {
-      "pending": "በመጠባበቅ ላይ",
-      "under_review": "በግምገማ ላይ",
-      "assigned": "ተመድቧል",
-      "in_progress": "በሂደት ላይ",
-      "resolved": "ተፈቷል",
-      "rejected": "ውድቅ ተደርጓል",
-      "closed": "ተዘግቷል"
-    },
-    "timeline": {
-      "title": "ሂደት",
-      "current": "አሁን",
-      "submitted": "ገብቷል",
-      "submittedDesc": "ቅሬታዎ ደርሷል።",
-      "underReview": "በግምገማ ላይ",
-      "underReviewDesc": "በ{sector} እየተገመገመ ነው።",
-      "underReviewDescNoSector": "በሚመለከተው ቢሮ እየተገመገመ ነው።",
-      "inProgress": "በሂደት ላይ",
-      "inProgressDesc": "አንድ ባለሙያ ቅሬታዎን እየተከታተለ ነው።",
-      "inProgressDescWithName": "{name} ቅሬታዎን እየተከታተሉ ነው።",
-      "resolved": "ተፈቷል",
-      "resolvedDesc": "ምላሹ ከታች ቀርቧል።",
-      "rejected": "ውድቅ ተደርጓል",
-      "rejectedDesc": "ምክንያቱን ከታች ባለው ምላሽ ይመልከቱ።"
-    },
-    "personalInfo": {
-      "title": "የቅሬታ አቅራቢ መረጃ",
-      "anonymous": "ይህ ቅሬታ ስም ሳይገለጽ ቀርቧል።",
-      "toggle": "የግል መረጃ አሳይ / ደብቅ",
-      "fullName": "ሙሉ ስም",
-      "phone": "ስልክ ቁጥር",
-      "email": "የኢሜይል አድራሻ",
-      "city": "ከተማ"
-    },
-    "response": {
-      "resolver": "ምላሽ የሰጠው",
-      "officialResponder": "ኦፊሴላዊ ምላሽ ሰጪ",
-      "title": "ኦፊሴላዊ ምላሽ",
-      "status": "የምላሽ ሁኔታ",
-      "date": "የምላሽ ቀን",
-      "description": "የምላሽ መግለጫ",
-      "attachments": "የምላሽ አባሪዎች",
-      "noResponse": "እስካሁን ኦፊሴላዊ ምላሽ አልተሰጠም።",
-      "download": "አውርድ"
-    },
-    "notFound": {
-      "title": "ቅሬታው አልተገኘም",
-      "message": "\"{ticket}\" የመከታተያ ቁጥር ያለው ቅሬታ ማግኘት አልቻልንም። እባክዎ ቁጥሩን አረጋግጠው እንደገና ይሞክሩ።"
-    },
-    "empty": {
-      "title": "መከታተል ይጀምሩ",
-      "message": "የቅሬታዎን ሁኔታ ለማየት የመከታተያ ቁጥርዎን ያስገቡ።"
-    },
-    "viewer": {
-      "close": "ዝጋ",
-      "noPreview": "ለዚህ ፋይል አይነት ቅድመ እይታ የለም።",
-      "download": "ፋይሉን አውርድ"
-    },
-    "title": "ቅሬታዎን ይከታተሉ",
-    "subtitle": "የቅሬታዎን ወቅታዊ ሁኔታ እና ዝርዝር ለማየት የመከታተያ ቁጥርዎን ያስገቡ።",
-    "trackingId": "የመከታተያ ቁጥር",
-    "track": "ቅሬታ ተከታተል",
-    "loading": "የቅሬታውን ሁኔታ በማጣራት ላይ...",
-    "errors": {
-      "required": "የመከታተያ ቁጥር ያስፈልጋል።",
-      "notFound": "በተሰጠው የመከታተያ ቁጥር ምንም ቅሬታ አልተገኘም።"
-    },
-    "status": {
-      "submitted": "ገብቷል",
-      "underReview": "በግምገማ ላይ",
-      "resolved": "ተፈቷል"
-    }
   }
 }

@@ -18,32 +18,9 @@ export const routePermissions: RouteConfig[] = [
     },
   },
   {
-    path: "/feedbacks",
-    permissions: {
-      anyPermissions: ["FEEDBACK:READ"],
-    },
-  },
-  {
-    path: "/my-complaints",
-    permissions: {
-      anyPermissions: ["COMPLAINT:READ_OWN"],
-    },
-  },
-  {
-    path: "/compliants",
-    permissions: {
-      anyPermissions: ["COMPLAINT:READ_ALL"],
-    },
-  },
-  {
     path: "/basedata",
     permissions: {
-      allPermissions: [
-        "SECTOR:READ",
-        "SECTOR:UPDATE",
-        "COMPLAINT_CATEGORIES:READ",
-        "COMPLAINT_CATEGORIES:UPDATE",
-      ],
+      allPermissions: ["SECTOR:READ"],
     },
   },
   {

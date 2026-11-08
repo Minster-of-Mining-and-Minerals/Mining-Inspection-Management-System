@@ -108,7 +108,7 @@ export function AppSidebar() {
           </span>
           <span className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
             <span className="truncate text-sm font-bold text-white">የማዕድን ሚኒስቴር</span>
-            <span className="truncate text-xs text-slate-300">Complaint Management</span>
+            <span className="truncate text-xs text-slate-300">Mining Inspection</span>
           </span>
           {isMobile && (
             <button

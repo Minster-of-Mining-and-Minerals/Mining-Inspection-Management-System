@@ -1,20 +1,25 @@
+# Mining Inspection Management System (MIMS)
+# Own project name, containers, volume, network and database, separate from the
+# old complaint system, so both can run on the same server without touching each other.
+name: mims
+
 services:
   postgres:
     image: postgres:16
-    container_name: cms_postgres
+    container_name: mims_postgres
     restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-cms_db}
-      POSTGRES_USER: ${DB_USER:-cms_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-cms@mom.gov.et}
+      POSTGRES_DB: ${DB_NAME:-mims_db}
+      POSTGRES_USER: ${DB_USER:-mims_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-mims@mom.gov.et}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mims_postgres_data:/var/lib/postgresql/data
     networks:
-      - cms_network
+      - mims_network
 
   backend:
     build: ./backend
-    container_name: cms_backend
+    container_name: mims_backend
     restart: always
     env_file:
       - ./backend/.env
@@ -26,7 +31,7 @@ services:
     depends_on:
       - postgres
     networks:
-      - cms_network
+      - mims_network
     volumes:
       - ./backend/uploads:/app/uploads
       - ./backend/logs:/app/logs
@@ -37,7 +42,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_SYSTEM_TIMEZONE: ${NEXT_PUBLIC_SYSTEM_TIMEZONE:-Africa/Addis_Ababa}
-    container_name: cms_frontend
+    container_name: mims_frontend
     restart: always
     env_file:
       - ./frontend/.env
@@ -46,21 +51,21 @@ services:
       NODE_ENV: production
       AUTH_TRUSTED_HOST: "true"
       NEXTAUTH_TRUST_HOST: "true"
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://${DOMAIN:-10.0.71.199:3002}}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://${DOMAIN:-10.0.71.199:3003}}
       BACKEND_INTERNAL_URL: http://backend:4002
     depends_on:
       - backend
     networks:
-      - cms_network
+      - mims_network
 
   nginx:
     build: ./nginx
-    container_name: cms_nginx
+    container_name: mims_nginx
     restart: always
     environment:
-      DOMAIN: ${DOMAIN:-10.0.71.199:3002}
+      DOMAIN: ${DOMAIN:-10.0.71.199:3003}
     ports:
-      - "3002:80"
+      - "${APP_PORT:-3003}:80"
     volumes:
       - ./nginx/nginx.conf.bootstrap:/etc/nginx/templates/nginx.conf.bootstrap:ro
       - ./nginx/nginx.conf.production:/etc/nginx/templates/nginx.conf.production:ro
@@ -70,27 +75,27 @@ services:
       - frontend
       - backend
     networks:
-      - cms_network
+      - mims_network
 
   certbot:
     image: certbot/certbot
-    container_name: cms_certbot
+    container_name: mims_certbot
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN:-10.0.71.199:3002}
-      EMAIL: ${EMAIL:-admin@complaint.mom.gov.et}
+      DOMAIN: ${DOMAIN:-10.0.71.199:3003}
+      EMAIL: ${EMAIL:-admin@inspection.mom.gov.et}
     volumes:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
       - ./certbot/certbot-entrypoint.sh:/certbot-entrypoint.sh:ro
     entrypoint: /bin/sh /certbot-entrypoint.sh
     networks:
-      - cms_network
+      - mims_network
     depends_on:
       - nginx
 volumes:
-  postgres_data:
+  mims_postgres_data:
 
 networks:
-  cms_network:
+  mims_network:
     driver: bridge

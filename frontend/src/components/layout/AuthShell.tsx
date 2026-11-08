@@ -31,7 +31,7 @@ export function AuthShell({
           />
           <img src="/logo-mom.png" alt="Ministry of Mines" className="relative h-80 w-auto xl:h-[22rem]" />
           <p className="relative mt-2 text-[13px] font-semibold tracking-[0.24em] text-primary">
-            COMPLAINT MANAGEMENT SYSTEM
+            MINING INSPECTION MANAGEMENT SYSTEM
           </p>
         </div>
 

@@ -1,9 +1,8 @@
 "use strict";
 
-const { SectorNode, User, SectorRepresentative, sequelize } = require("../../models");
+const { SectorNode, User, sequelize } = require("../../models");
 const { v4: uuidv4, validate: isUuid } = require("uuid");
 const { Op } = require("sequelize");
-const { getDepartmentsInFilerSector, resolveFilerSectorNodeId } = require("../../services/sectorScopeService");
 
 /**
  * =================== Create Sector Node ===================
@@ -277,17 +276,6 @@ const getSectorNodeById = async (req, res) => {
           as: "head",
           attributes: { exclude: ["password"] },
         },
-        {
-          model: User,
-          as: "representatives",
-          through: {
-            attributes: ["representative_id", "can_manage", "valid_from", "valid_until", "is_active", "notes", "appointed_by"],
-            where: {
-              is_active: true
-            }
-          },
-          attributes: { exclude: ["password"] },
-        },
       ],
     });
 
@@ -403,18 +391,6 @@ const deleteSectorNode = async (req, res) => {
       });
     }
 
-    // Deactivate all active representatives for this sector
-    await SectorRepresentative.update(
-      { is_active: false, updated_at: new Date() },
-      {
-        where: {
-          sector_node_id: id,
-          is_active: true
-        },
-        transaction: t
-      }
-    );
-
     await node.update(
       { is_active: false, updated_at: new Date() },
       { transaction: t },
@@ -463,19 +439,6 @@ const toggleSectorNodeActiveStatus = async (req, res) => {
       });
     }
 
-    // If deactivating, also deactivate representatives
-    if (node.is_active) {
-      await SectorRepresentative.update(
-        { is_active: false, updated_at: new Date() },
-        {
-          where: {
-            sector_node_id: id,
-            is_active: true
-          },
-          transaction: t
-        }
-      );
-    }
 
 
     await node.update(
@@ -617,35 +580,6 @@ const getSectorNodeChildrenUsers = async (req, res) => {
   }
 };
 
-const getMySectorDepartments = async (req, res) => {
-  try {
-    const userId = req.user?.user_id;
-    const filerSectorNodeId = await resolveFilerSectorNodeId(userId);
-
-    if (!filerSectorNodeId) {
-      return res.status(400).json({
-        success: false,
-        message: "You must belong to a sector or department to list departments.",
-      });
-    }
-
-    const departments = await getDepartmentsInFilerSector(filerSectorNodeId);
-
-    return res.status(200).json({
-      success: true,
-      message: "Sector departments fetched successfully.",
-      data: departments,
-    });
-  } catch (error) {
-    console.error("Error fetching sector departments:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Failed to fetch sector departments.",
-      error: error.message,
-    });
-  }
-};
-
 module.exports = {
   createSectorNode,
   getSectorNodes,
@@ -656,7 +590,6 @@ module.exports = {
   getSectorNodeChildrenUsers,
   getSectorNodeUsers,
   getSectorsWithFlatChildren,
-  getMySectorDepartments,
 };
 
 const collectChildNodeIds = async (nodeId, collected = []) => {

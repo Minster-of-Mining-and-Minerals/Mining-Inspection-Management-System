@@ -12,7 +12,6 @@ const {
   getSectorNodeUsers,
   getSectorNodeChildrenUsers,
   getSectorsWithFlatChildren,
-  getMySectorDepartments,
 } = require("../../controllers/sector-controllers/sectorController");
 
 const { authenticateToken } = require("../../middlewares/authMiddleware");
@@ -74,8 +73,6 @@ router.get("/", getSectorNodes);
  *         description: List of sector nodes with flat children 
  */
 router.get("/flat", getSectorsWithFlatChildren);
-
-router.get("/my-departments", authenticateToken, getMySectorDepartments);
 
 /**
  * @swagger

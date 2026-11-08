@@ -1,331 +1,80 @@
 {
   "HomePage": {
-    "badge": "Official Public Complaint & Feedback Platform",
+    "badge": "Official Field Inspection & Compliance Platform",
     "heading": {
-      "line1": "Ensure Transparency and Accountability",
-      "line2": "in the Mining Sector"
+      "line1": "Verified Field Inspections",
+      "line2": "for an Accountable Mining Sector"
     },
-    "description": "A secure and transparent digital platform established by the Ministry of Mines to receive, track, and resolve public complaints and feedback related to mining activities. Empowering citizens, improving service delivery, and strengthening governance through accountability.",
+    "description": "The Ministry of Mines digital platform for planning, conducting and reviewing field inspections of licensed exploration and mining companies across Ethiopia. Inspection teams complete standard checklists on site, every visit is verified by location, and results reach decision-makers as soon as they are submitted.",
     "actions": {
-      "complaint": "Submit a Complaint",
-      "feedback": "Provide Feedback",
-      "track": "Track a Complaint",
-      "feedbackPrompt": "Have a suggestion instead?"
+      "signIn": "Sign in",
+      "howItWorks": "How it works"
     },
-    "ministry": "Ministry of Mines, Ethiopia",
-    "trust": {
-      "secure": "Secure & confidential",
-      "anonymous": "Anonymous option",
-      "track": "Track progress anytime"
+    "staffAccess": {
+      "title": "Staff & inspector access",
+      "subtitle": "For Ministry of Mines staff and assigned inspection teams.",
+      "points": {
+        "assigned": "See the companies and inspections assigned to your team",
+        "checklist": "Fill the field monitoring checklist on your phone, with photos and evidence",
+        "location": "Your location is recorded at check-in and submission to confirm the site visit"
+      },
+      "button": "Sign in",
+      "hint": "Accounts are created by the system administrator. Contact your supervisor if you need access."
     },
-    "quickTrack": {
-      "title": "Track your complaint",
-      "subtitle": "Already submitted? Check its status.",
-      "label": "Tracking number",
-      "button": "Track",
-      "required": "Please enter your tracking number.",
-      "hint": "You received this number when you submitted your complaint."
+    "features": {
+      "title": "What the system covers",
+      "subtitle": "One place for licensed companies, inspection teams, checklists and results.",
+      "companies": {
+        "title": "Companies & licenses",
+        "text": "Register exploration and mining license holders with their license number, mineral, region, zone and woreda."
+      },
+      "teams": {
+        "title": "Inspection teams",
+        "text": "Form teams of inspectors, assign them to companies and plan repeated inspection rounds."
+      },
+      "checklists": {
+        "title": "Digital checklists",
+        "text": "Build checklists once and reuse them for many companies — legal compliance, OSH, environment, community and production."
+      },
+      "verification": {
+        "title": "On-site verification",
+        "text": "GPS location and device details are captured with every inspection, so supervisors know each visit really happened."
+      }
     },
     "howItWorks": {
       "title": "How it works",
-      "subtitle": "Three simple steps from submission to resolution.",
+      "subtitle": "From planning a round to a reviewed inspection report.",
       "steps": {
-        "submit": {
-          "title": "Submit",
-          "text": "Describe your complaint and attach any evidence. You can stay anonymous."
+        "plan": {
+          "title": "Plan the round",
+          "text": "Supervisors open an inspection round and assign teams and checklists to companies."
+        },
+        "checkin": {
+          "title": "Check in on site",
+          "text": "Inspectors check in at the company site; location and device are recorded."
+        },
+        "inspect": {
+          "title": "Inspect & submit",
+          "text": "The team fills the checklist with evidence and photos, then submits it with signatures."
         },
         "review": {
-          "title": "We review",
-          "text": "Your complaint is routed to the responsible sector and assigned to an officer."
-        },
-        "resolve": {
-          "title": "Get a response",
-          "text": "Follow progress with your tracking number and read the official response."
+          "title": "Review & follow up",
+          "text": "Supervisors review the report, findings are tracked to closure and the dashboard updates."
         }
       }
     },
     "footer": {
-      "rights": "Ministry of Mines, Federal Democratic Republic of Ethiopia."
-    },
-    "services": {
-      "title": "How can we help you today?",
-      "subtitle": "Choose a service to get started.",
-      "complaint": {
-        "title": "Submit a complaint",
-        "text": "Report what happened and attach evidence. Anonymous option available.",
-        "cta": "Start now"
-      },
-      "track": {
-        "title": "Track a complaint",
-        "text": "See the status, each step taken and the official response.",
-        "cta": "Check status"
-      },
-      "feedback": {
-        "title": "Give feedback",
-        "text": "Share a suggestion or rate our service to help us improve.",
-        "cta": "Share feedback"
-      }
+      "rights": "Ministry of Mines, Federal Democratic Republic of Ethiopia.",
+      "features": "Features",
+      "howItWorks": "How it works"
     }
   },
   "PublicHeader": {
-    "logoLine1": "Ministry of Mines",
-    "tabs": {
-      "home": "Home",
-      "complaint": "Complaint",
-      "feedback": "Feedback",
-      "trackComplaint": "Track Complaint"
-    },
-    "login": "Login",
-    "openMenu": "Open menu",
-    "closeMenu": "Close menu"
-  },
-  "ComplaintPage": {
-    "title": "Submit a Complaint",
-    "subtitle": "Please fill out the form below to submit your complaint. Provide accurate and complete information to help us process your complaint efficiently.",
-    "personalInfo": {
-      "title": "Personal Information",
-      "optional": "(Optional)",
-      "fullName": "Full Name",
-      "fullNamePlaceholder": "Enter your full name",
-      "phone": "Phone Number",
-      "phonePlaceholder": "Enter your phone number",
-      "email": "Email",
-      "emailPlaceholder": "Enter your email address",
-      "city": "City/Region",
-      "cityPlaceholder": "Enter your city or region",
-      "subCity": "Subcity/Zone",
-      "subCityPlaceholder": "Enter your subcity or zone",
-      "woreda": "Woreda",
-      "woredaPlaceholder": "Enter your woreda",
-      "shareHint": "Share your contact details so we can update you about your complaint.",
-      "anonymousTip": "Prefer not to share your details? Choose “Continue anonymously”. Keep your tracking number safe — it is the only way to follow up on an anonymous complaint.",
-      "anonymousHint": "You are submitting anonymously.",
-      "anonymousNotice": "Your complaint will be submitted anonymously. Keep your tracking number safe — it is the only way to follow up on your complaint.",
-      "hide": "Submit anonymously",
-      "show": "Share my contact details"
-    },
-    "details": {
-      "title": "Complaint Details",
-      "category": "Category",
-      "categoryPlaceholder": "Select Category",
-      "incidentDate": "Date of Incident",
-      "sector": "Sector Receiving the {category}",
-      "sectorPlaceholder": "Select Sector",
-      "department": "Department Receiving the {category}",
-      "departmentPlaceholder": "Enter the department",
-      "personConcerned": "Name of the Person Concerned",
-      "personConcernedPlaceholder": "Enter the name of the person concerned",
-      "description": "{category} Description",
-      "descriptionPlaceholder": "Provide a detailed description of your {category}",
-      "requestedAction": "Requested Action",
-      "requestedActionPlaceholder": "Specify the action you would like to be taken",
-      "evidence": "Evidence for the {category}",
-      "evidencePlaceholder": "Upload any supporting documents or evidence",
-      "optional": "Optional",
-      "noDepartment": "No specific department",
-      "categoryFallback": "Complaint"
-    },
-    "toast": {
-      "success": {
-        "submitted": "Your complaint has been submitted successfully."
-      },
-      "error": {
-        "unexpected": "Server error occurred. Please try again.",
-        "errors": "There were some errors. Please check the form and try again."
-      }
-    },
-    "buttons": {
-      "cancel": "Cancel",
-      "submit": "Submit {category}",
-      "submitting": "Submitting {category}...",
-      "next": "Next",
-      "continueAnonymously": "Continue anonymously",
-      "back": "Back"
-    },
-    "tips": {
-      "title": "Complaint Tips",
-      "items": [
-        "Be clear and concise in your description.",
-        "Include relevant dates and details.",
-        "Attach any supporting documents if necessary.",
-        "Provide your contact information for follow-up.",
-        "Incomplete or unclear complaints may take longer to process."
-      ]
-    },
-    "steps": {
-      "label": "Form progress",
-      "mobile": "Step {current} of {total}: {label}",
-      "personal": "Your details",
-      "details": "Complaint details",
-      "review": "Evidence & review"
-    },
-    "validation": {
-      "descriptionRequired": "Please describe your complaint.",
-      "descriptionMin": "Description must be at least {min} characters long.",
-      "sectorDepartmentRequired": "Please select the sector receiving your complaint.",
-      "categoryRequired": "Please select a category.",
-      "fullNameMin": "Full name must be at least 3 characters.",
-      "emailInvalid": "Please enter a valid email address.",
-      "phoneInvalid": "Phone number must be between 7 and 20 characters.",
-      "personConcernedMin": "Name must be at least 10 characters, or leave it empty."
-    },
-    "review": {
-      "title": "Review your complaint",
-      "edit": "Edit",
-      "anonymous": "Anonymous",
-      "evidenceHint": "Photos, documents or PDFs that support your complaint.",
-      "files": "{count, plural, =0 {No files attached} one {# file attached} other {# files attached}}"
-    }
-  },
-  "ComplaintTrackPage": {
-    "title": "Track Your Complaint",
-    "subtitle": "Enter your complaint tracking ID to view the current status and details of your submission.",
-    "trackingId": "Tracking ID",
-    "track": "Track Complaint",
-    "loading": "Checking complaint status...",
-    "errors": {
-      "required": "Tracking ID is required.",
-      "notFound": "No complaint was found with the provided tracking ID."
-    },
-    "details": {
-      "title": "Complaint Details",
-      "trackingId": "Tracking ID",
-      "category": "Complaint Category",
-      "sector": "Sector",
-      "department": "Department",
-      "incidentDate": "Date of Incident",
-      "submittedAt": "Date Submitted",
-      "description": "Complaint Description",
-      "requestedAction": "Requested Action",
-      "time": "Time",
-      "attachments": "Submitted attachments"
-    },
-    "status": {
-      "submitted": "Submitted",
-      "underReview": "Under Review",
-      "resolved": "Resolved"
-    },
-    "personalInfo": {
-      "toggle": "Show / Hide Personal Information",
-      "fullName": "Full Name",
-      "phone": "Phone Number",
-      "email": "Email Address",
-      "city": "City",
-      "title": "Complainant information",
-      "anonymous": "This complaint was submitted anonymously."
-    },
-    "response": {
-      "title": "Official Response",
-      "status": "Response Status",
-      "date": "Response Date",
-      "description": "Response Description",
-      "attachments": "Response Attachments",
-      "noResponse": "No official response has been provided yet.",
-      "download": "Download",
-      "resolver": "Responded by",
-      "officialResponder": "Official responder"
-    },
-    "statusLabels": {
-      "pending": "Pending",
-      "under_review": "Under review",
-      "assigned": "Assigned",
-      "in_progress": "In progress",
-      "resolved": "Resolved",
-      "rejected": "Rejected",
-      "closed": "Closed"
-    },
-    "timeline": {
-      "title": "Progress",
-      "current": "Current",
-      "submitted": "Submitted",
-      "submittedDesc": "Your complaint was received.",
-      "underReview": "Under review",
-      "underReviewDesc": "Being reviewed by {sector}.",
-      "underReviewDescNoSector": "Being reviewed by the responsible office.",
-      "inProgress": "In progress",
-      "inProgressDesc": "An officer is working on your complaint.",
-      "inProgressDescWithName": "{name} is working on your complaint.",
-      "resolved": "Resolved",
-      "resolvedDesc": "A response has been provided below.",
-      "rejected": "Rejected",
-      "rejectedDesc": "See the response below for the reason."
-    },
-    "notFound": {
-      "title": "Complaint not found",
-      "message": "We couldn't find a complaint with tracking number \"{ticket}\". Please check the number and try again."
-    },
-    "empty": {
-      "title": "Start tracking",
-      "message": "Enter your tracking number to see the status of your complaint."
-    },
-    "viewer": {
-      "close": "Close",
-      "noPreview": "Preview not available for this file type.",
-      "download": "Download file instead"
-    }
-  },
-  "Feedback": {
-    "title": "Submit Feedback",
-    "description": "Please fill out the form below to submit your feedback. Provide accurate and complete information to help us process your feedback efficiently.",
-    "fields": {
-      "fullName": "Full Name",
-      "fullNameOptional": "(Optional)",
-      "fullNamePlaceholder": "Enter your full name",
-      "sector": "Sector Receiving the Feedback",
-      "sectorPlaceholder": "Select Sector",
-      "feedbackDescription": "Description",
-      "feedbackPlaceholder": "Describe your feedback in detail",
-      "rating": "Rating",
-      "selectRating": "Select a rating",
-      "noSectors": "No sectors available",
-      "sectorOptional": "(Optional)"
-    },
-    "toast": {
-      "success": {
-        "submitted": "Your feedback has been submitted successfully."
-      },
-      "error": {
-        "unexpected": "An unexpected error occurred. Please try again later.",
-        "errors": "There were some errors. Please check the form and try again."
-      }
-    },
-    "actions": {
-      "submit": "Submit Feedback",
-      "cancel": "Cancel",
-      "submitting": "Submitting..."
-    },
-    "aside": {
-      "title": "Feedback or complaint?",
-      "text": "Feedback helps us improve our services. If something went wrong and you need action, submit a complaint instead.",
-      "cta": "Submit a complaint"
-    },
-    "error": {
-      "sectors": "Could not load sectors"
-    },
-    "loading": {
-      "sectors": "Loading sectors..."
-    },
-    "validation": {
-      "feedbackRequired": "Please write your feedback.",
-      "ratingRequired": "Please select a rating."
-    }
+    "logoLine1": "Mining Inspection System",
+    "login": "Login"
   },
   "LocaleSwitcher": {
     "label": "Language",
     "locale": "{locale, select, en {English} am {Amharic} other {Unknown}}"
-  },
-  "ComplaintSuccess": {
-    "title": "Complaint submitted successfully",
-    "message": "Thank you. Your complaint to the Ministry of Mines on {date} has been received. We will get back to you as soon as possible.",
-    "sentTo": "Sent to:",
-    "trackingNumber": "Tracking number",
-    "keepNumber": "Keep this number to track your complaint.",
-    "copy": "Copy tracking number",
-    "copied": "Tracking number copied",
-    "copyFailed": "Could not copy. Please write the number down.",
-    "scanToTrack": "Scan to track your complaint",
-    "trackNow": "Track now",
-    "download": "Download image",
-    "close": "Close"
   }
 }

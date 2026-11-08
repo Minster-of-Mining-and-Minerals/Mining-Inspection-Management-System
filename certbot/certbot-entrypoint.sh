@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-DOMAIN="${DOMAIN:-complaint.mom.gov.et}"
-EMAIL="${EMAIL:-admin@complaint.mom.gov.et}"
+DOMAIN="${DOMAIN:-inspection.mom.gov.et}"
+EMAIL="${EMAIL:-admin@inspection.mom.gov.et}"
 DATA_PATH="/etc/letsencrypt"
 RSA_KEY_SIZE=4096
 

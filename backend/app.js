@@ -26,25 +26,11 @@ const notificationRoute = require("./routers/user-routes/notificationRoutes");
 const profileRoute = require("./routers/user-routes/profileRoutes");
 
 
-// ================== Sector Routes ==========================
+// ================== Organization (Sector) Routes ==========================
 const sectorRoute = require("./routers/sector-routes/sectorRoutes");
-const sectorRepresentativeRoute = require("./routers/sector-routes/sectorRepresentativeRoutes");
-
-// ================== Compliant Routes ==========================
-const complaintCategoryRoute = require("./routers/compliant-routes/compliantCategoryRoute");
-const complaintRoute = require("./routers/compliant-routes/complaintRoutes");
-const complaintResolutionRoute = require("./routers/compliant-routes/complaintResolutionRoutes");
-const complaintAssignmentRoute = require("./routers/compliant-routes/complaintAssignmentRoutes");
-const complaintSectorAssignmentRoute = require("./routers/compliant-routes/complaintSectorAssignmentRoutes");
-
-// ================== Feedback Routes ==========================
-const feedbackRoute = require("./routers/feedback-routes/feedbackRoutes");
 
 // ================== Attachment Routes ==========================
 const attachmentRoute = require("./routers/attachment-routes/attachmentRoute");
-
-// ================== Dashboard Routes ==========================
-const dashboardRoute = require("./routers/dashboard-routes/dashboardRoutes");
 
 const app = express();
 const appServer = http.createServer(app);
@@ -155,29 +141,15 @@ app.use("/api/notifications", notificationRoute);
 // app.use("/api/issue-attachments", issueFileAttachmentRoutes);
 // app.use("/api/attachments", fileAttachmentRoutes);
 
-// ================== Api Sector Routes =====================
+// ================== Api Organization (Sector) Routes =====================
 app.use("/api/sector-nodes", sectorRoute);
-app.use("/api/sector-representatives", sectorRepresentativeRoute);
-
-// ================== Api Complaint Category Routes =====================
-app.use("/api/complaint-categories", complaintCategoryRoute);
-app.use("/api/complaints", complaintRoute);
-app.use("/api/complaint-assignments", complaintAssignmentRoute);
-app.use("/api/complaint-sector-assignments", complaintSectorAssignmentRoute);
-app.use("/api/complaint-resolutions", complaintResolutionRoute);
-
-// ================== Api Feedback Routes =====================
-app.use("/api/feedbacks", feedbackRoute);
 
 // ================== Api Attachment Routes =====================
 app.use("/api/attachments", attachmentRoute);
 
-// ================== Api Dashboard Routes =====================
-app.use("/api/dashboard", dashboardRoute);
-
 // ================== Root Endpoint ==================
 app.get("/", (req, res) => {
-  res.json({ message: "Welcome to Issue Tracking System API 🚀" });
+  res.json({ message: "Welcome to the Mining Inspection Management System API 🚀" });
 });
 
 // ================== Error Handler ==================

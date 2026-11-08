@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-DOMAIN="${DOMAIN:-complaint.mom.gov.et}"
+DOMAIN="${DOMAIN:-inspection.mom.gov.et}"
 CERT="/etc/letsencrypt/live/${DOMAIN}/fullchain.pem"
 KEY="/etc/letsencrypt/live/${DOMAIN}/privkey.pem"
 

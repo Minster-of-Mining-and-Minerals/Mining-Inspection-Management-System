@@ -33,34 +33,60 @@ module.exports = {
       { resource: "sector", action: "update" },
       { resource: "sector", action: "delete" },
 
-      // Represenatative Management
-      { resource: "sector_representative", action: "create" },
-      { resource: "sector_representative", action: "read" },
-      { resource: "sector_representative", action: "update" },
-      { resource: "sector_representative", action: "delete" },
-      { resource: "sector_representative", action: "relegate" },
-      { resource: "sector_representative", action: "delegate" },
       { resource: "sector_head", action: "relegate" },
       { resource: "sector_head", action: "delegate" },
       { resource: "sector_head", action: "update" },
 
-      // Complaint Management
-      { resource: "complaint", action: "create" },
-      { resource: "complaint", action: "update" },
-      { resource: "complaint", action: "delete" },
-      { resource: "complaint", action: "assign" },
-      { resource: "complaint", action: "accept" },
-      { resource: "complaint", action: "resolve" },
-      { resource: "complaint", action: "read_own" },
-      { resource: "complaint", action: "read_all" },
+      // Administrative areas (Region / Zone / Woreda)
+      { resource: "admin_areas", action: "create" },
+      { resource: "admin_areas", action: "read" },
+      { resource: "admin_areas", action: "update" },
+      { resource: "admin_areas", action: "delete" },
 
-      // Feedback Management
-      { resource: "feedback", action: "read" },
+      // Companies & licenses
+      { resource: "companies", action: "create" },
+      { resource: "companies", action: "read" },
+      { resource: "companies", action: "update" },
+      { resource: "companies", action: "delete" },
+      { resource: "companies", action: "import" },
 
-      { resource: "complaint_categories", action: "create" },
-      { resource: "complaint_categories", action: "read" },
-      { resource: "complaint_categories", action: "update" },
-      { resource: "complaint_categories", action: "delete" },
+      // Inspection teams
+      { resource: "teams", action: "create" },
+      { resource: "teams", action: "read" },
+      { resource: "teams", action: "update" },
+      { resource: "teams", action: "delete" },
+      { resource: "teams", action: "manage_members" },
+
+      // Forms (checklists)
+      { resource: "forms", action: "create" },
+      { resource: "forms", action: "read" },
+      { resource: "forms", action: "update" },
+      { resource: "forms", action: "delete" },
+      { resource: "forms", action: "publish" },
+      { resource: "forms", action: "assign" },
+
+      // Inspection rounds & planning
+      { resource: "rounds", action: "create" },
+      { resource: "rounds", action: "read" },
+      { resource: "rounds", action: "update" },
+      { resource: "rounds", action: "delete" },
+
+      // Inspections
+      { resource: "inspections", action: "assign" },
+      { resource: "inspections", action: "read_own" },
+      { resource: "inspections", action: "read_all" },
+      { resource: "inspections", action: "conduct" },
+      { resource: "inspections", action: "review" },
+      { resource: "inspections", action: "delete" },
+
+      // Findings / corrective actions
+      { resource: "findings", action: "read" },
+      { resource: "findings", action: "update" },
+      { resource: "findings", action: "close" },
+
+      // Location & device integrity
+      { resource: "integrity", action: "read" },
+      { resource: "devices", action: "manage" },
 
       // Data Export
       { resource: "data", action: "export" },

@@ -5,9 +5,9 @@ const options = {
   swaggerDefinition: {
     openapi: "3.0.0",
     info: {
-      title: "AII ITS API",
+      title: "Mining Inspection Management System API",
       version: "1.0.0",
-      description: "API Documentation for ITS App",
+      description: "API documentation for the MoM Mining Inspection Management System",
     },
     servers: [
       {

@@ -17,35 +17,8 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
     ],
     "/basedata/sectors": [
         { title: "Base Data", path: "/basedata" },
-        { title: "Sectors", path: "/basedata/sectors" },
+        { title: "Organization", path: "/basedata/sectors" },
     ],
-    "/basedata/complaint-categories": [
-        { title: "Base Data", path: "/basedata" },
-        { title: "Complaint Categories", path: "/basedata/complaint-categories" },
-    ],
-
-    // ================================================
-    // Complaints Routes
-    // ================================================
-    "/compliants": [
-        { title: "Complaints", path: "/compliants" },
-    ],
-    "/compliants/[complaintId]": [
-        { title: "Complaints", path: "/compliants" },
-        { title: "Complaint Details", path: "/compliants/[complaintId]" },
-    ],
-
-    // ================================================
-    // Feedbacks Routes
-    // ================================================
-    "/feedbacks": [
-        { title: "Feedbacks", path: "/feedbacks" },
-    ],
-    "/feedbacks/[feedbackId]": [
-        { title: "Feedbacks", path: "/feedbacks" },
-        { title: "Feedback Details", path: "/feedbacks/[feedbackId]" },
-    ],
-
     // ================================================
     // Notifications Routes
     // ================================================
@@ -81,13 +54,6 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         { title: "Roles", path: "/users/roles" },
         { title: "Role Details", path: "/users/roles/[id]" },
     ],
-
-    // ================================================
-    // Public Routes
-    // ================================================
-    "/complaint": [{ title: "Submit Complaint", path: "/complaint" }],
-    "/feedback": [{ title: "Submit Feedback", path: "/feedback" }],
-    "/track-complaint": [{ title: "Track Complaint", path: "/track-complaint" }],
 
     // ================================================
     // Auth Routes

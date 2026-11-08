@@ -1,15 +1,11 @@
 import { PermissionKey } from "@/lib/permissions";
 import {
   LayoutDashboard,
-  ClipboardCheck,
   FileText,
   User2,
   Shield,
   Key,
   Building2,
-  Tags,
-  AlertTriangle,
-  MessageSquare,
 } from "lucide-react";
 
 export type NavItem = {
@@ -33,45 +29,18 @@ export const NAVIGATION: NavItem[] = [
     anyPermissions: ["DASHBOARD:VIEW"],
   },
   {
-    title: "Complaints",
-    url: "/compliants",
-    icon: AlertTriangle,
-    section: "Complaints",
-    anyPermissions: ["COMPLAINT:READ_ALL"],
-  },
-  {
-    title: "My Complaints",
-    url: "/my-complaints",
-    icon: ClipboardCheck,
-    section: "Complaints",
-    anyPermissions: ["COMPLAINT:READ_OWN"],
-  },
-  {
-    title: "Feedbacks",
-    url: "/feedbacks",
-    icon: MessageSquare,
-    section: "Complaints",
-    anyPermissions: ["FEEDBACK:READ"],
-  },
-  {
     title: "Base Data",
     section: "Administration",
     url: "/basedata",
     icon: FileText,
     // Shown if the user can see either section; each child is filtered by its own permission
-    anyPermissions: ["SECTOR:READ", "COMPLAINT_CATEGORIES:READ"],
+    anyPermissions: ["SECTOR:READ"],
     children: [
       {
-        title: "Sectors",
+        title: "Organization",
         url: "/basedata/sectors",
         icon: Building2,
         allPermissions: ["SECTOR:READ"],
-      },
-      {
-        title: "Complaint Categories",
-        url: "/basedata/complaint-categories",
-        icon: Tags,
-        allPermissions: ["COMPLAINT_CATEGORIES:READ"],
       },
     ],
   },

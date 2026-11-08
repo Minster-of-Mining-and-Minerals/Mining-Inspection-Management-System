@@ -24,7 +24,7 @@ export const formatStatus = (status: string = ""): string => {
       .replace(/\b\w/g, (c) => c.toUpperCase());
   };
   
-/** One colour per complaint status, used everywhere a status badge is shown. */
+/** One colour per status, used everywhere a status badge is shown. */
 export const getStatusBadgeClass = (status: string = ""): string => {
   const normalized = status.toLowerCase().replace(/[-\s]/g, "_");
 
