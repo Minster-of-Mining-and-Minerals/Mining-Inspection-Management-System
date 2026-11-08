@@ -23,7 +23,7 @@ fail() { echo -e "${RED}✘${NC} $*" >&2; exit 1; }
 step() { echo; echo -e "${GREEN}==>${NC} $*"; }
 
 COMPOSE="docker compose"
-VOLUME="mims_postgres_data"
+VOLUME="mims_mims_postgres_data"  # docker compose prefixes the project name
 
 random() { openssl rand -base64 48 2>/dev/null | tr -dc 'A-Za-z0-9' | head -c "${1:-48}" || head -c 64 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c "${1:-48}"; }
 getenv() { grep -E "^$2=" "$1" 2>/dev/null | head -1 | cut -d= -f2- | sed 's/^"//; s/"$//'; }

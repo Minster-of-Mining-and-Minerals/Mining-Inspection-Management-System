@@ -33,10 +33,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-mims@mom.gov.et}
       SOCKET_PORT: 5001
       NODE_ENV: production
-    # Reachable from the server itself for checks (curl http://127.0.0.1:4001); users go through nginx
+    # BIND_IP in .env: 127.0.0.1 = only this server (default), 0.0.0.0 = every network, or one IP of this machine
     ports:
-      - "127.0.0.1:4001:4001"
-      - "127.0.0.1:5001:5001"
+      - "${BIND_IP:-127.0.0.1}:4001:4001"
+      - "${BIND_IP:-127.0.0.1}:5001:5001"
     depends_on:
       - postgres
     networks:
@@ -66,7 +66,7 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:-https://${DOMAIN:-inspection.mom.gov.et}}
       BACKEND_INTERNAL_URL: http://backend:4001
     ports:
-      - "127.0.0.1:3001:3001"
+      - "${BIND_IP:-127.0.0.1}:3001:3001"
     depends_on:
       - backend
     networks:
