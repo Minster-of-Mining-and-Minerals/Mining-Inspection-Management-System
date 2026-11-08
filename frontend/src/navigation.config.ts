@@ -11,6 +11,7 @@ import {
   Gem,
   Tags,
   UsersRound,
+  ClipboardList,
 } from "lucide-react";
 
 export type NavItem = {
@@ -46,6 +47,13 @@ export const NAVIGATION: NavItem[] = [
     icon: UsersRound,
     section: "Registry",
     anyPermissions: ["TEAMS:READ"],
+  },
+  {
+    title: "Forms",
+    url: "/forms",
+    icon: ClipboardList,
+    section: "Inspections",
+    anyPermissions: ["FORMS:READ"],
   },
   {
     title: "Base Data",

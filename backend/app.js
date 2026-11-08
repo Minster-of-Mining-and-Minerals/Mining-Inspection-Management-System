@@ -38,6 +38,9 @@ const companyRoutes = require("./routers/company-routes/companyRoutes");
 // ================== Team Routes ==================
 const teamRoutes = require("./routers/team-routes/teamRoutes");
 
+// ================== Form (Checklist) Routes ==================
+const formRoute = require("./routers/form-routes/formRoutes");
+
 // ================== Attachment Routes ==========================
 const attachmentRoute = require("./routers/attachment-routes/attachmentRoute");
 
@@ -165,6 +168,9 @@ app.use("/api/mineral-categories", companyRoutes.mineralCategories);
 // ================== Api Team Routes =====================
 app.use("/api/teams", teamRoutes.teams);
 app.use("/api/team-members", teamRoutes.members);
+
+// ================== Api Form Routes =====================
+app.use("/api/forms", formRoute);
 
 // ================== Api Attachment Routes =====================
 app.use("/api/attachments", attachmentRoute);

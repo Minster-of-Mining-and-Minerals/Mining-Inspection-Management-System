@@ -19,6 +19,12 @@ export const routePermissions: RouteConfig[] = [
   },
   // Most specific first: the first matching path wins
   {
+    path: "/forms",
+    permissions: {
+      anyPermissions: ["FORMS:READ"],
+    },
+  },
+  {
     path: "/teams",
     permissions: {
       anyPermissions: ["TEAMS:READ"],
