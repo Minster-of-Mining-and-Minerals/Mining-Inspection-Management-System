@@ -33,6 +33,19 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         { title: "Organization", path: "/basedata/sectors" },
     ],
     // ================================================
+    // Inspection schedules & tasks
+    // ================================================
+    "/my-tasks": [{ title: "My Tasks", path: "/my-tasks" }],
+    "/my-team": [{ title: "My Team", path: "/my-team" }],
+    "/my-companies": [{ title: "My Companies", path: "/my-companies" }],
+    "/schedules": [{ title: "Schedules", path: "/schedules" }],
+    "/schedules/[scheduleId]": [
+        { title: "Schedules", path: "/schedules" },
+        { title: "Schedule", path: "/schedules/[scheduleId]" },
+    ],
+    "/inspections/[inspectionId]": [{ title: "Inspection", path: "/inspections/[inspectionId]" }],
+
+    // ================================================
     // Forms Routes
     // ================================================
     "/forms": [{ title: "Forms", path: "/forms" }],

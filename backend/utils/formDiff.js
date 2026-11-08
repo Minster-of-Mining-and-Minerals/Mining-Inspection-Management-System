@@ -27,6 +27,10 @@ const fieldMap = (def) => {
 };
 const sectionMap = (def) => new Map((def?.sections || []).map((s) => [s.key, s]));
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+const { questionText } = require("./formDefinition");
+// Versions saved before file settings existed don't store them; compare with the defaults
+const FILE_DEFAULTS = { accept: ["image"], max_files: 10, max_size_mb: 20 };
+const withDefault = (f, k) => (f[k] === undefined && k in FILE_DEFAULTS && (f.type === "status" || f.type === "photo") ? FILE_DEFAULTS[k] : f[k]);
 const short = (t) => (String(t || "").length > 70 ? `${String(t).slice(0, 67)}…` : String(t || ""));
 
 const WORDING_KEYS = ["label", "label_am", "help", "help_am"];
@@ -73,12 +77,12 @@ const diffDefinitions = (before, after) => {
   // ---- questions ----
   for (const [key, { field: f }] of af) {
     if (!bf.has(key)) {
-      out.added.push(short(f.label));
-      if (f.required) out.unsafe.push(`New question “${short(f.label)}” is required (answers already submitted don't have it).`);
+      out.added.push(short(questionText(f)));
+      if (f.required) out.unsafe.push(`New question “${short(questionText(f))}” is required (answers already submitted don't have it).`);
       continue;
     }
     const { field: o, section: oldSection } = bf.get(key);
-    const label = short(f.label);
+    const label = short(questionText(f));
     if (o.type !== f.type) {
       out.unsafe.push(`“${label}”: the type of answer was changed.`);
       out.changed.push(label);
@@ -116,8 +120,8 @@ const diffDefinitions = (before, after) => {
       if (oc.some((x) => nBy.has(x.value) && label2(nBy.get(x.value)) !== label2(x))) out.reworded.push(`${label} (status choices)`);
       if (nc.some((x) => !oc.some((y) => y.value === x.value))) out.changed.push(`${label} (status choices added)`);
     }
-    for (const k of ["unit", "min", "max", "prefill", "rows", "allow_add_rows", "max_files", "multiple", "with_name"]) {
-      if (!same(o[k], f[k])) out.changed.push(`${label} (${k.replace("_", " ")})`);
+    for (const k of ["unit", "min", "max", "prefill", "rows", "allow_add_rows", "accept", "max_files", "max_size_mb", "multiple", "with_name"]) {
+      if (!same(withDefault(o, k), withDefault(f, k))) out.changed.push(`${label} (${k.replace("_", " ")})`);
     }
     if (problems.length) {
       out.unsafe.push(`“${label}”: ${problems.join("; ")}.`);
@@ -128,8 +132,8 @@ const diffDefinitions = (before, after) => {
   }
   for (const [key, { field: o }] of bf) {
     if (!af.has(key)) {
-      out.removed.push(short(o.label));
-      out.unsafe.push(`Question “${short(o.label)}” was removed.`);
+      out.removed.push(short(questionText(o)));
+      out.unsafe.push(`Question “${short(questionText(o))}” was removed.`);
     }
   }
 

@@ -1,6 +1,8 @@
 "use client";
 import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { useSession } from "next-auth/react";
+import { usePermissions } from "@/hooks/usePermissions";
+import TeamDashboard from "@/features/my-work/component/TeamDashboard";
 import { Building2, ClipboardCheck, MapPin, Users } from "lucide-react";
 
 // Placeholder until the inspection dashboard is built (plan step 7).
@@ -39,10 +41,13 @@ function Dashboard() {
   );
 }
 
+/** Staff (dashboard:view) see the overall dashboard; field teams see their team's progress. */
 export default function DashboardPage() {
+  const { check } = usePermissions();
+  const staff = check({ anyPermissions: ["DASHBOARD:VIEW"] });
   return (
-    <PermissionGuard anyPermissions={["DASHBOARD:VIEW"]}>
-      <Dashboard />
+    <PermissionGuard anyPermissions={["DASHBOARD:VIEW", "INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"]} redirectTo="/my-tasks">
+      {staff ? <Dashboard /> : <TeamDashboard />}
     </PermissionGuard>
   );
 }

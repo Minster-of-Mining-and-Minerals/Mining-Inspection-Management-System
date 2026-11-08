@@ -75,7 +75,7 @@ export default function FormDetail() {
   const tabs: { key: Tab; label: string }[] = [
     { key: "questions", label: "Questions" },
     { key: "preview", label: "Preview" },
-    { key: "assignments", label: `Used for (${form.assignment_count})` },
+    { key: "assignments", label: `Applies to (${form.assignment_count})` },
     { key: "versions", label: `Versions (${form.versions.length})` },
   ];
 

@@ -14,10 +14,36 @@ export const routePermissions: RouteConfig[] = [
   {
     path: "/dashboard",
     permissions: {
-      anyPermissions: ["DASHBOARD:VIEW"],
+      anyPermissions: ["DASHBOARD:VIEW", "INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"],
     },
   },
   // Most specific first: the first matching path wins
+  {
+    path: "/my-team",
+    permissions: { anyPermissions: ["INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"] },
+  },
+  {
+    path: "/my-companies",
+    permissions: { anyPermissions: ["INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"] },
+  },
+  {
+    path: "/my-tasks",
+    permissions: {
+      anyPermissions: ["INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"],
+    },
+  },
+  {
+    path: "/schedules",
+    permissions: {
+      anyPermissions: ["ROUNDS:READ"],
+    },
+  },
+  {
+    path: "/inspections",
+    permissions: {
+      anyPermissions: ["INSPECTIONS:READ_ALL", "INSPECTIONS:READ_OWN"],
+    },
+  },
   {
     path: "/forms",
     permissions: {

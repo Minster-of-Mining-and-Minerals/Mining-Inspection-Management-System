@@ -5,6 +5,14 @@ export interface StatusAnswer {
   value?: string;
   note?: string;
   action?: string;
+  /** Evidence: ids of uploaded files */
+  files?: string[];
+}
+
+/** Answer to a signature question (a list when several people sign). */
+export interface SignatureAnswer {
+  file_id: string;
+  name?: string;
 }
 
 export interface TableAnswer {
@@ -51,6 +59,18 @@ export const validateAnswers = (def: FormDefinition, licenseType: LicenseTypeKey
   for (const { fields } of visibleStructure(def, licenseType, answers)) {
     for (const f of fields) {
       const a = answers[f.key];
+      if (f.type === "photo") {
+        const files = Array.isArray(a) ? a : [];
+        if (f.required && !files.length) problems[f.key] = "Add at least one file.";
+        else if (files.length > (f.max_files ?? 10)) problems[f.key] = `At most ${f.max_files ?? 10} files.`;
+        continue;
+      }
+      if (f.type === "signature") {
+        const list = ((Array.isArray(a) ? a : a ? [a] : []) as SignatureAnswer[]).filter((x) => x?.file_id);
+        if (f.required && !list.length) problems[f.key] = "A signature is required.";
+        else if (f.with_name !== false && list.some((x) => !x.name?.trim())) problems[f.key] = "Write the name of each person who signed.";
+        continue;
+      }
       if (f.type === "status") {
         const s = (a || {}) as StatusAnswer;
         if (!s.value) {
@@ -60,6 +80,8 @@ export const validateAnswers = (def: FormDefinition, licenseType: LicenseTypeKey
         const o = statusOptionsFor(def, f).find((x) => x.value === s.value);
         if (!s.note?.trim()) problems[f.key] = "Write a description of what you found.";
         else if (o?.action === "required" && !s.action?.trim()) problems[f.key] = "Describe the action needed.";
+        else if (f.evidence === "required" && !s.files?.length) problems[f.key] = "Add at least one photo or file as evidence.";
+        else if ((s.files?.length ?? 0) > (f.max_files ?? 10)) problems[f.key] = `At most ${f.max_files ?? 10} files.`;
         continue;
       }
       if (f.type === "table") {

@@ -41,6 +41,10 @@ const teamRoutes = require("./routers/team-routes/teamRoutes");
 // ================== Form (Checklist) Routes ==================
 const formRoute = require("./routers/form-routes/formRoutes");
 
+// ================== Inspection Schedules & Tasks ==================
+const inspectionRoutes = require("./routers/inspection-routes/inspectionRoutes");
+const { startScheduler } = require("./services/scheduleService");
+
 // ================== Attachment Routes ==========================
 const attachmentRoute = require("./routers/attachment-routes/attachmentRoute");
 
@@ -172,6 +176,11 @@ app.use("/api/team-members", teamRoutes.members);
 // ================== Api Form Routes =====================
 app.use("/api/forms", formRoute);
 
+// Inspection schedules and their tasks
+app.use("/api/inspection-schedules", inspectionRoutes.schedules);
+app.use("/api/inspections", inspectionRoutes.inspections);
+app.use("/api/inspection-files", inspectionRoutes.fileLinks);
+
 // ================== Api Attachment Routes =====================
 app.use("/api/attachments", attachmentRoute);
 
@@ -193,6 +202,7 @@ app.use((err, req, res, next) => {
 const appPort = process.env.PORT || 4000;
 appServer.listen(appPort, () => {
   console.log(` App server running at http://localhost:${appPort}`);
+  startScheduler(); // creates the tasks of inspection schedules (hourly)
 });
 
 // ================== Socket.IO Setup ==================

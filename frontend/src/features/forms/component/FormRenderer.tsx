@@ -3,8 +3,11 @@
 import { Camera, PenLine, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type { FormDefinition, FormField, LicenseTypeKey, StatusOption } from "@/redux/types/form";
+import type { FormDefinition, FormField, FormSection, LicenseTypeKey, StatusOption } from "@/redux/types/form";
 import { Answers, StatusAnswer, TableAnswer, maxScoreOf, statusOptionsFor, visibleStructure } from "./formLogic";
+import { FileAnswer, SignatureAnswerInput } from "./FormFiles";
+
+export type FormLanguage = "am" | "en";
 
 interface Props {
   definition: FormDefinition;
@@ -13,76 +16,143 @@ interface Props {
   onChange: (key: string, value: any) => void;
   /** Problems to show under questions (key -> message) */
   problems?: Record<string, string>;
-  /** "both" shows Amharic with English underneath */
-  language?: "am" | "en" | "both";
-  /** Photos and signatures are captured on the inspector's device (Step 4) */
+  /** One language at a time: Amharic (falls back to English where missing) or English */
+  language?: FormLanguage;
   previewMode?: boolean;
+  /** Submitted inspections: show the answers without letting them change */
+  readOnly?: boolean;
 }
 
-const L = (en: string, am: string | null | undefined, language: Props["language"]) =>
-  language === "am" ? am || en : language === "en" ? en : am ? (
-    <>
-      <span lang="am">{am}</span>
-      <span className="block text-[0.8em] font-normal text-slate-500">{en}</span>
-    </>
-  ) : (
-    en
-  );
+/** Text in the chosen language; Amharic falls back to English when a translation is missing. */
+export const pickText = (en: string | null | undefined, am: string | null | undefined, language: FormLanguage = "am") =>
+  (language === "am" ? am || en : en || am) ?? "";
+
+const L = (en: string, am: string | null | undefined, language: FormLanguage) => <span lang={language === "am" && am ? "am" : "en"}>{pickText(en, am, language)}</span>;
 
 const textareaClass =
   "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50";
 
-/** Shows a form's sections and questions for answering (preview now; the inspector's form in Step 4). */
-export function FormRenderer({ definition, licenseType, answers, onChange, problems = {}, language = "both", previewMode }: Props) {
+/** Whole form, all sections at once (form previews). The inspection page shows it step by step with the pieces below. */
+export function FormRenderer({ definition, licenseType, answers, onChange, problems = {}, language = "am", previewMode, readOnly }: Props) {
   const structure = visibleStructure(definition, licenseType, answers);
 
   return (
-    <div className="space-y-6">
+    <fieldset disabled={readOnly} className="m-0 min-w-0 space-y-6 border-0 p-0">
       {structure.map(({ section, fields }) => (
         <section key={section.key} className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-          <header className="border-b bg-slate-50 px-4 py-3">
-            <h3 className="font-semibold text-primary">
-              {section.number && <span className="mr-2 text-golden-deep">{section.number}.</span>}
-              {L(section.title, section.title_am, language)}
-            </h3>
-            {(section.description || section.description_am) && (
-              <p className="mt-1 whitespace-pre-line text-xs text-slate-600">
-                {language === "en" ? section.description : section.description_am || section.description}
-              </p>
-            )}
-          </header>
+          <SectionHeader section={section} language={language} />
           <ol className="divide-y">
             {fields.map((f, i) => (
-              <li key={f.key} className="px-4 py-3">
-                <QuestionLabel field={f} index={i + 1} language={language} />
-                <div className="mt-2">
-                  <FieldInput field={f} options={f.type === "status" ? statusOptionsFor(definition, f) : []} value={answers[f.key]} onChange={(v) => onChange(f.key, v)} language={language} previewMode={previewMode} />
-                </div>
-                {problems[f.key] && <p className="mt-1 text-xs font-medium text-red-600">{problems[f.key]}</p>}
+              <li key={f.key} className={problems[f.key] ? "bg-red-50/60" : ""}>
+                <QuestionBlock definition={definition} field={f} index={i + 1} value={answers[f.key]} onChange={(v) => onChange(f.key, v)} problem={problems[f.key]} language={language} previewMode={previewMode} />
               </li>
             ))}
           </ol>
         </section>
       ))}
       {structure.length === 0 && <p className="py-10 text-center text-sm text-slate-500">No questions apply.</p>}
+    </fieldset>
+  );
+}
+
+export function SectionHeader({ section, language, compact }: { section: FormSection; language: FormLanguage; compact?: boolean }) {
+  const description = pickText(section.description, section.description_am, language);
+  return (
+    <header className={compact ? "" : "border-b bg-slate-50 px-4 py-3"}>
+      <h3 className={`font-semibold text-primary ${compact ? "text-sm" : ""}`}>
+        {section.number && <span className="mr-2 text-golden-deep">{section.number}.</span>}
+        {L(section.title, section.title_am, language)}
+      </h3>
+      {description && !compact && <p className="mt-1 whitespace-pre-line text-xs text-slate-600">{description}</p>}
+    </header>
+  );
+}
+
+/** One question: its text, the answer input and any problem. `large` = the one-question-at-a-time view. */
+export function QuestionBlock({
+  definition,
+  field: f,
+  index,
+  value,
+  onChange,
+  problem,
+  language,
+  previewMode,
+  large,
+}: {
+  definition: FormDefinition;
+  field: FormField;
+  index?: number;
+  value: any;
+  onChange: (v: any) => void;
+  problem?: string;
+  language: FormLanguage;
+  previewMode?: boolean;
+  large?: boolean;
+}) {
+  const options = f.type === "status" ? statusOptionsFor(definition, f) : [];
+  const input = (part: InputPart) => <FieldInput field={f} options={options} value={value} onChange={onChange} language={language} previewMode={previewMode} large={large} part={part} />;
+  const problemLine = problem && (
+    <p role="alert" className="text-sm font-medium text-red-600">
+      {problem}
+    </p>
+  );
+
+  if (large) {
+    // Question card with the answer buttons; the evidence (description, photos) underneath it
+    return (
+      <div id={`answer-${f.key}`} className="scroll-mt-36 space-y-3">
+        <div className={`space-y-4 rounded-xl border bg-white p-4 shadow-sm sm:p-5 ${problem ? "border-red-300" : "border-slate-200"}`}>
+          <QuestionLabel field={f} index={index} language={language} large />
+          {input(f.type === "status" ? "main" : "all")}
+        </div>
+        {f.type === "status" && input("extra")}
+        {problemLine}
+      </div>
+    );
+  }
+  return (
+    <div id={`answer-${f.key}`} className="scroll-mt-36 space-y-2 px-4 py-3">
+      <QuestionLabel field={f} index={index} language={language} />
+      {input("all")}
+      {problemLine}
     </div>
   );
 }
 
-function QuestionLabel({ field, index, language }: { field: FormField; index: number; language: Props["language"] }) {
+function QuestionLabel({ field, index, language, large }: { field: FormField; index?: number; language: FormLanguage; large?: boolean }) {
+  const help = pickText(field.help, field.help_am, language);
   return (
-    <div className="flex gap-2 text-sm font-medium text-slate-900">
-      <span className="w-6 shrink-0 text-right text-slate-400">{index}.</span>
+    <div className={`flex gap-2 text-slate-900 ${large ? "text-base font-semibold leading-relaxed sm:text-lg" : "text-sm font-medium"}`}>
+      {index != null && <span className={`shrink-0 ${large ? "text-slate-900" : "w-6 text-right text-slate-400"}`}>{index}.</span>}
       <div className="min-w-0">
         {L(field.label, field.label_am, language)}
         {field.required && <span className="ml-1 text-red-500">*</span>}
-        {(field.help || field.help_am) && (
-          <p className="mt-0.5 text-xs font-normal text-slate-500">{language === "en" ? field.help : field.help_am || field.help}</p>
-        )}
+        {help && <p className={`mt-0.5 font-normal text-slate-500 ${large ? "text-sm" : "text-xs"}`}>{help}</p>}
       </div>
     </div>
   );
 }
+
+type InputPart = "all" | "main" | "extra";
+
+/** Colour of a status choice by what it scores: best = green, partly = amber, zero = red, not counted = grey. */
+const choiceTone = (o: StatusOption, best: number) =>
+  o.score == null
+    ? { text: "text-slate-500", soft: "bg-slate-100" }
+    : o.score >= best && best > 0
+      ? { text: "text-green-700", soft: "bg-green-50" }
+      : o.score === 0
+        ? { text: "text-red-700", soft: "bg-red-50" }
+        : { text: "text-amber-700", soft: "bg-amber-50" };
+
+/** A field label like "ማስረጃ / ምልከታ · ግዴታ". */
+const FieldLabel = ({ children, required, am, htmlFor }: { children: React.ReactNode; required?: boolean; am: boolean; htmlFor?: string }) => (
+  <label htmlFor={htmlFor} className="block text-xs font-medium text-slate-600">
+    {children}
+    {required && <span className="ml-1 font-bold text-red-600">· {am ? "ግዴታ" : "required"}</span>}
+  </label>
+);
 
 function FieldInput({
   field: f,
@@ -91,111 +161,137 @@ function FieldInput({
   onChange,
   language,
   previewMode,
+  large,
+  part = "all",
 }: {
   field: FormField;
   options: StatusOption[];
   value: any;
   onChange: (v: any) => void;
-  language: Props["language"];
+  language: FormLanguage;
   previewMode?: boolean;
+  large?: boolean;
+  part?: InputPart;
 }) {
-  const optLabel = (o: { label: string; label_am?: string | null }) => (language === "en" ? o.label : o.label_am || o.label);
+  const optLabel = (o: { label: string; label_am?: string | null }) => pickText(o.label, o.label_am, language);
+  const pad = large ? "" : "pl-8";
+  const am = language === "am";
+  // Big answer buttons (two per row) in the one-question view
+  const choiceWrap = large ? "grid grid-cols-2 gap-2" : "flex flex-wrap gap-2";
+  const choiceSize = large ? "justify-center rounded-lg px-3 py-3 text-base font-bold" : "rounded-lg px-3 py-1.5 text-sm font-semibold";
 
   switch (f.type) {
     case "status": {
       const a = (value || {}) as StatusAnswer;
       const chosen = options.find((o) => o.value === a.value);
       const best = maxScoreOf(options);
-      return (
-        <div className="space-y-2 pl-8">
-          <div className="flex flex-wrap gap-2">
-            {options.map((o) => (
+      const main = (
+        <div className={choiceWrap} role="group" aria-label={am ? "መልስ" : "Answer"}>
+          {options.map((o) => {
+            const tone = choiceTone(o, best);
+            const on = a.value === o.value;
+            return (
               <button
                 key={o.value}
                 type="button"
-                onClick={() => onChange({ ...a, value: a.value === o.value ? undefined : o.value })}
-                className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  a.value === o.value
-                    ? o.score == null
-                      ? "border-slate-500 bg-slate-500 text-white"
-                      : o.score >= best
-                        ? "border-green-600 bg-green-600 text-white"
-                        : o.score === 0
-                        ? "border-red-600 bg-red-600 text-white"
-                        : o.score == null
-                          ? "border-slate-500 bg-slate-500 text-white"
-                          : "border-amber-500 bg-amber-500 text-white"
-                    : "border-slate-300 bg-white text-slate-700 hover:border-primary"
-                }`}
+                aria-pressed={on}
+                onClick={() => onChange({ ...a, value: on ? undefined : o.value })}
+                className={`flex items-center gap-2 border-[1.5px] transition-colors ${choiceSize} ${tone.text} ${on ? `border-current ${tone.soft}` : "border-slate-200 bg-white hover:border-current"}`}
               >
-                <span lang="am">{optLabel(o)}</span>
+                <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-full bg-current" />
+                <span lang={am ? "am" : "en"}>{optLabel(o)}</span>
               </button>
-            ))}
-          </div>
-          {a.value && (
+            );
+          })}
+        </div>
+      );
+      const extra = a.value ? (
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <FieldLabel required am={am} htmlFor={`note-${f.key}`}>
+              {am ? "ማስረጃ / ምልከታ" : "Evidence / observation"}
+            </FieldLabel>
             <textarea
-              rows={2}
-              className={textareaClass}
+              id={`note-${f.key}`}
+              className={`${textareaClass} rounded-lg bg-white`}
               value={a.note ?? ""}
               onChange={(e) => onChange({ ...a, note: e.target.value })}
-              placeholder="Describe what you found (required) — የተገኘውን ሁኔታ ይግለጹ"
-              aria-label="Description (required)"
+              rows={large ? 3 : 2}
+              placeholder={am ? "የተገኘውን ሁኔታ ይግለጹ" : "Describe what you found"}
             />
-          )}
+          </div>
           {chosen?.action === "required" && (
-            <textarea
-              rows={2}
-              className={textareaClass}
-              value={a.action ?? ""}
-              onChange={(e) => onChange({ ...a, action: e.target.value })}
-              placeholder="Action needed (required) — የሚያስፈልግ እርምጃ"
-            />
+            <div className="space-y-1">
+              <FieldLabel required am={am} htmlFor={`action-${f.key}`}>
+                {am ? "የሚያስፈልግ እርምጃ" : "Action needed"}
+              </FieldLabel>
+              <textarea
+                id={`action-${f.key}`}
+                rows={2}
+                className={`${textareaClass} rounded-lg bg-white`}
+                value={a.action ?? ""}
+                onChange={(e) => onChange({ ...a, action: e.target.value })}
+                placeholder={am ? "ኩባንያው መውሰድ ያለበት እርምጃ" : "What the company must do"}
+              />
+            </div>
           )}
-          {a.value && f.evidence !== "none" && (
-            <p className="flex items-center gap-1 text-xs text-slate-500">
-              <Camera className="h-3.5 w-3.5" /> Photos / files {f.evidence === "required" ? "(required)" : "(optional)"}
-              {previewMode && " — added on the inspector's device"}
-            </p>
+          {f.evidence !== "none" && (
+            <div className="space-y-1">
+              <FieldLabel required={f.evidence === "required"} am={am}>
+                <Camera className="mr-1 inline h-3.5 w-3.5" />
+                {am ? "ፎቶ / ፋይል" : "Photos / files"}
+              </FieldLabel>
+              <FileAnswer field={f} value={a.files} onChange={(files) => onChange({ ...a, files })} language={language} />
+            </div>
           )}
+        </div>
+      ) : null;
+      if (part === "main") return main;
+      if (part === "extra") return extra;
+      return (
+        <div className={`space-y-3 ${pad}`}>
+          {main}
+          {extra}
         </div>
       );
     }
     case "text":
       return (
-        <div className="pl-8">
-          <Input value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={f.prefill ? "Filled in from the license; can be corrected" : undefined} />
+        <div className={pad}>
+          <Input value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={f.prefill ? (am ? "ከፈቃዱ የተሞላ፤ ማስተካከል ይቻላል" : "Filled in from the license; can be corrected") : undefined} />
         </div>
       );
     case "long_text":
       return (
-        <div className="pl-8">
+        <div className={pad}>
           <textarea rows={4} className={textareaClass} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
         </div>
       );
     case "number":
       return (
-        <div className="flex items-center gap-2 pl-8">
+        <div className={`flex items-center gap-2 ${pad}`}>
           <Input type="number" className="max-w-48" value={value ?? ""} min={f.min} max={f.max} onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)} />
           {f.unit && <span className="text-sm text-slate-500">{f.unit}</span>}
         </div>
       );
     case "date":
       return (
-        <div className="pl-8">
+        <div className={pad}>
           <Input type="date" className="max-w-56" value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
         </div>
       );
     case "select":
       return (
-        <div className="flex flex-wrap gap-2 pl-8">
+        <div className={`${choiceWrap} ${pad}`}>
           {(f.options || []).map((o) => (
             <button
               key={o.value}
               type="button"
               onClick={() => onChange(value === o.value ? null : o.value)}
-              className={`rounded-full border px-3 py-1.5 text-sm font-medium ${value === o.value ? "border-primary bg-primary text-white" : "border-slate-300 bg-white text-slate-700 hover:border-primary"}`}
+              aria-pressed={value === o.value}
+              className={`flex items-center gap-2 border-[1.5px] ${choiceSize} ${value === o.value ? "border-primary bg-primary/10 text-primary" : "border-slate-200 bg-white text-slate-700 hover:border-primary"}`}
             >
-              <span lang="am">{optLabel(o)}</span>
+              <span lang={am ? "am" : "en"}>{optLabel(o)}</span>
             </button>
           ))}
         </div>
@@ -203,39 +299,37 @@ function FieldInput({
     case "checkboxes": {
       const list: string[] = Array.isArray(value) ? value : [];
       return (
-        <div className="flex flex-wrap gap-x-5 gap-y-2 pl-8">
+        <div className={`${large ? "space-y-2" : "flex flex-wrap gap-x-5 gap-y-2"} ${pad}`}>
           {(f.options || []).map((o) => (
-            <label key={o.value} className="flex items-center gap-2 text-sm">
+            <label key={o.value} className={`flex items-center gap-2 ${large ? "w-full rounded-lg border border-slate-200 px-4 py-3 text-base" : "text-sm"}`}>
               <input
                 type="checkbox"
                 className="h-4 w-4 accent-primary"
                 checked={list.includes(o.value)}
                 onChange={(e) => onChange(e.target.checked ? [...list, o.value] : list.filter((v) => v !== o.value))}
               />
-              <span lang="am">{optLabel(o)}</span>
+              <span lang={am ? "am" : "en"}>{optLabel(o)}</span>
             </label>
           ))}
         </div>
       );
     }
     case "table":
-      return <TableInput field={f} value={value} onChange={onChange} language={language} />;
+      return (
+        <div className={pad}>
+          <TableInput field={f} value={value} onChange={onChange} language={language} />
+        </div>
+      );
     case "photo":
       return (
-        <div className="pl-8">
-          <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
-            <Camera className="h-4 w-4" /> Up to {f.max_files ?? 10} photos or files{previewMode && " — taken on the inspector's device"}
-          </div>
+        <div className={pad}>
+          <FileAnswer field={f} value={Array.isArray(value) ? value : []} onChange={onChange} language={language} />
         </div>
       );
     case "signature":
       return (
-        <div className="pl-8">
-          <div className="flex items-center gap-2 rounded-lg border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">
-            <PenLine className="h-4 w-4" /> {f.multiple ? "Signatures (one per person)" : "Signature"}
-            {f.with_name && ", with name"}
-            {previewMode && " — signed on the inspector's device"}
-          </div>
+        <div className={pad}>
+          <SignatureAnswerInput field={f} value={value} onChange={onChange} />
         </div>
       );
     default:
@@ -243,7 +337,7 @@ function FieldInput({
   }
 }
 
-function TableInput({ field: f, value, onChange, language }: { field: FormField; value: any; onChange: (v: any) => void; language: Props["language"] }) {
+function TableInput({ field: f, value, onChange, language }: { field: FormField; value: any; onChange: (v: any) => void; language: FormLanguage }) {
   const columns = f.columns || [];
   const fixed = f.rows || [];
   const current = ((value || {}) as TableAnswer).rows;
@@ -253,7 +347,7 @@ function TableInput({ field: f, value, onChange, language }: { field: FormField;
   const setCell = (i: number, key: string, v: string) => set(rows.map((r, j) => (j === i ? { ...r, cells: { ...r.cells, [key]: v } } : r)));
 
   return (
-    <div className="space-y-2 overflow-x-auto pl-8">
+    <div className="space-y-2 overflow-x-auto">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
           <tr className="bg-slate-50 text-left text-xs text-slate-600">

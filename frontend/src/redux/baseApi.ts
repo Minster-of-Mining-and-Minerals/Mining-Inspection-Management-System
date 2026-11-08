@@ -58,6 +58,8 @@ export const baseApi = createApi({
     "Mineral",
     "Team",
     "Form",
+    "Schedule",
+    "Inspection",
     "Attachment",
     "Dashboard",
     "Notification",

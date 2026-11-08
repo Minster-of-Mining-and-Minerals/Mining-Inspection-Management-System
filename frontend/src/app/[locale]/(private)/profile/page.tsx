@@ -116,7 +116,7 @@ export default function ProfilePage() {
     : "";
 
   return (
-    <main className="mx-auto w-full max-w-5xl py-2 sm:py-4">
+    <main className="w-full py-2 sm:py-4">
       {/* Banner */}
       <section className="relative h-28 overflow-hidden rounded-xl bg-primary sm:h-36">
         <div className="absolute inset-0 bg-[url('/images/hero-bg-contours.svg')] bg-cover bg-center opacity-30" />

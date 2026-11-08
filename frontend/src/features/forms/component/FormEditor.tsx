@@ -77,9 +77,8 @@ const HISTORY_LIMIT = 50;
 /** Missing translations and other things to fix, per question. */
 const fieldIssues = (f: FormField): string[] => {
   const issues: string[] = [];
-  if (!f.label?.trim()) issues.push("Question text missing");
-  else if (ETHIOPIC.test(f.label) && (!f.label_am || f.label_am === f.label)) issues.push("English missing");
-  if (!f.label_am?.trim()) issues.push("Amharic missing");
+  // Amharic is the question's main text; English is optional for now
+  if (!f.label_am?.trim()) issues.push(f.label?.trim() ? "Amharic missing" : "Question text missing");
   if ((f.type === "select" || f.type === "checkboxes") && !f.options?.length) issues.push("No choices");
   if (f.type === "table" && !f.columns?.length) issues.push("No columns");
   if (f.status_options && (f.status_options.length < 2 || f.status_options.some((o) => !o.label?.trim()))) issues.push("Choice text missing");
@@ -208,7 +207,7 @@ export function FormEditor({ form, mode, canPublish, onExit, onSwitchToDraft }: 
     const out: { section: FormSection; field: FormField; si: number }[] = [];
     def.sections.forEach((s, si) =>
       s.fields.forEach((f) => {
-        if (f.label.toLowerCase().includes(q) || (f.label_am ?? "").includes(search.trim())) out.push({ section: s, field: f, si });
+        if ((f.label ?? "").toLowerCase().includes(q) || (f.label_am ?? "").includes(search.trim())) out.push({ section: s, field: f, si });
       }),
     );
     return out.slice(0, 8);
@@ -274,7 +273,7 @@ export function FormEditor({ form, mode, canPublish, onExit, onSwitchToDraft }: 
     s.key = keyFromLabel(`${s.title} copy`, new Set(def.sections.map((x) => x.key)), "section");
     s.title = `${s.title} (copy)`;
     s.fields = s.fields.map((f) => {
-      const k = keyFromLabel(f.label || f.key, taken);
+      const k = keyFromLabel(f.label || "question", taken);
       taken.add(k);
       return { ...f, key: k, show_if: undefined };
     });
@@ -343,7 +342,7 @@ export function FormEditor({ form, mode, canPublish, onExit, onSwitchToDraft }: 
                       jumpTo(`q-${field.key}`, section.key);
                     }}
                   >
-                    <span className="block truncate text-slate-900">{field.label || field.label_am}</span>
+                    <span lang="am" className="block truncate text-slate-900">{field.label_am || field.label}</span>
                     <span className="block truncate text-xs text-slate-500">
                       {section.number ? `${section.number}. ` : ""}
                       {section.title}
@@ -699,15 +698,11 @@ function QuestionItem({
       >
         <span className="w-6 shrink-0 pt-0.5 text-right text-xs text-slate-400">{index}.</span>
         <span className="min-w-0 flex-1 text-sm">
-          <span className="text-slate-900">
-            {f.label || <em className="text-slate-400">New question</em>}
+          <span lang="am" className="text-slate-900">
+            {f.label_am || f.label || <em className="text-slate-400">አዲስ ጥያቄ</em>}
             {f.required && <span className="ml-1 text-red-500">*</span>}
           </span>
-          {f.label_am && (
-            <span lang="am" className="block text-xs text-slate-500">
-              {f.label_am}
-            </span>
-          )}
+          {f.label_am && f.label && <span className="block text-xs text-slate-500">{f.label}</span>}
           {badges}
         </span>
       </button>
@@ -740,13 +735,13 @@ function QuestionItem({
         </Button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <label className="space-y-1 text-xs font-medium text-slate-600">
-          Question (English)
-          <textarea autoFocus rows={2} className={textareaClass} value={f.label} onChange={(e) => onChange({ label: e.target.value })} />
-        </label>
         <label lang="am" className="space-y-1 text-xs font-medium text-slate-600">
-          ጥያቄ (አማርኛ)
-          <textarea rows={2} className={textareaClass} value={f.label_am ?? ""} onChange={(e) => onChange({ label_am: e.target.value })} />
+          ጥያቄ (አማርኛ) *
+          <textarea autoFocus rows={2} className={textareaClass} value={f.label_am ?? ""} onChange={(e) => onChange({ label_am: e.target.value })} />
+        </label>
+        <label className="space-y-1 text-xs font-medium text-slate-600">
+          Question (English, optional)
+          <textarea rows={2} className={textareaClass} value={f.label ?? ""} onChange={(e) => onChange({ label: e.target.value })} />
         </label>
       </div>
       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
@@ -799,7 +794,7 @@ const QUICK_TYPES: { type: FieldType; label: string }[] = [
   { type: "select", label: "Choice" },
   { type: "checkboxes", label: "Several choices" },
   { type: "table", label: "Table" },
-  { type: "photo", label: "Photo" },
+  { type: "photo", label: "File upload" },
   { type: "signature", label: "Signature" },
 ];
 
@@ -826,7 +821,7 @@ function QuickAddBar({ onAdd, onPaste }: { onAdd: (t: FieldType) => void; onPast
 }
 
 /* =================== paste many questions =================== */
-/** One line = one question. "English | አማርኛ" fills both; Amharic-only lines are marked "English missing". */
+/** One line = one question. Amharic lines fill the Amharic text; "English | አማርኛ" fills both. */
 const parsePasted = (text: string) =>
   text
     .split(/\r?\n/)
@@ -835,7 +830,7 @@ const parsePasted = (text: string) =>
     .map((line) => {
       const [a, b] = line.split(/\s+\|\s+/);
       if (b) return ETHIOPIC.test(a) && !ETHIOPIC.test(b) ? { label: b.trim(), label_am: a.trim() } : { label: a.trim(), label_am: b.trim() };
-      return ETHIOPIC.test(line) ? { label: line, label_am: line } : { label: line, label_am: "" };
+      return ETHIOPIC.test(line) ? { label: "", label_am: line } : { label: line, label_am: "" };
     });
 
 function PasteDialog({
@@ -903,13 +898,9 @@ function PasteDialog({
           <ol className="max-h-48 list-decimal space-y-1 overflow-y-auto rounded-lg bg-slate-50 py-2 pl-8 pr-3 text-sm">
             {rows.map((r, i) => (
               <li key={i}>
-                {r.label}
-                {r.label_am && r.label_am !== r.label && (
-                  <span lang="am" className="block text-xs text-slate-500">
-                    {r.label_am}
-                  </span>
-                )}
-                {r.label === r.label_am && <span className="ml-2 text-xs text-amber-700">English missing</span>}
+                <span lang="am">{r.label_am || r.label}</span>
+                {r.label_am && r.label && <span className="block text-xs text-slate-500">{r.label}</span>}
+                {!r.label_am && <span className="ml-2 text-xs text-amber-700">Amharic missing</span>}
               </li>
             ))}
           </ol>
@@ -930,7 +921,7 @@ function PasteDialog({
 /* =================== live phone preview =================== */
 function PhonePreview({ definition, onHide }: { definition: FormDefinition; onHide: () => void }) {
   const [licenseType, setLicenseType] = useState<LicenseTypeKey>("exploration");
-  const [language, setLanguage] = useState<"both" | "am" | "en">("am");
+  const language = "am" as const; // inspectors see Amharic for now
   const [answers, setAnswers] = useState<Answers>({});
   return (
     <aside aria-label="Live preview" className="w-full space-y-2 xl:sticky xl:top-24 xl:w-[360px]">
@@ -939,11 +930,6 @@ function PhonePreview({ definition, onHide }: { definition: FormDefinition; onHi
         <select aria-label="License type" className="h-7 rounded border px-1" value={licenseType} onChange={(e) => setLicenseType(e.target.value as LicenseTypeKey)}>
           <option value="exploration">Exploration</option>
           <option value="mining">Mining</option>
-        </select>
-        <select aria-label="Language" className="h-7 rounded border px-1" value={language} onChange={(e) => setLanguage(e.target.value as typeof language)}>
-          <option value="am">አማርኛ</option>
-          <option value="both">አማርኛ + English</option>
-          <option value="en">English</option>
         </select>
         <span className="flex-1" />
         <Button variant="outline" size="sm" className="h-7 gap-1 px-2 text-xs" onClick={onHide}>

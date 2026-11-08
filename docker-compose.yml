@@ -34,6 +34,8 @@ services:
       - mims_network
     volumes:
       - ./backend/uploads:/app/uploads
+      # Inspection photos / documents / videos / signatures (private; back this folder up)
+      - ./backend/storage:/app/storage
       - ./backend/logs:/app/logs
 
   frontend:

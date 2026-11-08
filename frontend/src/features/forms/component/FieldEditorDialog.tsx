@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChoiceOption, FIELD_TYPE_LABEL, FieldType, FormField, PREFILL_LABEL, StatusOption, TableColumn } from "@/redux/types/form";
+import { ChoiceOption, FIELD_TYPE_LABEL, FieldType, FileKind, FormField, MAX_FILE_MB, PREFILL_LABEL, StatusOption, TableColumn } from "@/redux/types/form";
 import { keyFromLabel } from "./formLogic";
 import { StatusOptionsEditor } from "./FormEditorParts";
 
@@ -93,18 +93,18 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
   const changeType = (type: FieldType) => {
     // Keep the shared parts; reset type options to sensible defaults
     const base: FormField = { key: f.key, type, label: f.label, label_am: f.label_am, help: f.help, help_am: f.help_am, required: f.required, show_if: f.show_if };
-    if (type === "status") Object.assign(base, { evidence: "optional", status_options: statusOptions.map((o) => ({ ...o })) });
+    if (type === "status") Object.assign(base, { evidence: "optional", accept: ["image"], max_files: 10, max_size_mb: 20, status_options: statusOptions.map((o) => ({ ...o })) });
     if (type === "select" || type === "checkboxes") base.options = [{ value: "", label: "", label_am: "" }];
     if (type === "table") Object.assign(base, { columns: [{ key: "", label: "", label_am: "", type: "text" }], rows: [], allow_add_rows: true });
-    if (type === "photo") base.max_files = 10;
+    if (type === "photo") Object.assign(base, { accept: ["image"], max_files: 10, max_size_mb: 20 });
     if (type === "signature") Object.assign(base, { multiple: false, with_name: true });
     setF(base);
   };
 
   const save = () => {
-    if (f.label.trim().length < 2) return toast.error("Write the question (English).");
-    let out: FormField = { ...f, label: f.label.trim(), label_am: f.label_am?.trim() || null, help: f.help?.trim() || null, help_am: f.help_am?.trim() || null };
-    if (isNew || !out.key) out.key = keyFromLabel(out.label, takenKeys);
+    if ((f.label_am ?? "").trim().length < 2) return toast.error("ጥያቄውን በአማርኛ ይጻፉ — write the question in Amharic.");
+    let out: FormField = { ...f, label: (f.label ?? "").trim(), label_am: f.label_am!.trim(), help: f.help?.trim() || null, help_am: f.help_am?.trim() || null };
+    if (isNew || !out.key) out.key = keyFromLabel(out.label || "question", takenKeys);
     if (out.options) {
       out.options = withValues(out.options.filter((o) => o.label.trim()), "value", "choice");
       if (!out.options.length) return toast.error("Add at least one choice.");
@@ -163,20 +163,20 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="q-label">Question (English) *</Label>
-              <textarea id="q-label" rows={3} className={textareaClass} value={f.label} onChange={(e) => set({ label: e.target.value })} />
+              <Label htmlFor="q-label-am">ጥያቄ (አማርኛ) *</Label>
+              <textarea id="q-label-am" lang="am" autoFocus rows={3} className={textareaClass} value={f.label_am ?? ""} onChange={(e) => set({ label_am: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="q-label-am">ጥያቄ (አማርኛ)</Label>
-              <textarea id="q-label-am" lang="am" rows={3} className={textareaClass} value={f.label_am ?? ""} onChange={(e) => set({ label_am: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="q-help">Hint (English)</Label>
-              <Input id="q-help" value={f.help ?? ""} onChange={(e) => set({ help: e.target.value })} />
+              <Label htmlFor="q-label">Question (English, optional)</Label>
+              <textarea id="q-label" rows={3} className={textareaClass} value={f.label ?? ""} onChange={(e) => set({ label: e.target.value })} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="q-help-am">ማብራሪያ (አማርኛ)</Label>
               <Input id="q-help-am" lang="am" value={f.help_am ?? ""} onChange={(e) => set({ help_am: e.target.value })} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="q-help">Hint (English, optional)</Label>
+              <Input id="q-help" value={f.help ?? ""} onChange={(e) => set({ help: e.target.value })} />
             </div>
           </div>
 
@@ -188,7 +188,7 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
           {/* ---------- type options ---------- */}
           {f.type === "status" && (
             <div className="space-y-2">
-              <Label>Photos / files with the answer</Label>
+              <Label>File upload with the answer</Label>
               <Select value={f.evidence ?? "optional"} onValueChange={(v) => set({ evidence: v as FormField["evidence"] })}>
                 <SelectTrigger>
                   <SelectValue />
@@ -199,6 +199,7 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
                   <SelectItem value="none">Not asked</SelectItem>
                 </SelectContent>
               </Select>
+              {f.evidence !== "none" && <FileSettings field={f} set={set} />}
             </div>
           )}
           {f.type === "status" && (
@@ -314,12 +315,7 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
             </div>
           )}
 
-          {f.type === "photo" && (
-            <div className="space-y-2">
-              <Label htmlFor="q-files">Most photos / files</Label>
-              <Input id="q-files" type="number" min={1} max={30} className="max-w-32" value={f.max_files ?? 10} onChange={(e) => set({ max_files: Number(e.target.value) || 1 })} />
-            </div>
-          )}
+          {f.type === "photo" && <FileSettings field={f} set={set} />}
 
           {f.type === "signature" && (
             <div className="flex flex-wrap gap-5 text-sm">
@@ -388,5 +384,66 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+const FILE_KIND_OPTIONS: { kind: FileKind; label: string; hint: string }[] = [
+  { kind: "image", label: "Photos", hint: "JPG, PNG, HEIC — from the camera or gallery" },
+  { kind: "document", label: "Documents", hint: "PDF, Word, Excel, PowerPoint, CSV" },
+  { kind: "video", label: "Videos", hint: "MP4, MOV, WebM — large; set a size limit" },
+];
+
+/** Which kinds of file, how many and how big (per file) — for file questions and status evidence. */
+function FileSettings({ field: f, set }: { field: FormField; set: (patch: Partial<FormField>) => void }) {
+  const accept = f.accept?.length ? f.accept : ["image" as FileKind];
+  const toggle = (k: FileKind) => {
+    const next = accept.includes(k) ? accept.filter((x) => x !== k) : [...accept, k];
+    if (next.length) set({ accept: next });
+  };
+  return (
+    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <fieldset className="space-y-1.5">
+        <legend className="text-sm font-medium">Accepted files</legend>
+        {FILE_KIND_OPTIONS.map((o) => (
+          <label key={o.kind} className="flex items-start gap-2 text-sm">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 accent-primary" checked={accept.includes(o.kind)} onChange={() => toggle(o.kind)} />
+            <span>
+              {o.label}
+              <span className="block text-xs text-slate-500">{o.hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      <div className="flex flex-wrap gap-4">
+        <div className="space-y-1">
+          <Label htmlFor={`q-max-files-${f.key}`}>Most files</Label>
+          <Input
+            id={`q-max-files-${f.key}`}
+            type="number"
+            min={1}
+            max={30}
+            className="w-28"
+            value={f.max_files ?? 10}
+            onChange={(e) => set({ max_files: Math.min(30, Math.max(1, Number(e.target.value) || 1)) })}
+          />
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor={`q-max-size-${f.key}`}>Max size per file (MB)</Label>
+          <Input
+            id={`q-max-size-${f.key}`}
+            type="number"
+            min={1}
+            max={MAX_FILE_MB}
+            className="w-28"
+            value={f.max_size_mb ?? 20}
+            onChange={(e) => set({ max_size_mb: Math.min(MAX_FILE_MB, Math.max(1, Number(e.target.value) || 1)) })}
+          />
+        </div>
+      </div>
+      <p className="text-xs text-slate-500">
+        Up to {MAX_FILE_MB} MB per file. Photos are made smaller on the phone before uploading.
+        {accept.includes("video") && " A minute of phone video is often 50–150 MB; keep videos short on slow connections."}
+      </p>
+    </div>
   );
 }

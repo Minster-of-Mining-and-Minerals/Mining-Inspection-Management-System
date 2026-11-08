@@ -20,7 +20,7 @@
  *
  * Field types and their options
  *   status      status_options?: [...]  this question's own choices (same shape as above)
- *               evidence?: "none" | "optional" | "required"   (photos / files with the answer)
+ *               evidence?: "none" | "optional" | "required"   (files with the answer: accept / max_files / max_size_mb as for photo)
  *               The inspector picks a choice AND writes a description (always required).
  *   text        prefill?: one of PREFILL_SOURCES               (filled from the license, editable)
  *   long_text
@@ -31,7 +31,7 @@
  *   table       columns: [{ key, label, label_am?, type: "text" | "number" | "date" | "select", options? }],
  *               rows?: [{ label, label_am? }]  (fixed first column, e.g. contract years),
  *               allow_add_rows?: boolean
- *   photo       max_files?
+ *   photo       accept?: ["image" | "document" | "video"] (default image), max_files?, max_size_mb? (per file, 1–MAX_FILE_MB)
  *   signature   multiple?: boolean, with_name?: boolean
  */
 const Joi = require("joi");
@@ -50,6 +50,10 @@ const PREFILL_SOURCES = [
   "inspection.team",
   "company.contact_person",
 ];
+
+/** Kinds of file a question can take, and the largest size an admin may allow per file (matches nginx). */
+const FILE_KINDS = ["image", "document", "video"];
+const MAX_FILE_MB = 100;
 
 const KEY = Joi.string()
   .pattern(/^[a-z][a-z0-9_]{0,59}$/)
@@ -75,8 +79,8 @@ const statusOptionList = Joi.array().items(statusOptionSchema).min(2).max(10);
 const fieldSchema = Joi.object({
   key: KEY,
   type: Joi.string().valid(...FIELD_TYPES).required(),
-  label: text(1000).required(),
-  label_am: text(1000).allow("", null),
+  label: text(1000).allow("", null), // English (optional)
+  label_am: text(1000).allow("", null), // Amharic: the question's main text
   help: text(2000).allow("", null),
   help_am: text(2000).allow("", null),
   required: Joi.boolean().default(false),
@@ -111,7 +115,10 @@ const fieldSchema = Joi.object({
     otherwise: Joi.forbidden(),
   }),
   allow_add_rows: Joi.when("type", { is: "table", then: Joi.boolean().default(true), otherwise: Joi.forbidden() }),
-  max_files: Joi.when("type", { is: "photo", then: Joi.number().integer().min(1).max(30).default(10), otherwise: Joi.forbidden() }),
+  // Files: a photo / file question, or the evidence of a status question
+  accept: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.array().items(Joi.string().valid(...FILE_KINDS)).min(1).unique().default(["image"]), otherwise: Joi.forbidden() }),
+  max_files: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.number().integer().min(1).max(30).default(10), otherwise: Joi.forbidden() }),
+  max_size_mb: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.number().min(1).max(MAX_FILE_MB).default(20), otherwise: Joi.forbidden() }),
   multiple: Joi.when("type", { is: "signature", then: Joi.boolean().default(false), otherwise: Joi.forbidden() }),
   with_name: Joi.when("type", { is: "signature", then: Joi.boolean().default(true), otherwise: Joi.forbidden() }),
 });
@@ -168,7 +175,8 @@ const validateDefinition = (definition, { forPublish = false } = {}) => {
     sectionKeys.add(s.key);
     checkShowIf(`Section "${s.title}"`, s.show_if);
     for (const f of s.fields) {
-      const where = `Section "${s.title}" › "${f.label.slice(0, 60)}"`;
+      const where = `Section "${s.title}" › "${questionText(f).slice(0, 60)}"`;
+      if (!f.label_am?.trim() && !f.label?.trim()) errors.push(`Section "${s.title}": a question has no text. Write it in Amharic.`);
       if (seen.has(f.key)) errors.push(`${where}: key "${f.key}" is already used by another question.`);
       checkShowIf(where, f.show_if);
       if (f.type === "number" && f.min != null && f.max != null && f.min > f.max) errors.push(`${where}: minimum is above maximum.`);
@@ -209,6 +217,9 @@ const summarizeDefinition = (definition) => {
   };
 };
 
+/** A question's text for messages: Amharic, or English when there is no Amharic. */
+const questionText = (f) => (f?.label_am?.trim() || f?.label?.trim() || f?.key || "");
+
 /** The choices a status question offers: its own list, or the form's defaults. */
 const statusOptionsFor = (definition, field) => (field?.status_options?.length ? field.status_options : definition?.status_options || []);
 
@@ -224,10 +235,13 @@ const DEFAULT_STATUS_OPTIONS = [
 
 module.exports = {
   FIELD_TYPES,
+  FILE_KINDS,
+  MAX_FILE_MB,
   PREFILL_SOURCES,
   DEFAULT_STATUS_OPTIONS,
   validateDefinition,
   summarizeDefinition,
   statusOptionsFor,
+  questionText,
   emptyDefinition,
 };

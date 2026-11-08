@@ -2,6 +2,10 @@
 
 export type FieldType = "status" | "text" | "long_text" | "number" | "date" | "select" | "checkboxes" | "table" | "photo" | "signature";
 export type LicenseTypeKey = "exploration" | "mining";
+/** Kinds of file a question can take */
+export type FileKind = "image" | "document" | "video";
+/** Largest size an admin can allow per file (matches the server and nginx) */
+export const MAX_FILE_MB = 100;
 
 export interface ChoiceOption {
   value: string;
@@ -51,7 +55,10 @@ export interface FormField {
   columns?: TableColumn[];
   rows?: { label: string; label_am?: string | null }[];
   allow_add_rows?: boolean;
+  /** photo / status evidence: which kinds, how many, how big (MB per file) */
+  accept?: FileKind[];
   max_files?: number;
+  max_size_mb?: number;
   multiple?: boolean;
   with_name?: boolean;
 }
@@ -173,7 +180,7 @@ export const FIELD_TYPE_LABEL: Record<FieldType, string> = {
   select: "One choice",
   checkboxes: "Several choices",
   table: "Table",
-  photo: "Photos / files",
+  photo: "File upload",
   signature: "Signature",
 };
 

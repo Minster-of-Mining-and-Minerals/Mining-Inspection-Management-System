@@ -98,7 +98,7 @@ const Notifications = () => {
     const ActiveIcon = CATEGORIES.find((c) => c.key === activeCategory)!.icon;
 
     return (
-        <div className="mx-auto w-full max-w-5xl space-y-5">
+        <div className="w-full space-y-5">
             {/* Page header */}
             <div className="flex flex-wrap items-center gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-golden-bright">

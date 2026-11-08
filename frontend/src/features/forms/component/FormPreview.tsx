@@ -10,7 +10,7 @@ import { Answers, scoreOf, validateAnswers, visibleStructure } from "./formLogic
 /** Try a form as an inspector would: pick a license type, answer, see conditions and the score. */
 export function FormPreview({ definition }: { definition: FormDefinition }) {
   const [licenseType, setLicenseType] = useState<LicenseTypeKey>("exploration");
-  const [language, setLanguage] = useState<"both" | "am" | "en">("both");
+  const language = "am" as const; // inspectors see Amharic for now
   const [answers, setAnswers] = useState<Answers>({});
   const [checked, setChecked] = useState(false);
 
@@ -35,25 +35,7 @@ export function FormPreview({ definition }: { definition: FormDefinition }) {
             </button>
           ))}
         </div>
-        <span className="text-slate-500">license ·</span>
-        <div className="inline-flex rounded-lg bg-slate-100 p-1">
-          {(
-            [
-              ["both", "አማርኛ + English"],
-              ["am", "አማርኛ"],
-              ["en", "English"],
-            ] as const
-          ).map(([v, label]) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setLanguage(v)}
-              className={`rounded-md px-3 py-1 font-medium ${language === v ? "bg-white text-primary shadow-sm" : "text-slate-500"}`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <span className="text-slate-500">license</span>
         <span className="ml-auto text-slate-500">
           {visible.length} sections · {questionCount} questions shown
         </span>

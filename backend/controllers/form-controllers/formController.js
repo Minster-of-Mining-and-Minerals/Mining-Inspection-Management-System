@@ -13,7 +13,7 @@ const handleError = (res, error, fallback) => {
   if (error.status) return fail(res, error.status, error.message, error.extra);
   if (error.name === "SequelizeUniqueConstraintError") {
     const c = error.parent?.constraint || "";
-    if (c.includes("assignments_unique")) return fail(res, 409, "This form is already assigned to that target.");
+    if (c.includes("assignments_unique")) return fail(res, 409, "This form already applies to that.");
     if (c.includes("one_draft")) return fail(res, 409, "This form already has a draft.");
     if (c.includes("code")) return fail(res, 409, "Another form already uses this code.");
     return fail(res, 409, "This already exists.");

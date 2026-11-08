@@ -43,11 +43,11 @@ export function AssignmentsPanel({ formId, canAssign, hasPublished }: { formId: 
     if (target === "license" && !license) return toast.error("Choose the license.");
     try {
       await add({ formId, ...(body as any) }).unwrap();
-      toast.success("Assigned.");
+      toast.success("Added.");
       setCompany(null);
       setLicense(null);
     } catch (e: any) {
-      toast.error(e?.data?.message || "Could not assign.");
+      toast.error(e?.data?.message || "Could not add.");
     }
   };
 
@@ -55,16 +55,19 @@ export function AssignmentsPanel({ formId, canAssign, hasPublished }: { formId: 
     <div className="space-y-4">
       {!hasPublished && (
         <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800">
-          This form has no published version yet, so it won’t be used for inspections until it is published.
+          This form has no published version yet, so it can’t be scheduled until it is published.
         </p>
       )}
       <section className="rounded-xl border border-slate-200 bg-white">
         <div className="flex items-center justify-between border-b px-4 py-3">
-          <h3 className="font-semibold text-slate-900">Used for</h3>
+          <div>
+            <h3 className="font-semibold text-slate-900">Applies to</h3>
+            <p className="text-xs text-slate-500">Which licenses this form is meant for. Teams get tasks only when a schedule uses the form (Schedules).</p>
+          </div>
           <span className="text-sm text-slate-500">{isLoading ? "…" : `${data?.license_count ?? 0} licenses in total`}</span>
         </div>
         {!data?.data.length ? (
-          <p className="p-6 text-center text-sm text-slate-500">Not assigned yet.</p>
+          <p className="p-6 text-center text-sm text-slate-500">Doesn’t apply to any license yet.</p>
         ) : (
           <ul className="divide-y">
             {data.data.map((a) => (
@@ -95,7 +98,7 @@ export function AssignmentsPanel({ formId, canAssign, hasPublished }: { formId: 
 
       {canAssign && (
         <section className="space-y-3 rounded-xl border border-slate-200 bg-white p-4">
-          <h3 className="font-semibold text-slate-900">Assign to</h3>
+          <h3 className="font-semibold text-slate-900">Add licenses</h3>
           <div className="flex flex-wrap gap-2">
             {TARGETS.map((t) => (
               <button
@@ -141,7 +144,7 @@ export function AssignmentsPanel({ formId, canAssign, hasPublished }: { formId: 
             </div>
           )}
           <Button onClick={submit} disabled={adding} className="gap-1">
-            <Plus className="h-4 w-4" /> Assign
+            <Plus className="h-4 w-4" /> Add
           </Button>
         </section>
       )}
