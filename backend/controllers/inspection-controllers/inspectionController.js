@@ -356,6 +356,11 @@ const submitInspection = async (req, res) => {
     await task.reload({ transaction, lock: transaction.LOCK.UPDATE });
     if (task.status === "submitted") throw Object.assign(new Error("This inspection has already been submitted."), { status: 409 });
     if (!rights.fill) throw Object.assign(new Error("Only members of the assigned team can submit this inspection."), { status: 403 });
+    // Where it was submitted is required: the phone's GPS point
+    const lat = Number(req.body.location?.lat);
+    const lng = Number(req.body.location?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
+      throw Object.assign(new Error("Your location is needed to submit. Turn on location for this site and try again."), { status: 400, extra: { location_required: true } });
     const version = await saveAnswersInternal(req, task, transaction);
     const license = await CompanyLicense.findByPk(task.license_id, { attributes: ["license_type"], transaction });
     const problems = validateAnswers(version.definition, license?.license_type, task.answers);

@@ -56,11 +56,13 @@ const deviceInfo = () => {
 /** GPS position for the submission; never throws, returns { error } instead. */
 const currentLocation = () =>
   new Promise<Record<string, any>>((resolve) => {
-    if (!("geolocation" in navigator)) return resolve({ error: "This device has no location service." });
+    // Browsers only give the location to https:// pages (and localhost)
+    if (!window.isSecureContext) return resolve({ error: "insecure" });
+    if (!("geolocation" in navigator)) return resolve({ error: "no_service" });
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy), altitude: p.coords.altitude, captured_at: new Date(p.timestamp).toISOString() }),
-      (e) => resolve({ error: e.code === e.PERMISSION_DENIED ? "Location permission was refused." : e.code === e.TIMEOUT ? "Location took too long." : "Location not available." }),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 60000 },
+      (e) => resolve({ error: e.code === e.PERMISSION_DENIED ? "denied" : e.code === e.TIMEOUT ? "timeout" : "unavailable", detail: e.message }),
+      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 },
     );
   });
 
@@ -342,10 +344,13 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 /* =================== submit: location + confirmation =================== */
 function SubmitDialog({ task, busy, onCancel, onSubmit }: { task: TaskDetail; busy: boolean; onCancel: () => void; onSubmit: (location: Record<string, any>) => void }) {
   const [location, setLocation] = useState<Record<string, any> | null>(null);
-  useEffect(() => {
+  const find = () => {
+    setLocation(null);
     currentLocation().then(setLocation);
-  }, []);
+  };
+  useEffect(find, []);
   const late = new Date(task.due_at) < new Date();
+  const found = location && location.lat != null;
   return (
     <Dialog open onOpenChange={(o) => !o && !busy && onCancel()}>
       <DialogContent>
@@ -357,17 +362,50 @@ function SubmitDialog({ task, busy, onCancel, onSubmit }: { task: TaskDetail; bu
         </DialogHeader>
         <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
           <p className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-primary" />
+            <MapPin className={`h-4 w-4 ${location && !found ? "text-red-600" : "text-primary"}`} />
             {!location ? (
               "Getting your location…"
-            ) : location.error ? (
-              <span className="text-amber-700">{location.error} The inspection will be submitted without a location.</span>
+            ) : found ? (
+              <span>Location found (±{location.accuracy} m)</span>
             ) : (
-              <span>
-                Location found (±{location.accuracy} m)
-              </span>
+              <span className="font-medium text-red-700">Your location is needed to submit.</span>
             )}
           </p>
+          {location && !found && (
+            <div className="space-y-2 rounded-md border border-red-200 bg-white p-3 text-xs text-slate-700">
+              {location.error === "insecure" ? (
+                <>
+                  <p className="font-semibold">This page is not secure (http://), so the browser never gives the location here.</p>
+                  <p>
+                    Open the system through its <b>https://</b> address (https://inspection.mom.gov.et). Turning location on in the phone does not help on an http:// page.
+                  </p>
+                </>
+              ) : location.error === "no_service" ? (
+                <p>This browser has no location service. Use Chrome on a phone with GPS.</p>
+              ) : location.error === "denied" ? (
+                <>
+                  <p className="font-semibold">Location is blocked for this site. To allow it:</p>
+                  <ol className="ml-4 list-decimal space-y-0.5">
+                    <li>Tap the icon left of the web address (🔒 or ⓘ).</li>
+                    <li>Open <b>Permissions</b> (or <b>Site settings</b>) → <b>Location</b> → <b>Allow</b>.</li>
+                    <li>Make sure the phone’s own <b>Location</b> is on (pull down the quick settings).</li>
+                    <li>Come back and tap <b>Try again</b>.</li>
+                  </ol>
+                </>
+              ) : (
+                <p>
+                  {location.error === "timeout" ? "Finding your location took too long." : "Your location could not be found."} Turn on the phone’s <b>Location</b> (GPS), move
+                  to an open area if you are inside, and tap <b>Try again</b>.
+                </p>
+              )}
+              {location.detail && <p className="text-[11px] text-slate-400">Browser says: {location.detail}</p>}
+              {location.error !== "insecure" && (
+                <Button type="button" size="sm" variant="outline" onClick={find}>
+                  Try again
+                </Button>
+              )}
+            </div>
+          )}
           <p className="flex items-center gap-2 text-slate-600">
             <Smartphone className="h-4 w-4 text-primary" /> This device’s details are recorded with the submission.
           </p>
@@ -376,8 +414,8 @@ function SubmitDialog({ task, busy, onCancel, onSubmit }: { task: TaskDetail; bu
           <Button variant="outline" onClick={onCancel} disabled={busy}>
             Keep editing
           </Button>
-          <Button onClick={() => location && onSubmit(location)} disabled={!location || busy}>
-            {busy ? "Submitting…" : !location ? "Waiting for location…" : "Submit"}
+          <Button onClick={() => found && onSubmit(location!)} disabled={!found || busy}>
+            {busy ? "Submitting…" : !location ? "Finding location…" : !found ? "Location needed" : "Submit"}
           </Button>
         </DialogFooter>
       </DialogContent>
