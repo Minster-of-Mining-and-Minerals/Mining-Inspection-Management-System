@@ -24,10 +24,19 @@ services:
     env_file:
       - ./backend/.env
     environment:
-      PORT: 4002
+      PORT: 4001
       DB_HOST: postgres
       DB_PORT: 5432
-      SOCKET_PORT: 5002
+      # Same values as the postgres service, so the password can never differ
+      DB_NAME: ${DB_NAME:-mims_db}
+      DB_USER: ${DB_USER:-mims_user}
+      DB_PASSWORD: ${DB_PASSWORD:-mims@mom.gov.et}
+      SOCKET_PORT: 5001
+      NODE_ENV: production
+    # Reachable from the server itself for checks (curl http://127.0.0.1:4001); users go through nginx
+    ports:
+      - "127.0.0.1:4001:4001"
+      - "127.0.0.1:5001:5001"
     depends_on:
       - postgres
     networks:
@@ -49,12 +58,15 @@ services:
     env_file:
       - ./frontend/.env
     environment:
-      PORT: 3002
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
       NODE_ENV: production
       AUTH_TRUSTED_HOST: "true"
       NEXTAUTH_TRUST_HOST: "true"
-      NEXTAUTH_URL: ${NEXTAUTH_URL:-http://${DOMAIN:-10.0.71.199:3003}}
-      BACKEND_INTERNAL_URL: http://backend:4002
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://${DOMAIN:-inspection.mom.gov.et}}
+      BACKEND_INTERNAL_URL: http://backend:4001
+    ports:
+      - "127.0.0.1:3001:3001"
     depends_on:
       - backend
     networks:
@@ -65,9 +77,11 @@ services:
     container_name: mims_nginx
     restart: always
     environment:
-      DOMAIN: ${DOMAIN:-10.0.71.199:3003}
+      DOMAIN: ${DOMAIN:-inspection.mom.gov.et}
+    # HTTPS is required: browsers only allow GPS and the camera on https://
     ports:
-      - "${APP_PORT:-3003}:80"
+      - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.conf.bootstrap:/etc/nginx/templates/nginx.conf.bootstrap:ro
       - ./nginx/nginx.conf.production:/etc/nginx/templates/nginx.conf.production:ro
@@ -84,7 +98,7 @@ services:
     container_name: mims_certbot
     restart: unless-stopped
     environment:
-      DOMAIN: ${DOMAIN:-10.0.71.199:3003}
+      DOMAIN: ${DOMAIN:-inspection.mom.gov.et}
       EMAIL: ${EMAIL:-admin@inspection.mom.gov.et}
     volumes:
       - ./certbot/conf:/etc/letsencrypt

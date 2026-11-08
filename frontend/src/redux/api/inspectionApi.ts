@@ -5,7 +5,16 @@ import { MyTasks, Schedule, ScheduleDetail, SchedulePayload, SchedulePreview, Ta
 export interface TaskListParams {
   schedule_id?: string;
   occurrence_date?: string;
-  status?: "todo" | "in_progress" | "open" | "submitted" | "late" | "overdue" | "no_team";
+  status?: "todo" | "in_progress" | "open" | "submitted" | "late" | "on_time" | "overdue" | "no_team" | "returned";
+  form_id?: string;
+  submitted_by?: string;
+  license_type?: string;
+  region_id?: string;
+  /** YYYY-MM-DD; of the submission day (default) or, with date_field=assigned, of the round day */
+  from?: string;
+  to?: string;
+  date_field?: "submitted" | "assigned";
+  sort?: "score";
   team_id?: string;
   license_id?: string;
   company_id?: string;

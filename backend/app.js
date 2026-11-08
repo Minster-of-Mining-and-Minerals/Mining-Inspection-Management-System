@@ -181,6 +181,9 @@ app.use("/api/inspection-schedules", inspectionRoutes.schedules);
 app.use("/api/inspections", inspectionRoutes.inspections);
 app.use("/api/inspection-files", inspectionRoutes.fileLinks);
 
+// Dashboard (staff)
+app.use("/api/dashboard", require("./routers/dashboard-routes/dashboardRoutes"));
+
 // ================== Api Attachment Routes =====================
 app.use("/api/attachments", attachmentRoute);
 

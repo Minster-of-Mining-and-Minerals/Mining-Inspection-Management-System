@@ -40,6 +40,13 @@ export const NAVIGATION: NavItem[] = [
     anyPermissions: ["DASHBOARD:VIEW", "INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"],
   },
   {
+    title: "Submission Map",
+    url: "/submission-map",
+    icon: MapPin,
+    section: "Overview",
+    allPermissions: ["DASHBOARD:VIEW", "INSPECTIONS:READ_ALL"],
+  },
+  {
     title: "Companies",
     url: "/companies",
     icon: Factory,
@@ -77,6 +84,13 @@ export const NAVIGATION: NavItem[] = [
     section: "My work",
     anyPermissions: ["INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"],
     hideIfAnyPermissions: ["INSPECTIONS:READ_ALL"],
+  },
+  {
+    title: "Inspections",
+    url: "/inspections",
+    icon: ClipboardCheck,
+    section: "Inspections",
+    anyPermissions: ["INSPECTIONS:READ_ALL"],
   },
   {
     title: "Schedules",

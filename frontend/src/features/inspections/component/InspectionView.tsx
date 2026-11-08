@@ -19,6 +19,7 @@ import type { FormLanguage } from "@/features/forms/component/FormRenderer";
 import { InspectionStepper } from "./InspectionStepper";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
+import { deviceLabel } from "@/utils/device";
 import { Answers, scoreOf, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
 import { useGetTaskQuery, useReturnTaskMutation, useSaveAnswersMutation, useSubmitTaskMutation } from "@/redux/api/inspectionApi";
 import type { AnswerProblem, TaskDetail } from "@/redux/types/inspection";
@@ -403,12 +404,12 @@ function SubmittedSummary({ task, onReturn }: { task: TaskDetail; onReturn?: () 
           <MapPin className="mr-1 inline h-3.5 w-3.5" />
           {loc?.lat != null ? (
             <a className="text-primary hover:underline" href={`https://www.openstreetmap.org/?mlat=${loc.lat}&mlon=${loc.lng}#map=15/${loc.lat}/${loc.lng}`} target="_blank" rel="noreferrer">
-              {loc.lat.toFixed(5)}, {loc.lng!.toFixed(5)} (±{loc.accuracy} m)
+              {loc.place?.label ?? `${loc.lat.toFixed(5)}, ${loc.lng!.toFixed(5)}`} (±{loc.accuracy} m)
             </a>
           ) : (
             <span className="text-amber-700">No location: {loc?.error ?? "not shared"}</span>
           )}
-          {task.submit_device?.platform && <span className="ml-2">· {task.submit_device.platform}</span>}
+          {task.submit_device && <span className="ml-2">· 📱 {deviceLabel(task.submit_device.user_agent, task.submit_device.platform)}</span>}
         </p>
       </div>
       <div className="text-right">

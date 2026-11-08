@@ -124,7 +124,7 @@ export interface InspectionFile {
 export interface TaskDetail extends TaskListItem {
   files: InspectionFile[];
   answers: Record<string, any>;
-  submit_location: { lat?: number; lng?: number; accuracy?: number; captured_at?: string; error?: string } | null;
+  submit_location: { lat?: number; lng?: number; accuracy?: number; captured_at?: string; error?: string; place?: { label: string; woreda?: string | null; zone?: string | null; region?: string | null } | null } | null;
   submit_device: Record<string, any> | null;
   submit_ip?: string | null;
   last_saved_by: string | null;

@@ -3,40 +3,25 @@ import { PermissionGuard } from "@/components/auth/PermissionGuard";
 import { useSession } from "next-auth/react";
 import { usePermissions } from "@/hooks/usePermissions";
 import TeamDashboard from "@/features/my-work/component/TeamDashboard";
-import { Building2, ClipboardCheck, MapPin, Users } from "lucide-react";
+import DirectorDashboard from "@/features/dashboard/component/DirectorDashboard";
 
-// Placeholder until the inspection dashboard is built (plan step 7).
-const AREAS = [
-  { icon: Building2, title: "Companies", text: "Licensed companies, inspection coverage by region and mineral." },
-  { icon: Users, title: "Teams", text: "Progress of each inspection team in the current round." },
-  { icon: ClipboardCheck, title: "Compliance", text: "Checklist scores by section, findings and corrective actions." },
-  { icon: MapPin, title: "Location integrity", text: "On-site check-ins, flagged locations and unknown devices." },
-];
-
+/** Staff dashboard. Charts and totals come with the dashboard step; the submission map is first. */
 function Dashboard() {
   const { data: session } = useSession();
+  const { check } = usePermissions();
+  const canSeeInspections = check({ allPermissions: ["INSPECTIONS:READ_ALL"] });
 
   return (
     <main className="flex flex-col gap-5">
       <div>
         <h1 className="text-2xl font-bold text-primary">Dashboard</h1>
-        <p className="text-sm text-slate-500">
-          Welcome{session?.user?.name ? `, ${session.user.name}` : ""}. Inspection statistics will appear here once
-          companies, teams and inspection rounds are set up.
-        </p>
+        <p className="text-sm text-slate-500">Welcome{session?.user?.name ? `, ${session.user.name}` : ""}.</p>
       </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {AREAS.map(({ icon: Icon, title, text }) => (
-          <div key={title} className="rounded-xl border border-slate-200 bg-white p-5">
-            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Icon className="h-5 w-5" />
-            </span>
-            <h2 className="mt-3 font-semibold text-slate-900">{title}</h2>
-            <p className="mt-1 text-sm text-slate-500">{text}</p>
-          </div>
-        ))}
-      </div>
+      {canSeeInspections ? (
+        <DirectorDashboard />
+      ) : (
+        <p className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Inspection statistics will appear here.</p>
+      )}
     </main>
   );
 }

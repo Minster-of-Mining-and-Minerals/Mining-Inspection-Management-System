@@ -19,6 +19,10 @@ export const routePermissions: RouteConfig[] = [
   },
   // Most specific first: the first matching path wins
   {
+    path: "/submission-map",
+    permissions: { allPermissions: ["DASHBOARD:VIEW", "INSPECTIONS:READ_ALL"] },
+  },
+  {
     path: "/my-team",
     permissions: { anyPermissions: ["INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"] },
   },

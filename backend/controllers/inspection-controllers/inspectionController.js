@@ -1,4 +1,4 @@
-const { Op, QueryTypes } = require("sequelize");
+const { Op, QueryTypes, literal } = require("sequelize");
 const { validate: isUuid } = require("uuid");
 const {
   sequelize,
@@ -22,6 +22,7 @@ const { likeContains } = require("../../utils/search");
 const fail = (res, status, message, extra) => res.status(status).json({ success: false, message, ...extra });
 const { can, myTeamId, loadTask } = require("./inspectionAccess");
 const { listFiles, sanitizeFileRefs, removeUnusedFiles } = require("./inspectionFileController");
+const { placeOf } = require("../../services/placeService");
 
 const LIST_INCLUDE = [
   { model: Company, as: "company", attributes: ["company_id", "name", "name_am"] },
@@ -47,7 +48,11 @@ const STATUS_FILTERS = {
   late: { status: "submitted", is_late: true },
   overdue: () => ({ status: { [Op.ne]: "submitted" }, due_at: { [Op.lt]: new Date() } }),
   no_team: { team_id: null, status: { [Op.ne]: "submitted" } },
+  on_time: { status: "submitted", is_late: false },
+  returned: { return_count: { [Op.gt]: 0 } },
 };
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const localDay = (col) => `("Inspection"."${col}" AT TIME ZONE 'Africa/Addis_Ababa')::date`;
 
 /* =================== lists =================== */
 
@@ -67,6 +72,28 @@ const getInspections = async (req, res) => {
     if (q.occurrence_date && /^\d{4}-\d{2}-\d{2}$/.test(q.occurrence_date)) where.occurrence_date = q.occurrence_date;
     const f = STATUS_FILTERS[q.status];
     if (f) Object.assign(where, typeof f === "function" ? f() : f);
+    // Dashboard drill-down: form, inspector, license type, region, and a date range
+    // on the submission day (date_field=submitted, the default) or the round day (date_field=assigned)
+    if (q.form_id && isUuid(q.form_id)) where.form_id = q.form_id;
+    if (q.submitted_by && isUuid(q.submitted_by)) where.submitted_by = q.submitted_by;
+    const and = [];
+    if (["exploration", "mining"].includes(q.license_type)) where["$license.license_type$"] = q.license_type;
+    if (q.region_id && isUuid(q.region_id)) {
+      and.push(
+        literal(`EXISTS (SELECT 1 FROM license_areas la JOIN admin_areas a ON a.area_id = la.area_id
+                 LEFT JOIN admin_areas p ON p.area_id = a.parent_id LEFT JOIN admin_areas g ON g.area_id = p.parent_id
+                 WHERE la.license_id = "Inspection"."license_id" AND '${q.region_id}' IN (a.area_id, p.area_id, g.area_id))`),
+      );
+    }
+    const dayCol = q.date_field === "assigned" ? null : "submitted_at";
+    for (const [param, op] of [
+      ["from", ">="],
+      ["to", "<="],
+    ]) {
+      if (!DAY.test(q[param] || "")) continue;
+      and.push(literal(dayCol ? `${localDay(dayCol)} ${op} '${q[param]}'` : `"Inspection"."occurrence_date" ${op} '${q[param]}'`));
+    }
+    if (and.length) where[Op.and] = and;
     if (q.search?.trim()) {
       const term = likeContains(q.search);
       where[Op.or] = [{ "$company.name$": { [Op.iLike]: term } }, { "$license.license_number$": { [Op.iLike]: term } }];
@@ -77,10 +104,15 @@ const getInspections = async (req, res) => {
       where,
       include: LIST_INCLUDE,
       attributes: LIST_ATTRS,
-      order: [
-        ["occurrence_date", "DESC"],
-        [{ model: Company, as: "company" }, "name", "ASC"],
-      ],
+      order:
+        q.sort === "score"
+          ? [[literal('"Inspection"."score" IS NULL'), "ASC"], ["score", "ASC"], ["submitted_at", "DESC"]]
+          : q.status === "submitted" || q.status === "late" || q.status === "on_time"
+            ? [["submitted_at", "DESC"]]
+            : [
+                ["occurrence_date", "DESC"],
+                [{ model: Company, as: "company" }, "name", "ASC"],
+              ],
       limit,
       offset: (page - 1) * limit,
       distinct: true,
@@ -333,6 +365,9 @@ const submitInspection = async (req, res) => {
     }
     const now = new Date();
     const late = now > new Date(task.due_at);
+    // Where it was submitted, with the place name (woreda, zone, region) from the boundaries
+    const location = pick(req.body.location, LOCATION_KEYS);
+    if (location?.lat != null && location?.lng != null) location.place = await placeOf(Number(location.lat), Number(location.lng)).catch(() => null);
     await task.update(
       {
         status: "submitted",
@@ -340,7 +375,7 @@ const submitInspection = async (req, res) => {
         submitted_by: req.user.user_id,
         is_late: late,
         score: scoreOf(version.definition, license?.license_type, task.answers),
-        submit_location: pick(req.body.location, LOCATION_KEYS),
+        submit_location: location,
         submit_device: pick(req.body.device, DEVICE_KEYS),
         submit_ip: (req.headers["x-forwarded-for"]?.split(",")[0] || req.socket?.remoteAddress || "").trim().slice(0, 64) || null,
       },
