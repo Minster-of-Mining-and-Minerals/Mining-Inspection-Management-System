@@ -124,6 +124,52 @@ Migrations run automatically when the backend restarts.
 | Certificate test renewal | `docker compose exec certbot certbot renew --dry-run` |
 | Database shell | `docker compose exec postgres psql -U mims_user mims_db` |
 
+## Behind another web server (ports 80/443 already used)
+
+When another system's nginx already has ports 80/443 on the server, MIMS runs on its own port and
+that nginx forwards `inspection.mom.gov.et` to it. That nginx does HTTPS (needs a certificate for
+`inspection.mom.gov.et`, e.g. from its own certbot, or a `*.mom.gov.et` certificate).
+
+1. In `.env`:
+   ```env
+   MIMS_MODE=behind_proxy
+   HTTP_PORT=8081
+   ```
+2. `./deploy.sh` (MIMS answers on `http://<server-ip>:8081`; no certbot of its own).
+3. In the other nginx, add (adjust the certificate paths; `10.0.71.199` = this server's IP):
+   ```nginx
+   server {
+       listen 80;
+       server_name inspection.mom.gov.et;
+       location /.well-known/acme-challenge/ { root /var/www/certbot; }   # if it uses certbot webroot
+       location / { return 301 https://$host$request_uri; }
+   }
+   server {
+       listen 443 ssl;
+       server_name inspection.mom.gov.et;
+       ssl_certificate     /etc/letsencrypt/live/inspection.mom.gov.et/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/inspection.mom.gov.et/privkey.pem;
+
+       client_max_body_size 100M;          # inspection photos / videos
+       proxy_request_buffering off;
+       proxy_read_timeout 600s;
+
+       location / {
+           proxy_pass http://10.0.71.199:8081;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto https;
+           proxy_set_header X-Forwarded-Host $host;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection "upgrade";
+       }
+   }
+   ```
+   Then reload it: `docker exec <its nginx container> nginx -t && docker exec <its nginx container> nginx -s reload`
+4. Allow port 8081 only from the server itself / the internal network in the firewall: users go through HTTPS.
+
 ## Notes
 
 - Run **one** backend container only: it also creates the scheduled inspection tasks every hour.

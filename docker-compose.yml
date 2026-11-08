@@ -79,9 +79,10 @@ services:
     environment:
       DOMAIN: ${DOMAIN:-inspection.mom.gov.et}
     # HTTPS is required: browsers only allow GPS and the camera on https://
+    # direct mode: 80/443 here. Behind another web server: e.g. HTTP_PORT=8081 (see DEPLOYMENT.md)
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./nginx/nginx.conf.bootstrap:/etc/nginx/templates/nginx.conf.bootstrap:ro
       - ./nginx/nginx.conf.production:/etc/nginx/templates/nginx.conf.production:ro
@@ -95,6 +96,8 @@ services:
 
   certbot:
     image: certbot/certbot
+    # Only when MIMS has ports 80/443 itself (./deploy.sh adds --profile letsencrypt in direct mode)
+    profiles: ["letsencrypt"]
     container_name: mims_certbot
     restart: unless-stopped
     environment:

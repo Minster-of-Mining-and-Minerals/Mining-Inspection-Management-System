@@ -8,7 +8,11 @@
 #   ./deploy.sh backup     database dump + inspection files into ./backups/
 #   ./deploy.sh stop       stop everything (data is kept)
 #
-# Ports: frontend 3001, backend 4001, socket 5001 (inside Docker), users on 80/443 via nginx.
+# Ports: frontend 3001, backend 4001, socket 5001 (inside Docker).
+# Two modes (MIMS_MODE in .env):
+#   direct        MIMS nginx takes ports 80/443 and gets its own Let's Encrypt certificate
+#   behind_proxy  another web server on this machine has 80/443 and does HTTPS; it forwards
+#                 inspection.mom.gov.et to MIMS on HTTP_PORT (default 8081)
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -45,6 +49,15 @@ settings() {
     ok ".env found."
   fi
   DOMAIN="$(getenv .env DOMAIN)"; DOMAIN="${DOMAIN:-inspection.mom.gov.et}"
+  MODE="$(getenv .env MIMS_MODE)"; MODE="${MODE:-direct}"
+  if [ "$MODE" = "behind_proxy" ]; then
+    [ -n "$(getenv .env HTTP_PORT)" ] || setenv .env HTTP_PORT 8081
+    [ -n "$(getenv .env HTTPS_PORT)" ] || setenv .env HTTPS_PORT 8444
+  fi
+  HTTP_PORT="$(getenv .env HTTP_PORT)"; HTTP_PORT="${HTTP_PORT:-80}"
+  HTTPS_PORT="$(getenv .env HTTPS_PORT)"; HTTPS_PORT="${HTTPS_PORT:-443}"
+  ok "Mode: $MODE (MIMS web port $HTTP_PORT$([ "$MODE" = direct ] && echo " / $HTTPS_PORT"))."
+  case "$(getenv .env DB_USER)" in cms_*) warn "DB_USER in .env is \"$(getenv .env DB_USER)\": that is the old complaint system's name. MIMS should use mims_user / mims_db.";; esac
 
   # backend/.env
   if [ ! -f backend/.env ]; then
@@ -86,16 +99,21 @@ checks() {
   # DNS
   if command -v getent >/dev/null; then
     ip="$(getent hosts "$DOMAIN" | awk '{print $1}' | head -1 || true)"
-    if [ -n "$ip" ]; then ok "$DOMAIN resolves to $ip."; else warn "$DOMAIN does not resolve yet: the HTTPS certificate will fail until DNS points to this server."; fi
+    if [ -n "$ip" ]; then ok "$DOMAIN resolves to $ip."; else warn "$DOMAIN does not resolve yet: users can't open it until DNS points to this server."; fi
   fi
 
-  # Ports 80 / 443 must be free unless our own nginx has them
-  for port in 80 443; do
+  # The ports MIMS nginx needs must be free (or already ours)
+  ports="$HTTP_PORT"; [ "$MODE" = direct ] && ports="$HTTP_PORT $HTTPS_PORT"
+  for port in $ports; do
     if command -v ss >/dev/null && ss -tln 2>/dev/null | awk '{print $4}' | grep -qE "[:.]$port\$"; then
       if docker ps --format '{{.Names}} {{.Ports}}' | grep -q "mims_nginx.*:$port->"; then
         ok "Port $port is used by mims_nginx (fine)."
       else
-        fail "Port $port is already used by another program. Stop it first (sudo ss -tlnp | grep :$port)."
+        if [ "$MODE" = direct ]; then
+          fail "Port $port is already used by another program. Either stop it, or run MIMS behind it: set MIMS_MODE=behind_proxy in .env (see DEPLOYMENT.md, 'Behind another web server')."
+        else
+          fail "Port $port is already used. Choose another HTTP_PORT in .env."
+        fi
       fi
     else
       ok "Port $port is free."
@@ -105,7 +123,7 @@ checks() {
 
 start() {
   step "Building and starting (the first build takes several minutes)"
-  $COMPOSE up -d --build
+  if [ "$MODE" = direct ]; then $COMPOSE --profile letsencrypt up -d --build; else $COMPOSE up -d --build; fi
   ok "Containers started."
 }
 
@@ -125,6 +143,13 @@ verify() {
     sleep 2
   done
 
+  if [ "$MODE" = behind_proxy ]; then
+    step "MIMS web port"
+    if curl -sS -o /dev/null -w '%{http_code}' "http://127.0.0.1:$HTTP_PORT/" 2>/dev/null | grep -qE '^(2|3)'; then ok "MIMS answers on port $HTTP_PORT."; else warn "MIMS does not answer on port $HTTP_PORT yet: docker compose logs nginx"; fi
+    echo
+    echo "The web server in front (on 80/443) must forward https://$DOMAIN to http://<this server>:$HTTP_PORT"
+    echo "with the headers Host, X-Forwarded-For and X-Forwarded-Proto https (see DEPLOYMENT.md)."
+  else
   step "HTTPS certificate"
   if [ -f "certbot/conf/live/$DOMAIN/fullchain.pem" ]; then
     ok "Certificate present; nginx serves HTTPS."
@@ -137,6 +162,7 @@ verify() {
     if [ -f "certbot/conf/live/$DOMAIN/fullchain.pem" ]; then ok "Certificate issued; nginx switches to HTTPS."; else
       warn "No certificate yet. Check DNS and that port 80 is open from the internet, then: docker compose logs certbot"
     fi
+  fi
   fi
 
   step "Done"
@@ -170,6 +196,6 @@ case "${1:-deploy}" in
   status) $COMPOSE ps; curl -fsS http://127.0.0.1:4001/ >/dev/null && ok "Backend healthy." || warn "Backend not answering." ;;
   logs) $COMPOSE logs -f --tail=100 ;;
   backup) backup ;;
-  stop) $COMPOSE down; ok "Stopped (data kept)." ;;
+  stop) $COMPOSE --profile letsencrypt down; ok "Stopped (data kept)." ;;
   *) echo "Usage: ./deploy.sh [deploy|update|status|logs|backup|stop]"; exit 1 ;;
 esac
