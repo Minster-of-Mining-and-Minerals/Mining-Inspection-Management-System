@@ -5,16 +5,25 @@ const {
   Permission,
   SectorNode,
 } = require("../../models");
+const { Op } = require("sequelize");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    // console.log("login called: ", req.body);
+    const cleanEmail = (email || "").trim();
+
+    if (!cleanEmail || !password) {
+      return res.status(400).json({ message: "Email and password are required" });
+    }
 
     const user = await User.findOne({
-      where: { email },
+      where: {
+        email: {
+          [Op.iLike]: cleanEmail,
+        },
+      },
       include: [
         // {
         //   model: UserType,

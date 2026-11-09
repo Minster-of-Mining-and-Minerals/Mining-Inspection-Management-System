@@ -146,7 +146,17 @@ module.exports = {
       let userId;
       if (existingUser) {
         userId = existingUser;
-        console.log("Admin user already exists");
+        await queryInterface.bulkUpdate(
+          "users",
+          {
+            password: hashedPassword,
+            is_active: true,
+            updated_at: now,
+          },
+          { user_id: userId },
+          { transaction },
+        );
+        console.log("Admin user already exists - password updated to 'password'");
       } else {
         userId = adminUserId;
         await queryInterface.bulkInsert(
