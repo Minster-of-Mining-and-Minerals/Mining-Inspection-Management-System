@@ -32,7 +32,7 @@ const validate = (schema) => (req, res, next) => {
 
 const date = Joi.string().pattern(/^\d{4}-\d{2}-\d{2}$/).messages({ "string.pattern.base": "Use a date like 2026-11-08." });
 const scheduleFields = {
-  form_id: Joi.string().guid().messages({ "string.guid": "Choose a form." }),
+  form_id: Joi.string().guid().messages({ "string.guid": "Choose a checklist." }),
   name: Joi.string().trim().min(3).max(200).messages({ "string.min": "Give the schedule a name (at least 3 characters)." }),
   target_type: Joi.string().valid("assigned", "license_type", "licenses"),
   license_type: Joi.when("target_type", { is: "license_type", then: Joi.string().valid("exploration", "mining").required(), otherwise: Joi.any().strip() }).messages({
@@ -61,7 +61,7 @@ const scheduleFields = {
 const req = (k, msg) => scheduleFields[k].required().messages({ "any.required": msg });
 const createScheduleSchema = Joi.object({
   ...scheduleFields,
-  form_id: req("form_id", "Choose a form."),
+  form_id: req("form_id", "Choose a checklist."),
   name: req("name", "Give the schedule a name."),
   target_type: req("target_type", "Choose which licenses."),
   frequency: req("frequency", "Choose how often."),
@@ -69,7 +69,7 @@ const createScheduleSchema = Joi.object({
   due_days: req("due_days", "Say how many days the team has to submit."),
 }).custom((v, h) => (v.end_date && v.end_date < v.start_date ? h.message("The end date is before the start date.") : v));
 const updateScheduleSchema = Joi.object({ ...scheduleFields, status: Joi.string().valid("active", "paused", "ended") }).min(1);
-const previewSchema = Joi.object({ ...scheduleFields, form_id: req("form_id", "Choose a form."), frequency: req("frequency", "Choose how often."), start_date: req("start_date", "Choose the start date."), target_type: req("target_type", "Choose which licenses."), due_days: scheduleFields.due_days.default(1) });
+const previewSchema = Joi.object({ ...scheduleFields, form_id: req("form_id", "Choose a checklist."), frequency: req("frequency", "Choose how often."), start_date: req("start_date", "Choose the start date."), target_type: req("target_type", "Choose which licenses."), due_days: scheduleFields.due_days.default(1) });
 
 const answersSchema = Joi.object({ answers: Joi.object().unknown(true).required(), base_saved_at: Joi.date().iso().allow(null) });
 const submitSchema = Joi.object({

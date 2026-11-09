@@ -107,7 +107,7 @@ export default function TeamDetail() {
 
       {/* Members */}
       <section className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
           <h2 className="font-semibold text-slate-900">Members ({current.length})</h2>
           {canManageMembers && (
             <Button size="sm" className="gap-1" onClick={() => setAddingMember(true)}>
@@ -170,7 +170,7 @@ export default function TeamDetail() {
 
       {/* Licenses */}
       <section className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
           <h2 className="font-semibold text-slate-900">Licenses covered ({team.licenses.length})</h2>
           {canUpdate && (
             <Button size="sm" className="gap-1" onClick={() => setAddingLicenses(true)}>

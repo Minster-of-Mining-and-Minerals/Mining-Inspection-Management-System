@@ -126,7 +126,7 @@ export default function SubmissionMapPanel({ base }: { base: MapFilters }) {
 
       {/* Half the width: the map, and the submissions on it */}
       <div className="grid gap-3 lg:grid-cols-2">
-        <div className="relative">
+        <div className="relative isolate z-0">
           <SubmissionMap points={data?.points ?? []} mode={mode} focusId={focus ? `${focus.id}#${focus.n}` : null} />
           {c && c.on_map === 0 && !isFetching && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">

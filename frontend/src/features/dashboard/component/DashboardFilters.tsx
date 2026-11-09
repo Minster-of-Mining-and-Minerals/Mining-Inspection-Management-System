@@ -68,7 +68,7 @@ export function DashboardFilterBar({ state, busy }: { state: DashboardFiltersSta
       <Select k="region_id" label="Region" list={options?.regions} />
       <Select k="team_id" label="Team" list={options?.teams} />
       <Select k="submitted_by" label="Inspector" list={options?.inspectors} />
-      <Select k="form_id" label="Form" list={options?.forms} />
+      <Select k="form_id" label="Checklist" list={options?.forms} />
       <Select k="schedule_id" label="Schedule" list={options?.schedules} />
       <Select k="company_id" label="Company" list={options?.companies} />
       <select aria-label="License type" className={`${selectClass} ${f.license_type ? "border-primary text-primary" : ""}`} value={f.license_type ?? ""} onChange={set("license_type")}>

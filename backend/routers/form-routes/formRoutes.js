@@ -33,12 +33,12 @@ const validate = (schema) => (req, res, next) => {
 };
 
 const formFields = {
-  name: Joi.string().trim().min(3).max(200).messages({ "string.min": "Form name must be at least 3 characters." }),
+  name: Joi.string().trim().min(3).max(200).messages({ "string.min": "Checklist name must be at least 3 characters." }),
   name_am: Joi.string().trim().max(300).allow("", null),
   code: Joi.string().trim().max(40).pattern(/^[A-Za-z0-9_-]+$/).allow("", null).messages({ "string.pattern.base": "Code may use letters, numbers, - and _." }),
   description: Joi.string().trim().max(4000).allow("", null),
 };
-const createFormSchema = Joi.object({ ...formFields, name: formFields.name.required().messages({ "any.required": "Form name is required." }) });
+const createFormSchema = Joi.object({ ...formFields, name: formFields.name.required().messages({ "any.required": "Checklist name is required." }) });
 const updateFormSchema = Joi.object({ ...formFields, is_active: Joi.boolean() }).min(1).messages({ "object.min": "Nothing to update." });
 // The definition itself is checked in detail by utils/formDefinition.js
 const saveDraftSchema = Joi.object({ definition: Joi.object().required().unknown(true), change_note: Joi.string().trim().max(2000).allow("", null) });
@@ -46,7 +46,7 @@ const publishSchema = Joi.object({ change_note: Joi.string().trim().max(2000).al
 const liveEditSchema = Joi.object({ definition: Joi.object().required().unknown(true), note: Joi.string().trim().max(2000).allow("", null) });
 const compareSchema = Joi.object({ definition: Joi.object().unknown(true) });
 const assignmentSchema = Joi.object({
-  target_type: Joi.string().valid("all", "license_type", "company", "license").required().messages({ "any.only": "Choose who the form is for." }),
+  target_type: Joi.string().valid("all", "license_type", "company", "license").required().messages({ "any.only": "Choose who the checklist is for." }),
   license_type: Joi.when("target_type", {
     is: "license_type",
     then: Joi.string().valid("exploration", "mining").required().messages({ "any.required": "Choose the license type.", "any.only": "License type must be exploration or mining." }),

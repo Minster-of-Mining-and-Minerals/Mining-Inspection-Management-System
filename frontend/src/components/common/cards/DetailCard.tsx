@@ -25,7 +25,7 @@ function DetailCard({ item }: { item: DetailCardItem }) {
     <Card className=" rounded-lg shadow-sm border border-gray-200 overflow-hidden">
       <CardContent className="p-4">
         {/* Header Row – Compact (same as org card) */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-gray-200">
+        <div className="flex flex-wrap gap-2 items-center justify-between mb-4 pb-3 border-b border-gray-200">
           <div className="flex items-center gap-2.5">
             <div
               className={cn(

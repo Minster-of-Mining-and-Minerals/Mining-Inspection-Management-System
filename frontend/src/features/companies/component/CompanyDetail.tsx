@@ -124,7 +124,7 @@ export default function CompanyDetail() {
 
       {/* Licenses */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-slate-900">Licenses ({company.licenses.length})</h2>
           {canUpdate && (
             <Button onClick={() => setLicenseDialog({ open: true, license: null })} className="gap-2">

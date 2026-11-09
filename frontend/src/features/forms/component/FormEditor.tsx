@@ -303,7 +303,7 @@ export function FormEditor({ form, mode, canPublish, onExit, onSwitchToDraft }: 
     <div className="flex flex-col gap-4">
       {/* ---------- top bar ---------- */}
       <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3 backdrop-blur">
-        <Button variant="outline" size="icon" onClick={exit} aria-label="Back to the form">
+        <Button variant="outline" size="icon" onClick={exit} aria-label="Back to the checklist">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="min-w-0 flex-1 basis-64">
@@ -326,7 +326,7 @@ export function FormEditor({ form, mode, canPublish, onExit, onSwitchToDraft }: 
         <div className="relative w-full sm:w-64">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <label htmlFor="form-search" className="sr-only">
-            Search the form
+            Search the checklist
           </label>
           <Input id="form-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search questions…" className="pl-9" />
           {searchResults.length > 0 && (

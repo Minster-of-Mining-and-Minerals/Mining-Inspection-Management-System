@@ -33,7 +33,7 @@ export const BasicInfo: React.FC<BasicInfoProps> = ({
         <h3 className="text-xl font-bold text-primary">Basic Information</h3>
       </div>
       <div className="p-6 space-y-4">
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div className="space-y-2 flex col-span-1 flex-col gap-2">
             <Label
               htmlFor="name"

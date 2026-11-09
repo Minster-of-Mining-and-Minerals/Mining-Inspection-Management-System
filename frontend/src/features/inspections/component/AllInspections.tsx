@@ -107,7 +107,7 @@ export default function AllInspections() {
         <Select k="region_id" label="Region" list={options?.regions} />
         <Select k="team_id" label="Team" list={options?.teams} />
         <Select k="submitted_by" label="Inspector" list={options?.inspectors} />
-        <Select k="form_id" label="Form" list={options?.forms} />
+        <Select k="form_id" label="Checklist" list={options?.forms} />
         <Select k="schedule_id" label="Schedule" list={options?.schedules} />
         <Select k="company_id" label="Company" list={options?.companies} />
         <select aria-label="License type" className={`${selectClass} ${filters.license_type ? "border-primary text-primary" : ""}`} value={filters.license_type ?? ""} onChange={(e) => setParam({ license_type: e.target.value || undefined })}>
@@ -140,7 +140,7 @@ export default function AllInspections() {
           <thead className="bg-slate-50 text-left text-xs text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Company / license</th>
-              <th className="px-3 py-2 font-medium">Form</th>
+              <th className="px-3 py-2 font-medium">Checklist</th>
               <th className="px-3 py-2 font-medium">Team</th>
               <th className="px-3 py-2 font-medium">Round · due</th>
               <th className="px-3 py-2 font-medium">Status</th>

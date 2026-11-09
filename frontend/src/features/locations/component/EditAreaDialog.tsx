@@ -103,7 +103,7 @@ export function EditAreaDialog({ areaId, canEdit, onClose }: Props) {
           </div>
         ) : (
           <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-3 rounded-lg bg-slate-50 p-3 text-sm">
+            <div className="grid grid-cols-1 gap-3 rounded-lg bg-slate-50 p-3 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-xs text-slate-500">Official code</p>
                 <p className="font-mono">{area.pcode ?? "—"}</p>
