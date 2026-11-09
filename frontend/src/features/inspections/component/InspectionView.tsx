@@ -17,7 +17,7 @@ import {
 import Loading01 from "@/features/template/component/Loading/Loading01";
 import type { FormLanguage } from "@/features/forms/component/FormRenderer";
 import { InspectionStepper } from "./InspectionStepper";
-import { SubmitFlow } from "./SubmitFlow";
+import { SubmitFlow, quickLocation } from "./SubmitFlow";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel } from "@/utils/device";
@@ -96,6 +96,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
   const baseSavedAt = useRef<string | null>(task.last_saved_at);
   const [problems, setProblems] = useState<Record<string, string>>({});
   const [confirming, setConfirming] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [returning, setReturning] = useState(false);
   // Amharic for now; a language switch for inspectors comes later
   const language: FormLanguage = "am";
@@ -161,7 +162,8 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
     router.back();
   };
 
-  const startSubmit = () => {
+  const startSubmit = async () => {
+    if (locating || submitting) return;
     const open = validateAnswers(def, licenseType, answers);
     if (Object.keys(open).length) {
       setProblems(open);
@@ -170,7 +172,14 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       setJumpKey(Object.keys(open)[0]);
       return;
     }
-    setConfirming(true);
+    // Location already allowed: get it quietly and submit at once; otherwise show the location step
+    setLocating(true);
+    const note = toast.loading("Getting your location…");
+    const fix = await quickLocation();
+    toast.dismiss(note);
+    setLocating(false);
+    if (fix) submit(fix);
+    else setConfirming(true);
   };
 
   const submit = async (location: Record<string, any>) => {
@@ -289,7 +298,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
             onStepChange={() => dirty && editable && saveNow()}
             resumeKey={task.inspection_id}
             title={task.company?.name ?? ""}
-            finishing={submitting}
+            finishing={submitting || locating}
             status={
               editable ? (
                 <div className="flex shrink-0 items-center gap-2">
