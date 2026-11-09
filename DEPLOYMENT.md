@@ -1,73 +1,177 @@
-# Deployment Guide
+# Deployment — Mining Inspection Management System (MIMS)
 
-This guide walks through deploying the application to production using Let's Encrypt for automatic HTTPS.
+Domain: **https://inspection.mom.gov.et** · Docker Compose · free HTTPS certificate from Let's Encrypt.
 
-## Prerequisites
+| Container | Port (inside Docker) | Reachable from |
+|---|---|---|
+| `mims_frontend` (Next.js) | **3001** | nginx; `127.0.0.1:3001` on the server |
+| `mims_backend` (API) | **4001** | nginx; `127.0.0.1:4001` on the server |
+| `mims_backend` (Socket.IO) | **5001** | `127.0.0.1:5001` on the server |
+| `mims_postgres` | 5432 | Docker network only |
+| `mims_nginx` | **80, 443** | the internet (users) |
 
-### 1. DNS Configuration
-Before starting the deployment, ensure your DNS A record points to the public IP address of your server.
-You can verify this by running:
+Users always open `https://inspection.mom.gov.et`. HTTPS is required: browsers only give the inspector's
+GPS location and the camera to `https://` pages.
+
+## Quick start: `deploy.sh`
+
 ```bash
-nslookup inspection.mom.gov.et
-# OR
-dig inspection.mom.gov.et
+git clone -b inspection-system https://github.com/Minster-of-Mining-and-Minerals/Mining-Inspection-Management-System.git
+cd Mining-Inspection-Management-System
+chmod +x deploy.sh
+./deploy.sh
 ```
-The output should return your server's public IP address. **Do not proceed** until DNS has propagated, as Let's Encrypt will fail to validate the domain.
 
-### 2. Firewall / Ports
-Ensure the following inbound ports are open and accessible from the public internet:
-- **Port 80 (HTTP)**: Required for initial Let's Encrypt validation (HTTP-01 challenge) and HTTP -> HTTPS redirects.
-- **Port 443 (HTTPS)**: Required for secure application traffic.
+On the first run it creates `.env`, `backend/.env` and `frontend/.env` with new random secrets and a
+database password, checks Docker, DNS and ports 80/443, builds and starts everything, waits for the
+backend and the HTTPS certificate, and prints the address and first login.
 
-You can verify port 80 is open from an external machine:
-```bash
-curl -I http://inspection.mom.gov.et
-```
+| Command | Does |
+|---|---|
+| `./deploy.sh` | deploy (also after editing settings) |
+| `./deploy.sh update` | `git pull`, then deploy |
+| `./deploy.sh status` | containers and health |
+| `./deploy.sh logs` | follow the logs |
+| `./deploy.sh backup` | database + inspection files into `./backups/` |
+| `./deploy.sh stop` | stop everything (data kept) |
+
+The sections below explain the same steps by hand.
 
 ---
 
-## Initial Deployment
+## 1. Before you start
 
-### 1. Build and Start Services
-We first start the application in a special "Bootstrap Mode". Nginx will temporarily serve traffic over HTTP (port 80) only, so that Certbot can complete the domain validation.
+1. **DNS:** an A record `inspection.mom.gov.et` → the server's public IP.
+   Check: `nslookup inspection.mom.gov.et`
+2. **Firewall:** ports **80** and **443** open to the internet (80 is needed for the certificate).
+   Nothing else on the server may use ports 80 / 443 (stop any other web server first).
+3. **Docker** and **Docker Compose** installed.
 
-```bash
-docker compose build
-docker compose up -d postgres backend frontend nginx certbot
-```
-
-### 2. Request the First Let's Encrypt Certificate
-Run the initialization script. This will use Certbot to request a certificate via the webroot method and store it in Docker volumes (`./certbot/conf`).
+## 2. Settings
 
 ```bash
-./init-letsencrypt.sh
+git clone <repository-url> mims && cd mims
+
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
 ```
 
-### 3. Verify
-Once `./init-letsencrypt.sh` finishes, it will automatically restart Nginx. Nginx will detect the new certificates and switch to "Production Mode" (serving HTTPS on port 443).
+Create a `.env` file next to `docker-compose.yml` (used by Docker Compose itself):
 
-Navigate to `https://inspection.mom.gov.et` in your browser. The site should load securely with a valid Let's Encrypt certificate.
+```env
+DOMAIN=inspection.mom.gov.et
+EMAIL=admin@mom.gov.et          # Let's Encrypt expiry notices
+DB_NAME=mims_db
+DB_USER=mims_user
+DB_PASSWORD=<a strong password>  # used by both the database and the backend
+```
 
----
+In `backend/.env` set at least: `JWT_SECRET` (long random text) and the email settings
+(`EMAIL_USER`, `EMAIL_PASS`) used for password-reset emails.
+In `frontend/.env` set `NEXTAUTH_SECRET` and `AUTH_SECRET` (the same long random text).
 
-## Automatic Renewal
+> Random text: `openssl rand -base64 48`
+> Never set `SEED_DEV_PASSWORDS` on the server.
 
-The `certbot` container runs a background loop that checks for expiring certificates every 12 hours.
+## 3. Start
+
 ```bash
-while :; do
-  certbot renew --deploy-hook "docker exec mims_nginx nginx -s reload"
-  sleep 12h
-done
-```
-When a certificate is renewed, Certbot automatically signals the `nginx` container to reload its configuration.
-
-### Verifying Renewal
-You can check the logs of the certbot container to ensure the renewal loop is running:
-```bash
-docker compose logs certbot -f
+docker compose up -d --build
 ```
 
-To perform a dry run of the renewal process, execute:
+What happens by itself:
+
+- **backend** waits for the database, creates/updates the tables (migrations) and adds the base data
+  (roles and permissions, regions/zones/woredas, minerals, the license list, the MoM checklist), then starts.
+  This repeats safely on every start; nothing already there is changed.
+- **nginx** starts on HTTP, **certbot** requests the certificate, and nginx switches to HTTPS
+  (about a minute). The certificate renews automatically.
+
+Follow it: `docker compose logs -f backend certbot nginx`
+
+Check: open **https://inspection.mom.gov.et** · on the server, `curl http://127.0.0.1:4001/` answers.
+
+## 4. First login
+
+- Log in as **admin@gmail.com** with the password **password**, then **change the password at once**
+  (Profile → Change password) and the email address.
+- The license list creates companies, licenses and teams, **but no inspector accounts** on a server.
+  Add the inspectors under **Users** (choose their team when creating them).
+- Create the inspection **Schedules**; tasks appear for the teams.
+
+## 5. Backups (important)
+
+- Database: `docker compose exec postgres pg_dump -U mims_user mims_db > mims_$(date +%F).sql`
+- Inspection photos, documents, videos and signatures: the folder **`backend/storage/`**
+- Back up both regularly (e.g. daily) and keep a copy off the server.
+
+## 6. Updating
+
 ```bash
-docker compose exec certbot certbot renew --dry-run
+git pull
+docker compose up -d --build
 ```
+
+Migrations run automatically when the backend restarts.
+
+## 7. Useful commands
+
+| What | Command |
+|---|---|
+| Logs | `docker compose logs -f backend` |
+| Restart one part | `docker compose restart backend` |
+| Stop everything | `docker compose down` (data stays) |
+| Certificate test renewal | `docker compose exec certbot certbot renew --dry-run` |
+| Database shell | `docker compose exec postgres psql -U mims_user mims_db` |
+
+## Behind another web server (ports 80/443 already used)
+
+When another system's nginx already has ports 80/443 on the server, MIMS runs on its own port and
+that nginx forwards `inspection.mom.gov.et` to it. That nginx does HTTPS (needs a certificate for
+`inspection.mom.gov.et`, e.g. from its own certbot, or a `*.mom.gov.et` certificate).
+
+1. In `.env`:
+   ```env
+   MIMS_MODE=behind_proxy
+   HTTP_PORT=8081
+   ```
+2. `./deploy.sh` (MIMS answers on `http://<server-ip>:8081`; no certbot of its own).
+3. In the other nginx, add (adjust the certificate paths; `10.0.71.199` = this server's IP):
+   ```nginx
+   server {
+       listen 80;
+       server_name inspection.mom.gov.et;
+       location /.well-known/acme-challenge/ { root /var/www/certbot; }   # if it uses certbot webroot
+       location / { return 301 https://$host$request_uri; }
+   }
+   server {
+       listen 443 ssl;
+       server_name inspection.mom.gov.et;
+       ssl_certificate     /etc/letsencrypt/live/inspection.mom.gov.et/fullchain.pem;
+       ssl_certificate_key /etc/letsencrypt/live/inspection.mom.gov.et/privkey.pem;
+
+       client_max_body_size 100M;          # inspection photos / videos
+       proxy_request_buffering off;
+       proxy_read_timeout 600s;
+
+       location / {
+           proxy_pass http://10.0.71.199:8081;
+           proxy_set_header Host $host;
+           proxy_set_header X-Real-IP $remote_addr;
+           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+           proxy_set_header X-Forwarded-Proto https;
+           proxy_set_header X-Forwarded-Host $host;
+           proxy_http_version 1.1;
+           proxy_set_header Upgrade $http_upgrade;
+           proxy_set_header Connection "upgrade";
+       }
+   }
+   ```
+   Then reload it: `docker exec <its nginx container> nginx -t && docker exec <its nginx container> nginx -s reload`
+4. Allow port 8081 only from the server itself / the internal network in the firewall: users go through HTTPS.
+
+## Notes
+
+- Run **one** backend container only: it also creates the scheduled inspection tasks every hour.
+- Uploads are limited to 100 MB per file (nginx `client_max_body_size`); each question can set a lower limit.
+- The map tiles come from OpenStreetMap over the internet.

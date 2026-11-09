@@ -24,6 +24,12 @@ const nextConfig = {
   
   // For Docker deployment
   output: 'standalone', // This is important for Docker
+
+  // The /api proxy below gives up after 30 s by default; inspection photo / video
+  // uploads on slow connections need longer (production nginx goes to the backend directly)
+  experimental: {
+    proxyTimeout: 10 * 60 * 1000,
+  },
   
   // Configure images if needed
   images: {

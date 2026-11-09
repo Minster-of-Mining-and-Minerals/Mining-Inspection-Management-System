@@ -23,3 +23,6 @@ logs/
 
 # Import reports (contain company data)
 /backend/reports/
+
+# Inspection photos / documents / videos / signatures (private, streamed by the API)
+/backend/storage/

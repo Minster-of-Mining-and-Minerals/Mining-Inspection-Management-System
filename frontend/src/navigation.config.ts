@@ -11,6 +11,9 @@ import {
   Gem,
   Tags,
   UsersRound,
+  ClipboardList,
+  ClipboardCheck,
+  CalendarClock,
 } from "lucide-react";
 
 export type NavItem = {
@@ -20,6 +23,8 @@ export type NavItem = {
   /** Sidebar group heading for top-level items (consecutive items with the same section share one heading) */
   section?: string;
   anyPermissions?: PermissionKey[];
+  /** Hidden for users with any of these (e.g. the field-team pages for staff who see everything) */
+  hideIfAnyPermissions?: PermissionKey[];
   allPermissions?: PermissionKey[];
   onlyPermissions?: PermissionKey[];
   children?: NavItem[];
@@ -31,7 +36,15 @@ export const NAVIGATION: NavItem[] = [
     url: "/dashboard",
     icon: LayoutDashboard,
     section: "Overview",
-    anyPermissions: ["DASHBOARD:VIEW"],
+    // Field teams get their team's progress here
+    anyPermissions: ["DASHBOARD:VIEW", "INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"],
+  },
+  {
+    title: "Submission Map",
+    url: "/submission-map",
+    icon: MapPin,
+    section: "Overview",
+    allPermissions: ["DASHBOARD:VIEW", "INSPECTIONS:READ_ALL"],
   },
   {
     title: "Companies",
@@ -46,6 +59,52 @@ export const NAVIGATION: NavItem[] = [
     icon: UsersRound,
     section: "Registry",
     anyPermissions: ["TEAMS:READ"],
+  },
+  // ---- Field teams: their own work only ----
+  {
+    title: "My Tasks",
+    url: "/my-tasks",
+    icon: ClipboardCheck,
+    section: "My work",
+    anyPermissions: ["INSPECTIONS:CONDUCT"],
+    hideIfAnyPermissions: ["INSPECTIONS:READ_ALL"],
+  },
+  {
+    title: "My Team",
+    url: "/my-team",
+    icon: UsersRound,
+    section: "My work",
+    anyPermissions: ["INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"],
+    hideIfAnyPermissions: ["INSPECTIONS:READ_ALL"],
+  },
+  {
+    title: "My Companies",
+    url: "/my-companies",
+    icon: Factory,
+    section: "My work",
+    anyPermissions: ["INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"],
+    hideIfAnyPermissions: ["INSPECTIONS:READ_ALL"],
+  },
+  {
+    title: "Inspections",
+    url: "/inspections",
+    icon: ClipboardCheck,
+    section: "Inspections",
+    anyPermissions: ["INSPECTIONS:READ_ALL"],
+  },
+  {
+    title: "Schedules",
+    url: "/schedules",
+    icon: CalendarClock,
+    section: "Inspections",
+    anyPermissions: ["ROUNDS:READ"],
+  },
+  {
+    title: "Forms",
+    url: "/forms",
+    icon: ClipboardList,
+    section: "Inspections",
+    anyPermissions: ["FORMS:READ"],
   },
   {
     title: "Base Data",

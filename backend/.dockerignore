@@ -9,3 +9,6 @@ uploads/*
 !uploads/.gitkeep
 logs/*
 !logs/.gitkeep
+storage/
+# import reports contain company data
+reports/

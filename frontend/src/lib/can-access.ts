@@ -10,6 +10,8 @@ export const canAccessItem = (
   item: NavItem,
   userPermissions: readonly PermissionKey[],
 ): boolean => {
+  if (item.hideIfAnyPermissions && hasAnyPermission(userPermissions, item.hideIfAnyPermissions)) return false;
+
   if (item.onlyPermissions) {
     return hasOnlyPermissions(userPermissions, item.onlyPermissions);
   }
