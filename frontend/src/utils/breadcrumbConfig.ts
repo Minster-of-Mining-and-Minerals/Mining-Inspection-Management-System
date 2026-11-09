@@ -33,6 +33,33 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         { title: "Organization", path: "/basedata/sectors" },
     ],
     // ================================================
+    // Inspection schedules & tasks
+    // ================================================
+    "/submission-map": [{ title: "Submission Map", path: "/submission-map" }],
+    "/my-tasks": [{ title: "My Tasks", path: "/my-tasks" }],
+    "/my-team": [{ title: "My Team", path: "/my-team" }],
+    "/my-companies": [{ title: "My Companies", path: "/my-companies" }],
+    "/schedules": [{ title: "Schedules", path: "/schedules" }],
+    "/schedules/[scheduleId]": [
+        { title: "Schedules", path: "/schedules" },
+        { title: "Schedule", path: "/schedules/[scheduleId]" },
+    ],
+    "/inspections": [{ title: "Inspections", path: "/inspections" }],
+    "/inspections/[inspectionId]": [
+        { title: "Inspections", path: "/inspections" },
+        { title: "Inspection", path: "/inspections/[inspectionId]" },
+    ],
+
+    // ================================================
+    // Forms Routes
+    // ================================================
+    "/forms": [{ title: "Forms", path: "/forms" }],
+    "/forms/[formId]": [
+        { title: "Forms", path: "/forms" },
+        { title: "Form", path: "/forms/[formId]" },
+    ],
+
+    // ================================================
     // Teams Routes
     // ================================================
     "/teams": [{ title: "Teams", path: "/teams" }],

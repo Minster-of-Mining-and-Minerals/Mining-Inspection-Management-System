@@ -26,7 +26,7 @@ server {
     client_max_body_size 100M;
 
     location ~ ^/api/auth/(session|csrf|providers|callback|signout|signin|_log) {
-        proxy_pass http://frontend:3002;
+        proxy_pass http://frontend:3001;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -38,7 +38,7 @@ server {
     }
 
     location /api {
-        proxy_pass http://backend:4002;
+        proxy_pass http://backend:4001;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -49,7 +49,7 @@ server {
     }
 
     location /uploads {
-        proxy_pass http://backend:4002/uploads;
+        proxy_pass http://backend:4001/uploads;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -58,62 +58,11 @@ server {
     }
 
     location / {
-        proxy_pass http://frontend:3002;
+        proxy_pass http://frontend:3001;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-
-server {
-    listen 80;
-    server_name 10.0.71.199;
-
-    client_max_body_size 100M;
-
-    location ~ ^/api/auth/(session|csrf|providers|callback|signout|signin|_log) {
-        proxy_pass http://frontend:3002;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto http;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-
-    location /api {
-        proxy_pass http://backend:4002;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto http;
-        proxy_set_header X-Forwarded-Host $http_host;
-        proxy_http_version 1.1;
-        proxy_read_timeout 120s;
-    }
-
-    location /uploads {
-        proxy_pass http://backend:4002/uploads;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto http;
-        proxy_set_header X-Forwarded-Host $http_host;
-    }
-
-    location / {
-        proxy_pass http://frontend:3002;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto http;
         proxy_set_header X-Forwarded-Host $http_host;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;

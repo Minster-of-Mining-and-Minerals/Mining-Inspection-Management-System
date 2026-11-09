@@ -11,10 +11,13 @@ RUN npm install -g sequelize-cli
 
 # Copy the rest of the application
 COPY . .
+# Scripts must have Unix line endings even when built from a Windows copy
+RUN sed -i 's/\r$//' docker-start.sh
 
 # Expose API port and Socket.IO port
-EXPOSE 4002
-EXPOSE 5002
+EXPOSE 4001
+EXPOSE 5001
 
-CMD ["npm", "start"]
+# Waits for the database, creates / updates the tables and base data, then starts the API
+CMD ["sh", "./docker-start.sh"]
 

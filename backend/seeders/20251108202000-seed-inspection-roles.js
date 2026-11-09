@@ -4,7 +4,8 @@ const { v4: uuidv4 } = require("uuid");
 /**
  * Default roles for the Mining Inspection Management System.
  * The "admin" role (all permissions) is created by the demo-users seeder.
- * Safe to re-run: existing roles are kept, missing permission links are added.
+ * Safe to re-run: existing roles are kept, missing permission links are added, and links listed
+ * under "revoke" (permissions a role used to have) are removed.
  */
 const ROLES = {
   supervisor: {
@@ -25,26 +26,23 @@ const ROLES = {
       "data:export",
     ],
   },
+  // Field teams see only their own team, companies, tasks and progress (My team / My companies /
+  // My tasks / My progress), never the full registry, the form builder or the dashboard.
   team_leader: {
     description: "Leads an inspection team; conducts and submits inspections for the team",
     permissions: [
-      "dashboard:view",
-      "companies:read",
-      "teams:read",
-      "forms:read",
-      "rounds:read",
       "inspections:read_own", "inspections:conduct",
-      "findings:read", "findings:update",
+      "findings:read",
     ],
+    revoke: ["dashboard:view", "companies:read", "teams:read", "forms:read", "rounds:read", "findings:update"],
   },
   inspector: {
     description: "Field inspector; fills inspection checklists for assigned companies",
     permissions: [
-      "companies:read",
-      "forms:read",
       "inspections:read_own", "inspections:conduct",
       "findings:read",
     ],
+    revoke: ["companies:read", "forms:read"],
   },
   viewer: {
     description: "Read-only access to dashboards and inspection results",
@@ -70,7 +68,7 @@ module.exports = {
       );
       const permId = new Map(perms.map((p) => [`${p.resource}:${p.action}`, p.permission_id]));
 
-      for (const [name, { description, permissions }] of Object.entries(ROLES)) {
+      for (const [name, { description, permissions, revoke = [] }] of Object.entries(ROLES)) {
         let roleId = await queryInterface.rawSelect("roles", { where: { name }, transaction }, ["role_id"]);
         if (!roleId) {
           roleId = uuidv4();
@@ -80,6 +78,9 @@ module.exports = {
             { transaction },
           );
         }
+
+        const revokeIds = revoke.map((k) => permId.get(k)).filter(Boolean);
+        if (revokeIds.length) await queryInterface.bulkDelete("role_permissions", { role_id: roleId, permission_id: revokeIds }, { transaction });
 
         for (const key of permissions) {
           const permission_id = permId.get(key);

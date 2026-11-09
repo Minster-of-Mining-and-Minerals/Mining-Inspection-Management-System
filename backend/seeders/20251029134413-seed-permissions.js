@@ -69,6 +69,8 @@ module.exports = {
       { resource: "forms", action: "delete" },
       { resource: "forms", action: "publish" },
       { resource: "forms", action: "assign" },
+      // Change the current (published) version directly, without a new version — admin only
+      { resource: "forms", action: "edit_live" },
 
       // Inspection rounds & planning
       { resource: "rounds", action: "create" },
