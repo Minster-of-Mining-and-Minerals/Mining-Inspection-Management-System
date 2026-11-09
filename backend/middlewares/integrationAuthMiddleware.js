@@ -89,40 +89,70 @@ const authenticateIntegrationClient = async (req, res, next) => {
     // Otherwise, attempt JWT verification
     try {
       const decoded = jwt.verify(bearerToken, process.env.JWT_SECRET);
-      const user = await db.User.findByPk(decoded.user_id, {
-        attributes: ["user_id", "email", "full_name", "is_active", "sector_node_id"],
+      const userId = decoded.user_id || decoded.id;
+
+      // Allow service tokens that include explicit permissions in payload
+      if (Array.isArray(decoded.permissions)) {
+        if (decoded.permissions.includes("inspection_analytics:read")) {
+          req.integrationClient = {
+            type: "jwt_service",
+            client_id: userId || decoded.sub || "service_account",
+            client_name: decoded.name || decoded.email || "Service Account",
+            permissions: decoded.permissions,
+            scoped_sector_id: decoded.sector_node_id || null,
+            scoped_region_id: decoded.region_id || null,
+          };
+          return next();
+        } else {
+          return res.status(403).json({
+            success: false,
+            message: "Access denied: Missing required permission 'inspection_analytics:read'.",
+          });
+        }
+      }
+
+      // If user ID is present and db is available, look up user and permissions from database
+      if (userId && db.User) {
+        const user = await db.User.findByPk(userId, {
+          attributes: ["user_id", "email", "full_name", "is_active", "sector_node_id"],
+        });
+
+        if (!user || !user.is_active) {
+          return res.status(403).json({
+            success: false,
+            message: "User or service account not found or inactive.",
+          });
+        }
+
+        const authContext = await loadUserAuthContext(user.user_id);
+        const hasAnalyticsPermission =
+          authContext.permissions.includes("inspection_analytics:read") ||
+          authContext.roles.includes("admin") ||
+          authContext.roles.includes("integration_client");
+
+        if (!hasAnalyticsPermission) {
+          return res.status(403).json({
+            success: false,
+            message: "Access denied: Missing required permission 'inspection_analytics:read'.",
+          });
+        }
+
+        req.integrationClient = {
+          type: "jwt",
+          client_id: user.user_id,
+          client_name: user.full_name || user.email,
+          permissions: authContext.permissions,
+          scoped_sector_id: user.sector_node_id || null,
+          scoped_region_id: null,
+        };
+
+        return next();
+      }
+
+      return res.status(403).json({
+        success: false,
+        message: "Access denied: Missing required permission 'inspection_analytics:read'.",
       });
-
-      if (!user || !user.is_active) {
-        return res.status(403).json({
-          success: false,
-          message: "User or service account not found or inactive.",
-        });
-      }
-
-      const authContext = await loadUserAuthContext(user.user_id);
-      const hasAnalyticsPermission =
-        authContext.permissions.includes("inspection_analytics:read") ||
-        authContext.roles.includes("admin") ||
-        authContext.roles.includes("integration_client");
-
-      if (!hasAnalyticsPermission) {
-        return res.status(403).json({
-          success: false,
-          message: "Access denied: Missing required permission 'inspection_analytics:read'.",
-        });
-      }
-
-      req.integrationClient = {
-        type: "jwt",
-        client_id: user.user_id,
-        client_name: user.full_name || user.email,
-        permissions: authContext.permissions,
-        scoped_sector_id: user.sector_node_id || null,
-        scoped_region_id: null,
-      };
-
-      return next();
     } catch (jwtErr) {
       return res.status(401).json({
         success: false,
@@ -138,8 +168,15 @@ const authenticateIntegrationClient = async (req, res, next) => {
   });
 };
 
+const validateIntegrationKey = (key) => {
+  const configuredKey = process.env.PMS_INTEGRATION_KEY || process.env.INTEGRATION_API_KEY;
+  if (!configuredKey || typeof key !== "string" || !key) return false;
+  return safeCompare(key, configuredKey);
+};
+
 module.exports = {
   authenticateIntegrationClient,
   safeCompare,
+  validateIntegrationKey,
 };
 

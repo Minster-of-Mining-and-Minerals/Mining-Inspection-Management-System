@@ -37,6 +37,7 @@ const FROM_INSPECTIONS = "FROM inspections i JOIN company_licenses l ON l.licens
  */
 const safeRate = (numerator, denominator, decimals = 2) => {
   if (!denominator || denominator <= 0) return 0;
+  if (!numerator || numerator <= 0) return 0;
   return Number(((numerator / denominator) * 100).toFixed(decimals));
 };
 

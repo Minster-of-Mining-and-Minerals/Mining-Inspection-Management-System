@@ -30,16 +30,13 @@ const createIntegrationRateLimiter = (options = {}) => {
     const clientTimestamps = requests.get(key) || [];
     const validTimestamps = clientTimestamps.filter((t) => now - t < windowMs);
 
-    const remaining = Math.max(0, maxRequests - validTimestamps.length);
-    const resetTimeSeconds = Math.ceil(
-      (validTimestamps.length > 0 ? validTimestamps[0] + windowMs - now : windowMs) / 1000
-    );
-
-    res.setHeader("X-RateLimit-Limit", maxRequests);
-    res.setHeader("X-RateLimit-Remaining", remaining);
-    res.setHeader("X-RateLimit-Reset", resetTimeSeconds);
-
     if (validTimestamps.length >= maxRequests) {
+      const resetTimeSeconds = Math.ceil(
+        (validTimestamps[0] + windowMs - now) / 1000
+      );
+      res.setHeader("X-RateLimit-Limit", maxRequests);
+      res.setHeader("X-RateLimit-Remaining", 0);
+      res.setHeader("X-RateLimit-Reset", resetTimeSeconds);
       res.setHeader("Retry-After", resetTimeSeconds);
       return res.status(429).json({
         success: false,
@@ -50,6 +47,14 @@ const createIntegrationRateLimiter = (options = {}) => {
 
     validTimestamps.push(now);
     requests.set(key, validTimestamps);
+
+    const remaining = Math.max(0, maxRequests - validTimestamps.length);
+    const resetTimeSeconds = Math.ceil((validTimestamps[0] + windowMs - now) / 1000);
+
+    res.setHeader("X-RateLimit-Limit", maxRequests);
+    res.setHeader("X-RateLimit-Remaining", remaining);
+    res.setHeader("X-RateLimit-Reset", resetTimeSeconds);
+
     next();
   };
 };
