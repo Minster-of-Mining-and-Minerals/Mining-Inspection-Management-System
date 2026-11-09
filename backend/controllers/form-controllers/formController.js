@@ -13,9 +13,9 @@ const handleError = (res, error, fallback) => {
   if (error.status) return fail(res, error.status, error.message, error.extra);
   if (error.name === "SequelizeUniqueConstraintError") {
     const c = error.parent?.constraint || "";
-    if (c.includes("assignments_unique")) return fail(res, 409, "This form already applies to that.");
-    if (c.includes("one_draft")) return fail(res, 409, "This form already has a draft.");
-    if (c.includes("code")) return fail(res, 409, "Another form already uses this code.");
+    if (c.includes("assignments_unique")) return fail(res, 409, "This checklist already applies to that.");
+    if (c.includes("one_draft")) return fail(res, 409, "This checklist already has a draft.");
+    if (c.includes("code")) return fail(res, 409, "Another checklist already uses this code.");
     return fail(res, 409, "This already exists.");
   }
   console.error(fallback, error);
@@ -26,9 +26,9 @@ const VERSION_META = ["version_id", "form_id", "version_number", "status", "chan
 const versionMeta = (v) => ({ ...Object.fromEntries(VERSION_META.map((k) => [k, v[k]])), edit_count: v.get ? v.get("edit_count") ?? 0 : 0 });
 
 const findForm = async (id, transaction) => {
-  if (!isUuid(id)) throw err(400, "Invalid form id.");
+  if (!isUuid(id)) throw err(400, "Invalid checklist id.");
   const form = await Form.findByPk(id, { transaction });
-  if (!form) throw err(404, "Form not found.");
+  if (!form) throw err(404, "Checklist not found.");
   return form;
 };
 
@@ -90,7 +90,7 @@ const getForms = async (req, res) => {
     });
     return res.status(200).json({ success: true, data });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch forms.");
+    return handleError(res, error, "Failed to fetch checklists.");
   }
 };
 
@@ -98,7 +98,7 @@ const getFormById = async (req, res) => {
   try {
     return res.status(200).json({ success: true, data: await loadForm(req.params.id) });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch form.");
+    return handleError(res, error, "Failed to fetch the checklist.");
   }
 };
 
@@ -121,7 +121,7 @@ const nameClash = async ({ name, code }, exceptId) => {
   if (!conds.length) return null;
   const other = await Form.findOne({ where: { [Op.or]: conds, ...(exceptId && { form_id: { [Op.ne]: exceptId } }) } });
   if (!other) return null;
-  return tidy(other.name).toLowerCase() === tidy(name).toLowerCase() ? `A form called "${other.name}" already exists.` : `Code "${other.code}" is already used by ${other.name}.`;
+  return tidy(other.name).toLowerCase() === tidy(name).toLowerCase() ? `A checklist called "${other.name}" already exists.` : `Code "${other.code}" is already used by ${other.name}.`;
 };
 
 /** New form with an empty draft (version 1). */
@@ -145,10 +145,10 @@ const createForm = async (req, res) => {
       { transaction: t },
     );
     await t.commit();
-    return res.status(201).json({ success: true, message: "Form created.", data: await loadForm(form.form_id) });
+    return res.status(201).json({ success: true, message: "Checklist created.", data: await loadForm(form.form_id) });
   } catch (error) {
     if (!t.finished) await t.rollback();
-    return handleError(res, error, "Failed to create form.");
+    return handleError(res, error, "Failed to create the checklist.");
   }
 };
 
@@ -164,9 +164,9 @@ const updateForm = async (req, res) => {
       ...(req.body.description !== undefined && { description: req.body.description?.trim() || null }),
       ...(req.body.is_active !== undefined && { is_active: req.body.is_active }),
     });
-    return res.status(200).json({ success: true, message: "Form updated.", data: await loadForm(form.form_id) });
+    return res.status(200).json({ success: true, message: "Checklist updated.", data: await loadForm(form.form_id) });
   } catch (error) {
-    return handleError(res, error, "Failed to update form.");
+    return handleError(res, error, "Failed to update the checklist.");
   }
 };
 
@@ -177,7 +177,7 @@ const createDraft = async (req, res) => {
   try {
     const form = await findForm(req.params.id, t);
     const existing = await FormVersion.findOne({ where: { form_id: form.form_id, status: "draft" }, transaction: t });
-    if (existing) throw err(409, "This form already has a draft. Continue editing it, or discard it first.");
+    if (existing) throw err(409, "This checklist already has a draft. Continue editing it, or discard it first.");
     const published = await FormVersion.findOne({ where: { form_id: form.form_id, status: "published" }, transaction: t });
     const last = (await FormVersion.max("version_number", { where: { form_id: form.form_id }, transaction: t })) || 0;
     await FormVersion.create(
@@ -205,7 +205,7 @@ const saveDraft = async (req, res) => {
     const draft = await FormVersion.findOne({ where: { form_id: form.form_id, status: "draft" } });
     if (!draft) return fail(res, 409, "There is no draft to save. Start a new draft first.");
     const { value, errors } = validateDefinition(req.body.definition);
-    if (errors.length) return fail(res, 400, "The form has problems that need fixing before it can be saved.", { errors });
+    if (errors.length) return fail(res, 400, "The checklist has problems that need fixing before it can be saved.", { errors });
     await draft.update({ definition: value, ...(req.body.change_note !== undefined && { change_note: req.body.change_note?.trim() || null }) });
     return res.status(200).json({ success: true, message: "Draft saved.", data: await loadForm(form.form_id) });
   } catch (error) {
@@ -219,7 +219,7 @@ const discardDraft = async (req, res) => {
     const draft = await FormVersion.findOne({ where: { form_id: form.form_id, status: "draft" } });
     if (!draft) return fail(res, 404, "There is no draft.");
     const others = await FormVersion.count({ where: { form_id: form.form_id, status: { [Op.ne]: "draft" } } });
-    if (!others) return fail(res, 400, "This is the form's only version. Edit it instead, or deactivate the form.");
+    if (!others) return fail(res, 400, "This is the checklist's only version. Edit it instead, or deactivate the checklist.");
     await draft.destroy();
     return res.status(200).json({ success: true, message: "Draft discarded.", data: await loadForm(form.form_id) });
   } catch (error) {
@@ -267,10 +267,10 @@ const editLive = async (req, res) => {
   try {
     const form = await findForm(req.params.id, t);
     const current = await FormVersion.findOne({ where: { form_id: form.form_id, status: "published" }, transaction: t, lock: t.LOCK.UPDATE });
-    if (!current) throw err(409, "This form has no published version to edit. Edit its draft instead.");
+    if (!current) throw err(409, "This checklist has no published version to edit. Edit its draft instead.");
 
     const { value, errors } = validateDefinition(req.body.definition, { forPublish: true });
-    if (errors.length) throw err(400, "The form has problems that need fixing first.", { errors });
+    if (errors.length) throw err(400, "The checklist has problems that need fixing first.", { errors });
 
     const diff = diffDefinitions(current.definition, value);
     if (!diff.hasChanges) throw err(400, "Nothing was changed.");
@@ -446,7 +446,7 @@ const getFormsForLicense = async (req, res) => {
     );
     return res.status(200).json({ success: true, data: rows });
   } catch (error) {
-    return handleError(res, error, "Failed to fetch forms for the license.");
+    return handleError(res, error, "Failed to fetch checklists for the license.");
   }
 };
 

@@ -79,7 +79,7 @@ const uploadFile = async (req, res) => {
     const version = task.form_version_id
       ? await FormVersion.findByPk(task.form_version_id)
       : await FormVersion.findOne({ where: { form_id: task.form_id, status: "published" } });
-    if (!version) return cleanup(file), fail(res, 409, "The form has no published version.");
+    if (!version) return cleanup(file), fail(res, 409, "The checklist has no published version.");
     const field = findField(version.definition, String(req.body.field_key || ""));
     if (!field || !["photo", "status", "signature"].includes(field.type) || (field.type === "status" && field.evidence === "none"))
       return cleanup(file), fail(res, 400, "This question doesn't take files.");

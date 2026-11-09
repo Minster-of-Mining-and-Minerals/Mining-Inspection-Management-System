@@ -67,7 +67,7 @@ export default function InspectionView() {
   const { data: task, isLoading, isError, error, refetch } = useGetTaskQuery(inspectionId, { skip: !inspectionId, refetchOnMountOrArgChange: true });
   if (isLoading) return <Loading01 />;
   if (isError || !task) return <p className="p-8 text-center text-red-600">{(error as any)?.data?.message || "Inspection not found."}</p>;
-  if (!task.version) return <p className="p-8 text-center text-red-600">The form of this inspection has no published version.</p>;
+  if (!task.version) return <p className="p-8 text-center text-red-600">The checklist of this inspection has no published version.</p>;
   // Remount when the server copy changes underneath (reload after a conflict, return for correction)
   return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.last_saved_at}`} task={task} reload={refetch} />;
 }

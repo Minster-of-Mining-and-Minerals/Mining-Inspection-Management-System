@@ -233,7 +233,7 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
           )}
 
           {f.type === "number" && (
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <div className="space-y-2">
                 <Label htmlFor="q-unit">Unit</Label>
                 <Input id="q-unit" value={f.unit ?? ""} onChange={(e) => set({ unit: e.target.value })} placeholder="e.g. tonnes" />
@@ -372,7 +372,7 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
                 ))}
               </div>
             )}
-            {conditionSources.length === 0 && <p className="text-xs text-slate-500">Add a status or choice question earlier in the form to use conditions.</p>}
+            {conditionSources.length === 0 && <p className="text-xs text-slate-500">Add a status or choice question earlier in the checklist to use conditions.</p>}
           </div>
         </div>
 

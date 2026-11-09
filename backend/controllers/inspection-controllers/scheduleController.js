@@ -61,12 +61,12 @@ const describe = (s, statsRows = []) => {
 };
 
 const checkForm = async (formId) => {
-  if (!isUuid(formId)) return "Choose a form.";
+  if (!isUuid(formId)) return "Choose a checklist.";
   const form = await Form.findByPk(formId);
-  if (!form) return "Form not found.";
-  if (!form.is_active) return "This form is inactive. Activate it first.";
+  if (!form) return "Checklist not found.";
+  if (!form.is_active) return "This checklist is inactive. Activate it first.";
   const published = await FormVersion.count({ where: { form_id: formId, status: "published" } });
-  if (!published) return "Publish the form before scheduling it.";
+  if (!published) return "Publish the checklist before scheduling it.";
   return null;
 };
 
@@ -205,7 +205,7 @@ const updateSchedule = async (req, res) => {
       const used = await Inspection.count({ where: { schedule_id: schedule.schedule_id }, transaction });
       if (used) {
         await transaction.rollback();
-        return fail(res, 409, "This schedule already has tasks, so its form can't change. End it and create a new schedule.");
+        return fail(res, 409, "This schedule already has tasks, so its checklist can't change. End it and create a new schedule.");
       }
       const formProblem = await checkForm(req.body.form_id);
       if (formProblem) {

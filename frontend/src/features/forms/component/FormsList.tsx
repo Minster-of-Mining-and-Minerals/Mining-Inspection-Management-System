@@ -34,20 +34,20 @@ export default function FormsList() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-primary">Forms</h1>
+          <h1 className="text-2xl font-bold text-primary">Checklists</h1>
           <p className="text-sm text-slate-500">Inspection checklists. Each change is a new version; inspections keep the version they were filled with.</p>
         </div>
         {canCreate && (
           <Button onClick={() => setCreating(true)} className="gap-2">
-            <Plus className="h-4 w-4" /> New form
+            <Plus className="h-4 w-4" /> New checklist
           </Button>
         )}
       </div>
 
       {isError ? (
-        <p className="py-10 text-center text-red-600">Could not load forms.</p>
+        <p className="py-10 text-center text-red-600">Could not load checklists.</p>
       ) : forms.length === 0 ? (
-        <p className="py-10 text-center text-sm text-slate-500">No forms yet.</p>
+        <p className="py-10 text-center text-sm text-slate-500">No checklists yet.</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {forms.map((f) => (
@@ -103,17 +103,17 @@ function NewFormDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
   const [code, setCode] = useState("");
 
   const save = async () => {
-    if (name.trim().length < 3) return toast.error("Give the form a name.");
+    if (name.trim().length < 3) return toast.error("Give the checklist a name.");
     try {
       const f = await createForm({ name: name.trim(), name_am: nameAm.trim() || null, code: code.trim() || null }).unwrap();
-      toast.success("Form created. Add its sections and questions.");
+      toast.success("Checklist created. Add its sections and questions.");
       setName("");
       setNameAm("");
       setCode("");
       onClose();
       onCreated(f.form_id);
     } catch (e: any) {
-      toast.error(e?.data?.message || "Could not create the form.");
+      toast.error(e?.data?.message || "Could not create the checklist.");
     }
   };
 
@@ -121,7 +121,7 @@ function NewFormDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>New form</DialogTitle>
+          <DialogTitle>New checklist</DialogTitle>
           <DialogDescription>It starts as an empty draft. Publish it when its questions are ready.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
@@ -143,7 +143,7 @@ function NewFormDialog({ open, onClose, onCreated }: { open: boolean; onClose: (
             Cancel
           </Button>
           <Button onClick={save} disabled={isLoading}>
-            {isLoading ? "Creating…" : "Create form"}
+            {isLoading ? "Creating…" : "Create checklist"}
           </Button>
         </DialogFooter>
       </DialogContent>

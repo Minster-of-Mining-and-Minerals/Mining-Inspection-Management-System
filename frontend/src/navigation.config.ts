@@ -100,7 +100,7 @@ export const NAVIGATION: NavItem[] = [
     anyPermissions: ["ROUNDS:READ"],
   },
   {
-    title: "Forms",
+    title: "Checklists",
     url: "/forms",
     icon: ClipboardList,
     section: "Inspections",

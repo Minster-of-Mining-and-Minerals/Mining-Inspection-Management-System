@@ -109,7 +109,7 @@ export function ScheduleFormDialog({ schedule, formId, onClose, onSaved }: Props
 
   const save = async () => {
     if ((v.name?.trim().length ?? 0) < 3) return toast.error("Give the schedule a name.");
-    if (!v.form_id) return toast.error("Choose a form.");
+    if (!v.form_id) return toast.error("Choose a checklist.");
     if (v.target_type === "licenses" && !v.license_ids?.length) return toast.error("Choose at least one license.");
     if (v.end_date && v.start_date && v.end_date < v.start_date) return toast.error("The end date is before the start date.");
     try {
@@ -148,16 +148,16 @@ export function ScheduleFormDialog({ schedule, formId, onClose, onSaved }: Props
               <Input id="sch-name" value={v.name ?? ""} onChange={(e) => set({ name: e.target.value })} placeholder="e.g. Monthly field monitoring — mining licenses" />
             </div>
             <div className="space-y-1 sm:col-span-2">
-              <Label htmlFor="sch-form">Form *</Label>
+              <Label htmlFor="sch-form">Checklist *</Label>
               <select id="sch-form" className={selectClass} value={v.form_id ?? ""} disabled={editing && hasTasks} onChange={(e) => set({ form_id: e.target.value })}>
-                <option value="">Choose a published form…</option>
+                <option value="">Choose a published checklist…</option>
                 {scheduleable.map((f) => (
                   <option key={f.form_id} value={f.form_id}>
                     {f.name} (version {f.published?.version_number}, {f.published?.summary.questions} questions)
                   </option>
                 ))}
               </select>
-              {editing && hasTasks && <p className="text-xs text-slate-500">The form can’t change once tasks exist.</p>}
+              {editing && hasTasks && <p className="text-xs text-slate-500">The checklist can’t change once tasks exist.</p>}
             </div>
           </div>
 
@@ -166,7 +166,7 @@ export function ScheduleFormDialog({ schedule, formId, onClose, onSaved }: Props
             <legend className="text-sm font-medium">Which licenses *</legend>
             {(
               [
-                ["assigned", "Everyone the form applies to", "Follows the form’s “Applies to” list, including licenses added to it later."],
+                ["assigned", "Everyone the checklist applies to", "Follows the checklist’s “Applies to” list, including licenses added to it later."],
                 ["license_type", "All licenses of one type", "Every active exploration or mining license."],
                 ["licenses", "Chosen licenses", "Pick them one by one, e.g. for a short daily check."],
               ] as [ScheduleTarget, string, string][]
@@ -290,7 +290,7 @@ export function ScheduleFormDialog({ schedule, formId, onClose, onSaved }: Props
                   set({ due_days: Math.max(1, Number(e.target.value) || 1) });
                 }}
               />
-              <p className="text-xs text-slate-500">1 = the same day. Long forms need more days. After that, tasks show as overdue and can still be submitted late.</p>
+              <p className="text-xs text-slate-500">1 = the same day. Long checklists need more days. After that, tasks show as overdue and can still be submitted late.</p>
             </div>
           </div>
 
@@ -331,7 +331,7 @@ export function ScheduleFormDialog({ schedule, formId, onClose, onSaved }: Props
                 )}
               </div>
             ) : (
-              <p className="mt-2 text-slate-500">Choose a form and licenses to see what will be created.</p>
+              <p className="mt-2 text-slate-500">Choose a checklist and licenses to see what will be created.</p>
             )}
           </div>
         </div>

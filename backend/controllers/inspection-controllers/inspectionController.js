@@ -301,7 +301,7 @@ const cleanAnswers = (definition, answers) => {
  */
 const saveAnswersInternal = async (req, task, transaction) => {
   const version = await versionFor(task, transaction);
-  if (!version) throw Object.assign(new Error("The form has no published version."), { status: 409 });
+  if (!version) throw Object.assign(new Error("The checklist has no published version."), { status: 409 });
   const base = req.body.base_saved_at ? new Date(req.body.base_saved_at) : null;
   if (task.last_saved_at && task.last_saved_by !== req.user.user_id && (!base || task.last_saved_at > base)) {
     const who = await User.findByPk(task.last_saved_by, { attributes: ["full_name"] });

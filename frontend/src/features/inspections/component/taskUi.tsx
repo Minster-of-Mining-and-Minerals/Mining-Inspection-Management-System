@@ -36,7 +36,7 @@ export const describeDue = (days: number) => (days === 1 ? "due the same day" : 
 
 export const describeTarget = (s: Pick<Schedule, "target_type" | "license_type"> & { license_count?: number }) =>
   s.target_type === "assigned"
-    ? "Everyone the form applies to"
+    ? "Everyone the checklist applies to"
     : s.target_type === "license_type"
       ? `All ${s.license_type} licenses`
       : `${s.license_count ?? "Chosen"} chosen license${s.license_count === 1 ? "" : "s"}`;

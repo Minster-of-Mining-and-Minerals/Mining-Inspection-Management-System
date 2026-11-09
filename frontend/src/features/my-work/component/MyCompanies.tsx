@@ -148,7 +148,7 @@ function LicenseRow({ license: l }: { license: MyLicense }) {
               ))}
             </ul>
           ) : (
-            <p className="text-xs text-slate-400">No form is scheduled for this license.</p>
+            <p className="text-xs text-slate-400">No checklist is scheduled for this license.</p>
           )}
         </div>
 

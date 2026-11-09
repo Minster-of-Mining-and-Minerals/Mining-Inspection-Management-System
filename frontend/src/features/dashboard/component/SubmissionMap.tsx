@@ -140,5 +140,5 @@ export default function SubmissionMap({ points, mode, focusId }: { points: MapPo
     }
   }, [focusId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={el} className="h-[50vh] min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-100" role="region" aria-label="Map of inspection submissions" />;
+  return <div ref={el} className="relative isolate z-0 h-[50vh] min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-100" role="region" aria-label="Map of inspection submissions" />;
 }

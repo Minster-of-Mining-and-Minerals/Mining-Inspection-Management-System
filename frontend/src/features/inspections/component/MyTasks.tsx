@@ -36,11 +36,11 @@ const T = {
   returned: { am: "ተመልሰዋል", en: "Returned" },
   overdue: { am: "ያለፈባቸው", en: "Overdue" },
   submitted: { am: "የገቡ", en: "Submitted" },
-  search: { am: "ኩባንያ፣ ፈቃድ፣ ቅጽ ወይም አካባቢ", en: "Company, license, form, area" },
+  search: { am: "ኩባንያ፣ ፈቃድ፣ ቅጽ ወይም አካባቢ", en: "Company, license, checklist, area" },
   groupBy: { am: "በ…", en: "Group by" },
   company: { am: "ኩባንያ", en: "Company" },
   due: { am: "ቀነ ገደብ", en: "Due date" },
-  form: { am: "ቅጽ", en: "Form" },
+  form: { am: "ቼክሊስት", en: "Checklist" },
   region: { am: "ክልል", en: "Region" },
   filters: { am: "ማጣሪያ", en: "Filters" },
   clear: { am: "አጽዳ", en: "Clear" },
@@ -115,7 +115,7 @@ const groupTasks = (tasks: TaskListItem[], by: GroupBy, submittedTab: boolean, l
       else add("later", () => ({ title: am ? "በኋላ" : "Later", order: "3" }), t);
     } else if (by === "form") {
       const freq = t.schedule ? FREQUENCY_LABEL[t.schedule.frequency] : null;
-      add(`${t.form_id}|${t.schedule_id ?? ""}`, () => ({ title: t.form?.name ?? "Form", hint: [t.schedule?.name, freq].filter(Boolean).join(" · "), order: t.form?.name ?? "" }), t);
+      add(`${t.form_id}|${t.schedule_id ?? ""}`, () => ({ title: t.form?.name ?? "Checklist", hint: [t.schedule?.name, freq].filter(Boolean).join(" · "), order: t.form?.name ?? "" }), t);
     } else if (by === "company") {
       add(t.company_id, () => ({ title: t.company?.name ?? "Company", order: (t.company?.name ?? "").toLowerCase() }), t);
     } else {

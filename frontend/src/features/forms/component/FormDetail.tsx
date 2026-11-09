@@ -53,7 +53,7 @@ export default function FormDetail() {
   const [viewVersion, setViewVersion] = useState<string | null>(null);
 
   if (isLoading) return <Loading01 />;
-  if (isError || !form) return <div className="p-8 text-center text-red-600">Form not found.</div>;
+  if (isError || !form) return <div className="p-8 text-center text-red-600">Checklist not found.</div>;
 
   // ---------- the editor takes over the page ----------
   if (editing) {
@@ -112,7 +112,7 @@ export default function FormDetail() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-start gap-3">
-        <Button variant="outline" size="icon" onClick={() => router.push("/forms")} aria-label="Back to forms">
+        <Button variant="outline" size="icon" onClick={() => router.push("/forms")} aria-label="Back to checklists">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="min-w-0 flex-1">
@@ -142,7 +142,7 @@ export default function FormDetail() {
               onClick={async () => {
                 try {
                   await updateForm({ id: form.form_id, data: { is_active: !form.is_active } }).unwrap();
-                  toast.success(form.is_active ? "Form deactivated: no new inspections will use it." : "Form activated.");
+                  toast.success(form.is_active ? "Checklist deactivated: no new inspections will use it." : "Checklist activated.");
                 } catch (e: any) {
                   toast.error(e?.data?.message || "Could not change the status.");
                 }
@@ -205,7 +205,7 @@ export default function FormDetail() {
                   </p>
                   {canEdit && (
                     <Button onClick={onEdit} disabled={startingDraft} className="gap-2">
-                      <Edit className="h-4 w-4" /> {startingDraft ? "Starting…" : "Edit form"}
+                      <Edit className="h-4 w-4" /> {startingDraft ? "Starting…" : "Edit checklist"}
                     </Button>
                   )}
                 </div>
@@ -395,7 +395,7 @@ function FormDetailsDialog({ form, onClose }: { form: FormDetailType; onClose: (
   const [description, setDescription] = useState(form.description ?? "");
 
   const save = async () => {
-    if (name.trim().length < 3) return toast.error("Give the form a name.");
+    if (name.trim().length < 3) return toast.error("Give the checklist a name.");
     try {
       await updateForm({ id: form.form_id, data: { name: name.trim(), name_am: nameAm.trim() || null, code: code.trim() || null, description: description.trim() || null } }).unwrap();
       toast.success("Saved.");
@@ -409,7 +409,7 @@ function FormDetailsDialog({ form, onClose }: { form: FormDetailType; onClose: (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Form name and description</DialogTitle>
+          <DialogTitle>Checklist name and description</DialogTitle>
           <DialogDescription>These apply to all versions.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">

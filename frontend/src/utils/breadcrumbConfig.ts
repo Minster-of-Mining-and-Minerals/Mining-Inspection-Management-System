@@ -53,10 +53,10 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
     // ================================================
     // Forms Routes
     // ================================================
-    "/forms": [{ title: "Forms", path: "/forms" }],
+    "/forms": [{ title: "Checklists", path: "/forms" }],
     "/forms/[formId]": [
-        { title: "Forms", path: "/forms" },
-        { title: "Form", path: "/forms/[formId]" },
+        { title: "Checklists", path: "/forms" },
+        { title: "Checklist", path: "/forms/[formId]" },
     ],
 
     // ================================================

@@ -107,12 +107,12 @@ export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({
   return (
     <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
       <div className="p-6 border-b">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="text-xl font-bold text-primary">
             Permission Matrix
           </h3>
 
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-4">
             <div className="flex items-center space-x-2 text-sm">
               <span className="text-primary">Selected:</span>
               <span className="font-semibold text-primary">
@@ -225,7 +225,7 @@ export const PermissionMatrix: React.FC<PermissionMatrixProps> = ({
                       className="overflow-hidden"
                     >
                       <div className="p-4 bg-white rounded-b-lg border-t border-gray-200">
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                           {group.permissions.map((permission) => (
                             <label
                               key={permission.permission_id}

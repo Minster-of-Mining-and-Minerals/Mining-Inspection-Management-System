@@ -55,14 +55,14 @@ export function AssignmentsPanel({ formId, canAssign, hasPublished }: { formId: 
     <div className="space-y-4">
       {!hasPublished && (
         <p className="rounded-lg bg-amber-50 px-4 py-2 text-sm text-amber-800">
-          This form has no published version yet, so it can’t be scheduled until it is published.
+          This checklist has no published version yet, so it can’t be scheduled until it is published.
         </p>
       )}
       <section className="rounded-xl border border-slate-200 bg-white">
-        <div className="flex items-center justify-between border-b px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <div>
             <h3 className="font-semibold text-slate-900">Applies to</h3>
-            <p className="text-xs text-slate-500">Which licenses this form is meant for. Teams get tasks only when a schedule uses the form (Schedules).</p>
+            <p className="text-xs text-slate-500">Which licenses this checklist is meant for. Teams get tasks only when a schedule uses the checklist (Schedules).</p>
           </div>
           <span className="text-sm text-slate-500">{isLoading ? "…" : `${data?.license_count ?? 0} licenses in total`}</span>
         </div>

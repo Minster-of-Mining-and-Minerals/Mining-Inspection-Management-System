@@ -35,7 +35,7 @@ export default function SchedulesList() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-primary">Inspection schedules</h1>
-          <p className="text-sm text-slate-500">Which form is filled for which licenses, how often, and how long teams have. Each round gives every license a task for its team.</p>
+          <p className="text-sm text-slate-500">Which checklist is filled for which licenses, how often, and how long teams have. Each round gives every license a task for its team.</p>
         </div>
         {canCreate && (
           <Button onClick={() => setCreating(true)} className="gap-2">
