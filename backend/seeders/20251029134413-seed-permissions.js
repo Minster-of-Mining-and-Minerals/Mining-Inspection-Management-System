@@ -98,6 +98,8 @@ module.exports = {
       // Data Export
       { resource: "data", action: "export" },
 
+      // Plan Management / External System Analytics Integration
+      { resource: "inspection_analytics", action: "read" },
     ];
 
     for (const perm of permissions) {

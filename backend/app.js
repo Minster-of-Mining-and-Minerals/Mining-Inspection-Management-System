@@ -48,6 +48,9 @@ const { startScheduler } = require("./services/scheduleService");
 // ================== Attachment Routes ==========================
 const attachmentRoute = require("./routers/attachment-routes/attachmentRoute");
 
+// ================== Integration Routes (Plan Management System) ==================
+const integrationAnalyticsRoutes = require("./routers/integration-routes/integrationAnalyticsRoutes");
+
 const app = express();
 const appServer = http.createServer(app);
 
@@ -186,6 +189,10 @@ app.use("/api/dashboard", require("./routers/dashboard-routes/dashboardRoutes"))
 
 // ================== Api Attachment Routes =====================
 app.use("/api/attachments", attachmentRoute);
+
+// ================== Api Integration Routes (Plan Management System) =====================
+app.use("/api/v1/integration/inspection-analytics", integrationAnalyticsRoutes);
+app.use("/api/integration/v1/inspection-analytics", integrationAnalyticsRoutes);
 
 // ================== Root Endpoint ==================
 app.get("/", (req, res) => {
