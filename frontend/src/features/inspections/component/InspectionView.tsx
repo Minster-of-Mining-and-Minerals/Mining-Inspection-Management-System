@@ -17,6 +17,7 @@ import {
 import Loading01 from "@/features/template/component/Loading/Loading01";
 import type { FormLanguage } from "@/features/forms/component/FormRenderer";
 import { InspectionStepper } from "./InspectionStepper";
+import { SubmitFlow } from "./SubmitFlow";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel } from "@/utils/device";
@@ -52,19 +53,6 @@ const deviceInfo = () => {
     device_id: id,
   };
 };
-
-/** GPS position for the submission; never throws, returns { error } instead. */
-const currentLocation = () =>
-  new Promise<Record<string, any>>((resolve) => {
-    // Browsers only give the location to https:// pages (and localhost)
-    if (!window.isSecureContext) return resolve({ error: "insecure" });
-    if (!("geolocation" in navigator)) return resolve({ error: "no_service" });
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy), altitude: p.coords.altitude, captured_at: new Date(p.timestamp).toISOString() }),
-      (e) => resolve({ error: e.code === e.PERMISSION_DENIED ? "denied" : e.code === e.TIMEOUT ? "timeout" : "unavailable", detail: e.message }),
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 },
-    );
-  });
 
 /** Answers to start with: saved answers, plus "prefill" questions filled from the license. */
 const initialAnswers = (task: TaskDetail): Answers => {
@@ -335,91 +323,9 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
           <p className="rounded-xl border border-dashed border-slate-300 py-10 text-center text-sm text-slate-500">Nothing has happened to this task yet.</p>
         ))}
 
-      {confirming && <SubmitDialog task={task} busy={submitting} onCancel={() => setConfirming(false)} onSubmit={submit} />}
+      {confirming && <SubmitFlow task={task} busy={submitting} onCancel={() => setConfirming(false)} onSubmit={submit} />}
       {returning && <ReturnDialog task={task} onClose={() => setReturning(false)} onDone={reload} />}
     </div>
-  );
-}
-
-/* =================== submit: location + confirmation =================== */
-function SubmitDialog({ task, busy, onCancel, onSubmit }: { task: TaskDetail; busy: boolean; onCancel: () => void; onSubmit: (location: Record<string, any>) => void }) {
-  const [location, setLocation] = useState<Record<string, any> | null>(null);
-  const find = () => {
-    setLocation(null);
-    currentLocation().then(setLocation);
-  };
-  useEffect(find, []);
-  const late = new Date(task.due_at) < new Date();
-  const found = location && location.lat != null;
-  return (
-    <Dialog open onOpenChange={(o) => !o && !busy && onCancel()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Submit this inspection?</DialogTitle>
-          <DialogDescription>
-            After submitting, nobody in your team can change it. {late && <strong className="text-amber-700">It is past the due date, so it will be marked late.</strong>}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-2 rounded-lg bg-slate-50 p-3 text-sm">
-          <p className="flex items-center gap-2">
-            <MapPin className={`h-4 w-4 ${location && !found ? "text-red-600" : "text-primary"}`} />
-            {!location ? (
-              "Getting your location…"
-            ) : found ? (
-              <span>Location found (±{location.accuracy} m)</span>
-            ) : (
-              <span className="font-medium text-red-700">Your location is needed to submit.</span>
-            )}
-          </p>
-          {location && !found && (
-            <div className="space-y-2 rounded-md border border-red-200 bg-white p-3 text-xs text-slate-700">
-              {location.error === "insecure" ? (
-                <>
-                  <p className="font-semibold">This page is not secure (http://), so the browser never gives the location here.</p>
-                  <p>
-                    Open the system through its <b>https://</b> address (https://inspection.mom.gov.et). Turning location on in the phone does not help on an http:// page.
-                  </p>
-                </>
-              ) : location.error === "no_service" ? (
-                <p>This browser has no location service. Use Chrome on a phone with GPS.</p>
-              ) : location.error === "denied" ? (
-                <>
-                  <p className="font-semibold">Location is blocked for this site. To allow it:</p>
-                  <ol className="ml-4 list-decimal space-y-0.5">
-                    <li>Tap the icon left of the web address (🔒 or ⓘ).</li>
-                    <li>Open <b>Permissions</b> (or <b>Site settings</b>) → <b>Location</b> → <b>Allow</b>.</li>
-                    <li>Make sure the phone’s own <b>Location</b> is on (pull down the quick settings).</li>
-                    <li>Come back and tap <b>Try again</b>.</li>
-                  </ol>
-                </>
-              ) : (
-                <p>
-                  {location.error === "timeout" ? "Finding your location took too long." : "Your location could not be found."} Turn on the phone’s <b>Location</b> (GPS), move
-                  to an open area if you are inside, and tap <b>Try again</b>.
-                </p>
-              )}
-              {location.detail && <p className="text-[11px] text-slate-400">Browser says: {location.detail}</p>}
-              {location.error !== "insecure" && (
-                <Button type="button" size="sm" variant="outline" onClick={find}>
-                  Try again
-                </Button>
-              )}
-            </div>
-          )}
-          <p className="flex items-center gap-2 text-slate-600">
-            <Smartphone className="h-4 w-4 text-primary" /> This device’s details are recorded with the submission.
-          </p>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel} disabled={busy}>
-            Keep editing
-          </Button>
-          <Button onClick={() => found && onSubmit(location!)} disabled={!found || busy}>
-            {busy ? "Submitting…" : !location ? "Finding location…" : !found ? "Location needed" : "Submit"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

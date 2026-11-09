@@ -14,7 +14,8 @@ import { Answers, validateAnswers, visibleStructure } from "@/features/forms/com
 import type { FormDefinition, FormField, LicenseTypeKey } from "@/redux/types/form";
 
 export type StepMode = "question" | "section";
-const MODE_KEY = "mims.inspection.mode";
+// Renamed so everyone starts on the section view once; their own choice is remembered from then on
+const MODE_KEY = "mims.inspection.layout";
 
 const filled = (_f: FormField, v: any) => {
   if (v == null || v === "") return false;
@@ -73,7 +74,7 @@ export function InspectionStepper({
 }: Props) {
   // Navigation and menus in English; the questions, answers and section titles use `language` (Amharic)
   const am = false;
-  const [mode, setMode] = useState<StepMode>("question");
+  const [mode, setMode] = useState<StepMode>("section");
   const [cursor, setCursor] = useState<{ section?: string; field?: string }>({});
   const [menuOpen, setMenuOpen] = useState(false);
   const top = useRef<HTMLDivElement>(null);
