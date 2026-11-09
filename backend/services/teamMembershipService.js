@@ -3,7 +3,7 @@
  * Rules:
  *   - a team member is a user account, active, in at most one team at a time;
  *   - joining a team gives the inspector role; leading it also gives team_leader;
- *   - a team has at most one leader.
+ *   - a team can have multiple leaders.
  */
 const { v4: uuidv4 } = require("uuid");
 const { Team, TeamMember, User, Role, UserRoles } = require("../models");
@@ -53,10 +53,6 @@ const addUserToTeam = async ({ teamId, userId, role = "member", joinedOn, create
     throw current.team_id === teamId
       ? fail(409, `${user.full_name} is already in ${team.name}.`)
       : fail(409, `${user.full_name} is already in ${current.team?.name}. A person can be in only one team; remove them from ${current.team?.name} first.`);
-  }
-  if (role === "leader") {
-    const leader = await TeamMember.findOne({ where: { team_id: teamId, left_on: null, role: "leader" }, transaction });
-    if (leader) throw fail(409, `${team.name} already has a leader. Make the current leader a member first.`);
   }
 
   const member = await TeamMember.create(

@@ -12,7 +12,6 @@ const handleError = (res, error, fallback) => {
   if (error.status) return fail(res, error.status, error.message);
   if (error.name === "SequelizeUniqueConstraintError") {
     const constraint = error.parent?.constraint || "";
-    if (constraint.includes("one_leader")) return fail(res, 409, "This team already has a leader. Make the current leader a member first.");
     if (constraint.includes("one_active_team")) return fail(res, 409, "This person is already in a team. A person can be in only one team.");
     const field = Object.keys(error.fields || {})[0];
     return fail(res, 409, `A team with this ${field === "code" ? "code" : "name"} already exists.`);
