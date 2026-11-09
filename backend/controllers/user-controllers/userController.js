@@ -160,7 +160,8 @@ const createUser = async (req, res) => {
     }
 
     // ====== Generate a random temporary password (changed on first login) ======
-    const password = generateRandomPassword(12);
+    // const password = generateRandomPassword(12);
+    const password = "password";
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // ====== Create User ======
