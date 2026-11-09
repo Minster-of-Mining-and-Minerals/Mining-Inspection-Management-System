@@ -125,7 +125,7 @@ module.exports = {
               password: hashedPassword,
               user_type_id: userType,
               phone_number: du.phone,
-              is_first_logged_in: false,
+              is_first_logged_in: true,
               is_active: true,
               created_at: now,
               updated_at: now,
@@ -135,7 +135,7 @@ module.exports = {
         } else {
           await queryInterface.bulkUpdate(
             "users",
-            { password: hashedPassword, is_active: true, updated_at: now },
+            { password: hashedPassword, is_first_logged_in: true, is_active: true, updated_at: now },
             { user_id: userId },
             { transaction }
           );

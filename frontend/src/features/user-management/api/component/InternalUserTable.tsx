@@ -6,18 +6,36 @@ import { TableLayout } from "@/features/template/component/tableList/TableLayout
 import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, Plus, Eye, Edit, Users } from "lucide-react";
+import { Download, Plus, Eye, Edit, Users, KeyRound } from "lucide-react";
 
 import type { FilterField, ActionButton } from "@/types/tableLayout";
-import { useExportUsersMutation, useGetUsersQuery, useGetUserTypesQuery } from "@/redux/api/userApi";
+import {
+    useExportUsersMutation,
+    useGetUsersQuery,
+    useGetUserTypesQuery,
+    useResetUserPasswordMutation,
+} from "@/redux/api/userApi";
 import { User } from "@/redux/types/user";
 import { formatStatus } from "@/utils/statusFormatter";
 import { CreateUserModal } from "@/components/common/modals/CreateUserModal";
 import { EditUserModal } from "@/components/common/modals/EditUserModal";
+import { TemporaryPasswordDialog } from "@/components/common/modals/TemporaryPasswordDialog";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "react-toastify";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
-const getColumns = (onEdit: (user: User) => void): ColumnDef<User>[] => [
+const getColumns = (
+    onEdit: (user: User) => void,
+    onResetPassword: (user: User) => void
+): ColumnDef<User>[] => [
     {
         accessorKey: "full_name",
         header: "Full Name",
@@ -94,6 +112,16 @@ const getColumns = (onEdit: (user: User) => void): ColumnDef<User>[] => [
                 <Button variant="ghost" size="icon" title="Edit" aria-label="Edit user" onClick={() => onEdit(row.original)}>
                     <Edit className="h-4 w-4" />
                 </Button>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    title="Reset Password"
+                    aria-label="Reset password"
+                    onClick={() => onResetPassword(row.original)}
+                    className="text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                >
+                    <KeyRound className="h-4 w-4" />
+                </Button>
             </div>
         ),
     },
@@ -143,6 +171,25 @@ export default function InternalUserTable({ sideActions }: UserTableProps) {
 
     const [isModalOpen, setModalOpen] = useState(false);
     const [editUserId, setEditUserId] = useState<string | null>(null);
+    const [resetUser, setResetUser] = useState<User | null>(null);
+    const [tempPassword, setTempPassword] = useState<{ password: string; email?: string } | null>(null);
+    const [resetPasswordMutation, { isLoading: isResetting }] = useResetUserPasswordMutation();
+
+    const handleConfirmReset = async () => {
+        if (!resetUser) return;
+        try {
+            const res = await resetPasswordMutation(resetUser.user_id).unwrap();
+            toast.success(res.message || "Password reset to 'password' successfully.");
+            setTempPassword({
+                password: res.temporary_password || "password",
+                email: resetUser.email,
+            });
+            setResetUser(null);
+        } catch (err: any) {
+            toast.error(err?.data?.message || err?.message || "Failed to reset password");
+        }
+    };
+
     const handlePagination = (index: number, size: number) => {
         setPageIndex(index);
         setPageSize(size);
@@ -217,7 +264,10 @@ export default function InternalUserTable({ sideActions }: UserTableProps) {
                 filterColumnsPerRow={1}
             >
                 <DataTable
-                    columns={getColumns((user) => setEditUserId(user.user_id))}
+                    columns={getColumns(
+                        (user) => setEditUserId(user.user_id),
+                        (user) => setResetUser(user)
+                    )}
                     data={filteredData}
                     totalPageCount={totalPages}
                     handlePagination={handlePagination}
@@ -234,6 +284,45 @@ export default function InternalUserTable({ sideActions }: UserTableProps) {
                 userId={editUserId}
                 userType="internal"
                 onClose={() => setEditUserId(null)}
+            />
+
+            {/* Reset Password Confirmation Dialog */}
+            <Dialog open={!!resetUser} onOpenChange={(open) => !open && setResetUser(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <KeyRound className="h-5 w-5 text-amber-600" />
+                            Reset User Password
+                        </DialogTitle>
+                        <DialogDescription className="space-y-2 pt-2 text-left">
+                            <span>
+                                Are you sure you want to reset the password for{" "}
+                                <strong className="text-primary">{resetUser?.full_name}</strong> ({resetUser?.email})?
+                            </span>
+                            <span className="block text-xs text-slate-500">
+                                The password will be reset to <strong className="font-mono text-primary">password</strong> and the user will be required to change it upon their next login.
+                            </span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2 sm:gap-0 pt-4">
+                        <Button variant="outline" onClick={() => setResetUser(null)} disabled={isResetting}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleConfirmReset}
+                            disabled={isResetting}
+                            className="bg-amber-600 hover:bg-amber-700 text-white"
+                        >
+                            {isResetting ? "Resetting..." : "Reset Password"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <TemporaryPasswordDialog
+                password={tempPassword?.password ?? null}
+                email={tempPassword?.email}
+                onClose={() => setTempPassword(null)}
             />
         </>
     );
