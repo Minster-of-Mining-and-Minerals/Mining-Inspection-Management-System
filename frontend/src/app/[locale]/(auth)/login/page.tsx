@@ -29,7 +29,7 @@ export default function ExternalLogin() {
   const [authError, setAuthError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { status, update } = useSession();
+  const { data: session, status, update } = useSession();
 
   const searchParams = useSearchParams();
 
@@ -37,9 +37,14 @@ export default function ExternalLogin() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      router.push(callbackUrl);
+      const isFirstLogin = (session?.user as any)?.is_first_logged_in;
+      if (isFirstLogin) {
+        router.push("/change-password");
+      } else {
+        router.push(callbackUrl);
+      }
     }
-  }, [status, callbackUrl, router]);
+  }, [status, session, callbackUrl, router]);
   const [formData, setFormData] = useState({
     email: "",
     password: ""

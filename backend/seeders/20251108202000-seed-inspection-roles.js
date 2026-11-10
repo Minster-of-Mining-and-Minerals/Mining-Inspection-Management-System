@@ -99,6 +99,74 @@ module.exports = {
           }
         }
       }
+
+      // Seed standard demo users for the inspection roles
+      const bcrypt = require("bcrypt");
+      const hashedPassword = await bcrypt.hash("password", 10);
+      const userType = await queryInterface.rawSelect("user_types", { where: { name: "internal" }, transaction }, ["user_type_id"]);
+
+      const DEMO_USERS = [
+        { email: "supervisor@gmail.com", full_name: "Field Inspection Supervisor", role: "supervisor", phone: "251911000002" },
+        { email: "teamleader@gmail.com", full_name: "Inspection Team Leader", role: "team_leader", phone: "251911000003" },
+        { email: "inspector@gmail.com", full_name: "Field Inspector", role: "inspector", phone: "251911000004" },
+        { email: "viewer@gmail.com", full_name: "Compliance Viewer", role: "viewer", phone: "251911000005" },
+      ];
+
+      for (const du of DEMO_USERS) {
+        let userId = await queryInterface.rawSelect("users", { where: { email: du.email }, transaction }, ["user_id"]);
+        if (!userId) {
+          userId = uuidv4();
+          await queryInterface.bulkInsert(
+            "users",
+            [{
+              user_id: userId,
+              full_name: du.full_name,
+              email: du.email,
+              password: hashedPassword,
+              user_type_id: userType,
+              phone_number: du.phone,
+              is_first_logged_in: true,
+              is_active: true,
+              created_at: now,
+              updated_at: now,
+            }],
+            { transaction }
+          );
+        } else {
+          await queryInterface.bulkUpdate(
+            "users",
+            { password: hashedPassword, is_first_logged_in: true, is_active: true, updated_at: now },
+            { user_id: userId },
+            { transaction }
+          );
+        }
+
+        const roleId = await queryInterface.rawSelect("roles", { where: { name: du.role }, transaction }, ["role_id"]);
+        if (roleId) {
+          const hasRole = await queryInterface.rawSelect(
+            "user_roles",
+            { where: { user_id: userId, role_id: roleId }, transaction },
+            ["user_role_id"]
+          );
+          if (!hasRole) {
+            await queryInterface.bulkInsert(
+              "user_roles",
+              [{
+                user_role_id: uuidv4(),
+                user_id: userId,
+                role_id: roleId,
+                assigned_by: userId,
+                assigned_at: now,
+                is_active: true,
+                created_at: now,
+                updated_at: now,
+              }],
+              { transaction }
+            );
+          }
+        }
+      }
+
       await transaction.commit();
     } catch (error) {
       await transaction.rollback();

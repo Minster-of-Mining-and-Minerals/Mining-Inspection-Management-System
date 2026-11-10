@@ -18,7 +18,7 @@
  *   - Teams: "Team <n>" is created once and each license is assigned to its team.
  *   - Members are user accounts. A name matches an existing user with exactly that
  *     full name; otherwise a user is created with a generated email
- *     (firstname.lastname@<SEED_USER_EMAIL_DOMAIN>, default mims.example.com),
+ *     (firstname.lastname@<SEED_USER_EMAIL_DOMAIN>, default gmail.com),
  *     password "password" and the inspector role — but only when .env has
  *     SEED_DEV_PASSWORDS=true (never with NODE_ENV=production). Otherwise no users
  *     are created and the names are listed in the report to create by hand.
@@ -40,11 +40,13 @@ const { escapeLike } = require("../utils/search");
 const { addUserToTeam } = require("./teamMembershipService");
 
 // Accounts with the known password "password" only when explicitly allowed in .env
-// (SEED_DEV_PASSWORDS=true) and never with NODE_ENV=production. Otherwise no users
-// are created and the people to create are listed in the report.
-const IS_PRODUCTION = process.env.NODE_ENV === "production" || process.env.SEED_DEV_PASSWORDS !== "true";
-// Reserved for examples (RFC 2606): generated addresses can never reach a real person
-const SEED_EMAIL_DOMAIN = process.env.SEED_USER_EMAIL_DOMAIN || "mims.example.com";
+// (SEED_DEV_PASSWORDS=true or SEED_USERS=true) and default false on production.
+const IS_PRODUCTION =
+  process.env.SEED_DEV_PASSWORDS === "true" || process.env.SEED_USERS === "true"
+    ? false
+    : process.env.NODE_ENV === "production";
+// Default domain for generated inspector emails
+const SEED_EMAIL_DOMAIN = process.env.SEED_USER_EMAIL_DOMAIN || "gmail.com";
 const DEV_PASSWORD = "password";
 const TITLES = new Set(["dr", "mr", "mrs", "ms", "eng", "engr", "prof", "ato", "w/ro", "wro", "weizero", "weyzero"]);
 
@@ -219,7 +221,7 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
           email,
           password: devPasswordHash,
           user_type_id: internalType.user_type_id,
-          is_first_logged_in: false,
+          is_first_logged_in: true,
           is_active: true,
           created_at: now,
           updated_at: now,
@@ -228,6 +230,20 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
       );
       stats.usersCreated++;
       createdUsers.push({ name, email });
+      if (inspectorRole) {
+        await db.UserRoles.create(
+          {
+            user_role_id: uuidv4(),
+            user_id: user.user_id,
+            role_id: inspectorRole.role_id,
+            is_active: true,
+            assigned_at: now,
+            created_at: now,
+            updated_at: now,
+          },
+          { transaction: t },
+        );
+      }
       note(r, companyName, "", "User created", `${name}: ${email} (password "${DEV_PASSWORD}"; replace the email before go-live)`);
     }
     userCache.set(key, user);

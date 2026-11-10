@@ -689,8 +689,8 @@ const resetUserPassword = async (req, res) => {
       });
     }
 
-    // Generate and hash new password
-    const newPassword = generateRandomPassword(12);
+    // Reset to "password" or requested password, and require change on next login
+    const newPassword = req.body?.new_password || "password";
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await user.update(
@@ -708,7 +708,7 @@ const resetUserPassword = async (req, res) => {
     // Send email notification (the reset stands even if the email fails)
     const emailSent = await trySendEmail(
       user.email,
-      `Password Reset - ${process.env.APP_NAME}`,
+      `Password Reset - ${process.env.APP_NAME || "MIMS"}`,
       `
       Dear ${user.full_name},
       Your password has been reset successfully.
@@ -720,11 +720,9 @@ const resetUserPassword = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: emailSent
-        ? "Password reset successfully. The new password has been sent via email."
-        : "Password reset, but the email could not be sent. Give the temporary password to the user.",
+      message: `Password has been reset to '${newPassword}'. The user will be required to change it on their next login.`,
       email_sent: emailSent,
-      ...(emailSent ? {} : { temporary_password: newPassword }),
+      temporary_password: newPassword,
     });
   } catch (error) {
     if (!t.finished) await t.rollback();

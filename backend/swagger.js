@@ -21,6 +21,12 @@ const options = {
           scheme: "bearer",
           bearerFormat: "JWT",
         },
+        ApiKeyAuth: {
+          type: "apiKey",
+          in: "header",
+          name: "X-API-Key",
+          description: "Pre-shared integration API key for system-to-system integration (e.g. Plan Management System)",
+        },
       },
     },
     security: [
@@ -29,7 +35,7 @@ const options = {
       },
     ],
   },
-  apis: ["./routers/*.js"],
+  apis: ["./routers/**/*.js"],
 };
 
 const swaggerSpec = swaggerJSDoc(options);
