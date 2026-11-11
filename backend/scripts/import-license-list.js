@@ -14,7 +14,8 @@
  *   npm run import:licenses -- --update --dry-run
  *   npm run import:licenses -- --update
  *   npm run import:licenses -- "<list.xlsx>" --update --coords="<coordinates.xlsx>"
- *   (default coordinate list: data/license-list/license-coordinates.xlsx)
+ *   (default coordinate list: data/license-list/license-coordinates.xlsx; new accounts get their real
+ *   email and phone from data/license-list/team-contacts.xlsx, or --contacts="<sheet.xlsx>")
  *
  * `npm run seed` adds from data/license-list/license-list.xlsx automatically.
  * Rules: services/licenseImportService.js (add) and services/licenseListUpdateService.js (update).
@@ -25,10 +26,12 @@ const fs = require("fs");
 const db = require("../models");
 const { importLicenseList, summarize } = require("../services/licenseImportService");
 const { updateFromLicenseList, summarizeUpdate } = require("../services/licenseListUpdateService");
+const { loadContactBook } = require("../services/teamContactsService");
 
 const DATA = path.join(__dirname, "..", "data", "license-list");
 const DEFAULT_FILE = path.join(DATA, "license-list.xlsx");
 const DEFAULT_COORDS = path.join(DATA, "license-coordinates.xlsx");
+const DEFAULT_CONTACTS = path.join(DATA, "team-contacts.xlsx");
 
 async function main() {
   const args = process.argv.slice(2);
@@ -37,6 +40,8 @@ async function main() {
   const update = args.includes("--update");
   const sectorId = option("sector");
   const file = args.find((a) => !a.startsWith("--")) || DEFAULT_FILE;
+  // New accounts get the person's real email and phone from the team contact sheet
+  const contactsFile = option("contacts") || (fs.existsSync(DEFAULT_CONTACTS) ? DEFAULT_CONTACTS : null);
   if (!fs.existsSync(file)) {
     console.error(`File not found: ${file}\nUsage: npm run import:licenses -- "<file.xlsx>" [--dry-run] [--update [--coords=<file.xlsx>]]`);
     process.exit(1);
@@ -49,13 +54,13 @@ async function main() {
       process.exit(1);
     }
     console.log(`Updating from ${file}${coordsFile ? `\n  locations from ${coordsFile}` : "\n  (no coordinate list: locations from the list's names)"}${dryRun ? "\n  DRY RUN" : ""}\n`);
-    const result = await updateFromLicenseList({ listFile: file, coordsFile, sectorId, dryRun });
+    const result = await updateFromLicenseList({ listFile: file, coordsFile, contactsFile, sectorId, dryRun });
     console.log(summarizeUpdate(result, { dryRun }));
     return;
   }
 
   console.log(`Importing ${file}${dryRun ? " (dry run)" : ""}\n`);
-  const result = await importLicenseList(file, { dryRun, sectorId });
+  const result = await importLicenseList(file, { dryRun, sectorId, contactFor: await loadContactBook(contactsFile) });
   console.log(summarize(result, { dryRun }));
 }
 

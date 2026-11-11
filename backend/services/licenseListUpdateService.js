@@ -21,6 +21,10 @@
  *   - Teams named in the list have exactly the people the list puts in them: others leave
  *     (kept as history), people listed for another team move. Names spelled slightly differently
  *     match the existing account (services/personMatchService.js).
+ *   - Someone with no account yet gets one when the team contact sheet has their real email
+ *     (contactsFile; on a server too): that email and phone, the inspector role, temporary password
+ *     "password" to change at the first login. Without a contact: a generated email
+ *     (firstname.lastname@<SEED_USER_EMAIL_DOMAIN>), on a server too.
  *   - Nothing is deleted. Licenses, companies, teams and people not in the list are reported only.
  *   - All or nothing: one transaction.
  */
@@ -34,6 +38,7 @@ const { AreaMatcher } = require("./areaMatchingService");
 const { parseMineralText } = require("../utils/mineralNames");
 const { addUserToTeam } = require("./teamMembershipService");
 const { readLicenseCoordinates, licenseKey, WoredaIndex } = require("./licenseCoordinatesService");
+const { loadContactBook } = require("./teamContactsService");
 const { findUserForName } = require("./personMatchService");
 const {
   COL,
@@ -44,7 +49,6 @@ const {
   parseIssueDate,
   writeReport,
   emailLocalPart,
-  IS_PRODUCTION,
   DEV_PASSWORD,
   SEED_EMAIL_DOMAIN,
 } = require("./licenseImportService");
@@ -87,10 +91,11 @@ async function readList(file) {
  * @param {{ listFile: string, coordsFile?: string|null, sectorId?: string, dryRun?: boolean, reportDir?: string|null }} options
  * @returns {Promise<{ stats: object, report: object[], reportFile: string|null }>}
  */
-async function updateFromLicenseList({ listFile, coordsFile = null, sectorId = MOM_SECTOR_ID, dryRun = false, reportDir = DEFAULT_REPORT_DIR }) {
+async function updateFromLicenseList({ listFile, coordsFile = null, contactsFile = null, sectorId = MOM_SECTOR_ID, dryRun = false, reportDir = DEFAULT_REPORT_DIR }) {
   const { Company, CompanyLicense, Mineral, AdminArea, AreaAlias, Team, TeamMember, TeamLicense, User, UserRoles, Role, UserType, Inspection, InspectionEvent, sequelize } = db;
   const list = await readList(listFile);
   const coords = coordsFile ? await readLicenseCoordinates(coordsFile) : { licenses: new Map(), problems: [] };
+  const contactFor = await loadContactBook(contactsFile);
 
   const report = coords.problems.map((p) => ({ ...p, row: `coordinates row ${p.row}` }));
   const note = (row, company, license, issue, detail) => report.push({ row, company, license, issue, detail });
@@ -158,7 +163,8 @@ async function updateFromLicenseList({ listFile, coordsFile = null, sectorId = M
 
     const inspectorRole = await Role.findOne({ where: { name: "inspector", sector_node_id: null, is_active: true }, transaction: t });
     const internalType = await UserType.findOne({ where: { name: "internal" }, transaction: t });
-    const devPasswordHash = IS_PRODUCTION ? null : await bcrypt.hash(DEV_PASSWORD, 10);
+    // Temporary password of new accounts ("password", to change at the first login)
+    const passwordHash = await bcrypt.hash(DEV_PASSWORD, 10);
     const personCache = new Map();
     const personFor = async (name, r) => {
       const k = name.toLowerCase();
@@ -167,18 +173,29 @@ async function updateFromLicenseList({ listFile, coordsFile = null, sectorId = M
       let user = found.user;
       if (user && found.how === "spelling") note(r, "", "", "Name spelled differently", `"${name}" taken to be ${user.full_name} (${user.email}).`);
       if (!user && found.candidates.length > 1) note(r, "", "", "Several users with this name", `${name}: ${found.candidates.map((u) => u.full_name).join(", ")}. Put the right one in the team by hand.`);
-      else if (!user && IS_PRODUCTION) note(r, "", "", "User to create", `${name}: create their account on the Users page and choose their team.`);
       else if (!user) {
-        const local = emailLocalPart(name);
-        let email = `${local}@${SEED_EMAIL_DOMAIN}`;
-        for (let i = 2; await User.findOne({ where: { email }, attributes: ["user_id"], transaction: t }); i++) email = `${local}${i}@${SEED_EMAIL_DOMAIN}`;
-        user = await User.create(
-          { user_id: uuidv4(), full_name: name, email, password: devPasswordHash, user_type_id: internalType.user_type_id, ...sector, is_first_logged_in: true, is_active: true },
-          { transaction: t },
-        );
-        if (inspectorRole) await UserRoles.create({ user_role_id: uuidv4(), user_id: user.user_id, role_id: inspectorRole.role_id, is_active: true, assigned_at: new Date() }, { transaction: t });
-        stats.usersCreated++;
-        note(r, "", "", "User created", `${name}: ${email} (password "${DEV_PASSWORD}")`);
+        // The person's real email and phone, when the team contact sheet has them
+        let contact = contactFor(name);
+        if (contact && (await User.findOne({ where: { email: contact.email }, attributes: ["user_id"], transaction: t }))) {
+          note(r, "", "", "Email used by another account", `${name}: ${contact.email} already belongs to another account.`);
+          contact = null;
+        }
+        {
+          let email = contact?.email;
+          if (!email) {
+            // Not in the contact sheet: a generated email (replace it on the Users page)
+            const local = emailLocalPart(name);
+            email = `${local}@${SEED_EMAIL_DOMAIN}`;
+            for (let i = 2; await User.findOne({ where: { email }, attributes: ["user_id"], transaction: t }); i++) email = `${local}${i}@${SEED_EMAIL_DOMAIN}`;
+          }
+          user = await User.create(
+            { user_id: uuidv4(), full_name: name, email, phone_number: contact?.phone ?? null, password: passwordHash, user_type_id: internalType.user_type_id, ...sector, is_first_logged_in: true, is_active: true },
+            { transaction: t },
+          );
+          if (inspectorRole) await UserRoles.create({ user_role_id: uuidv4(), user_id: user.user_id, role_id: inspectorRole.role_id, is_active: true, assigned_at: new Date() }, { transaction: t });
+          stats.usersCreated++;
+          note(r, "", "", "User created", `${name}: ${email}${contact?.phone ? `, ${contact.phone}` : ""} (temporary password "${DEV_PASSWORD}", to change at the first login${contact ? "" : "; generated email, not in the team contact sheet: replace it with their real email on the Users page"})`);
+        }
       }
       if (user && !user.is_active) {
         note(r, "", "", "Person's account is inactive", `${user.full_name} (${user.email}) is not put in a team.`);
@@ -413,7 +430,7 @@ const summarizeUpdate = ({ stats, report, reportFile }, { dryRun = false } = {})
     `  People joining a team:        ${stats.peopleAdded}`,
     `  People moving team:           ${stats.peopleMoved}`,
     `  People leaving their team:    ${stats.peopleRemoved}`,
-    `  Users created:                ${stats.usersCreated}`,
+    `  Users created:                ${stats.usersCreated}${stats.usersCreated ? `  (temporary password "${DEV_PASSWORD}", to change at the first login)` : ""}`,
     `  Report lines: ${report.length}${report.length ? " " + JSON.stringify(byIssue) : ""}`,
     ...(reportFile ? [`  Report: ${reportFile}`] : []),
   ].join("\n");

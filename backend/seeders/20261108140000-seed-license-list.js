@@ -2,9 +2,12 @@
 /**
  * Imports the Ministry's license inspection list that ships with the project:
  * data/license-list/license-list.xlsx (companies + licenses, minerals, locations, teams),
- * gives the licenses it adds their surveyed area from data/license-list/license-coordinates.xlsx,
- * and the inspector accounts it creates (development only) their real email and phone from
- * data/license-list/team-contacts.xlsx.
+ * gives every license without one its surveyed area from data/license-list/license-coordinates.xlsx
+ * (also licenses imported before areas existed; an existing area is never changed),
+ * and creates the inspectors' accounts with their real email and phone from
+ * data/license-list/team-contacts.xlsx — on a server too (temporary password "password", to
+ * change at the first login). People not in that sheet get a generated email
+ * (firstname.lastname@gmail.com), on a server too; the report lists them.
  *
  * Runs with every `npm run seed` and is safe to repeat: licenses already in the
  * database are skipped, so only rows that are new in the sheet are added, and
@@ -31,13 +34,23 @@ module.exports = {
     }
     // Loaded here so the other seeders don't depend on exceljs / the models
     const { importLicenseList, summarize } = require("../services/licenseImportService");
-    const result = await importLicenseList(FILE);
+    const { loadContactBook } = require("../services/teamContactsService");
+    // People named in the list get an account with their real email and phone (on a server too)
+    const contactFor = await loadContactBook(fs.existsSync(CONTACTS) ? CONTACTS : null);
+    const result = await importLicenseList(FILE, { contactFor });
     console.log(summarize(result));
 
-    if (result.createdLicenseIds?.length && fs.existsSync(COORDS)) {
+    // Surveyed areas (what the maps draw) for every Ministry of Mines license that has none yet:
+    // the new ones, and licenses imported before areas existed. An existing area is never changed.
+    if (fs.existsSync(COORDS)) {
+      const db = require("../models");
+      const { MOM_SECTOR_ID } = require("../utils/sectorConstants");
       const { applyLicenseCoordinates } = require("../services/licenseListUpdateService");
-      const { applied } = await applyLicenseCoordinates({ coordsFile: COORDS, licenseIds: result.createdLicenseIds });
-      console.log(`  Surveyed areas added:   ${applied} of ${result.createdLicenseIds.length} new license(s)`);
+      const missing = await db.CompanyLicense.findAll({ where: { boundary: null, sector_node_id: MOM_SECTOR_ID }, attributes: ["license_id"] });
+      if (missing.length) {
+        const { applied } = await applyLicenseCoordinates({ coordsFile: COORDS, licenseIds: missing.map((l) => l.license_id) });
+        console.log(`  Surveyed areas added:   ${applied} of ${missing.length} license(s) without one`);
+      }
     }
 
     // The inspector accounts just created get their real email and phone (never existing accounts)
@@ -45,7 +58,7 @@ module.exports = {
     if (newUserIds.length && fs.existsSync(CONTACTS)) {
       const { applyTeamContacts } = require("../services/teamContactsService");
       const { stats } = await applyTeamContacts({ file: CONTACTS, onlyUserIds: newUserIds });
-      console.log(`  Contacts filled in:     ${stats.emails} email(s), ${stats.phones} phone(s) of ${newUserIds.length} new inspector account(s)`);
+      if (stats.emails || stats.phones) console.log(`  Contacts filled in:     ${stats.emails} email(s), ${stats.phones} phone(s) of ${newUserIds.length} new inspector account(s)`);
     }
   },
 

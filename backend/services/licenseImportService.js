@@ -19,11 +19,13 @@
  *     team. A license that already has a team keeps it (moving licenses between teams is done
  *     by the update, services/licenseListUpdateService.js).
  *   - Members are user accounts. A name matches an existing user of the sector with that name,
- *     also when spelled slightly differently (services/personMatchService.js); otherwise a user is created with a generated email
- *     (firstname.lastname@<SEED_USER_EMAIL_DOMAIN>, default gmail.com),
- *     password "password" and the inspector role — but only when .env has
- *     SEED_DEV_PASSWORDS=true (never with NODE_ENV=production). Otherwise no users
- *     are created and the names are listed in the report to create by hand.
+ *     also when spelled slightly differently (services/personMatchService.js). A person with no
+ *     account yet whose real email is in the team contact sheet (options.contactFor) gets an account
+ *     with that email and phone — on a server too — temporary password "password", to change at
+ *     the first login. Someone not in the sheet gets a generated email
+ *     (firstname.lastname@<SEED_USER_EMAIL_DOMAIN>, default gmail.com), on a server too,
+ *     with the same temporary password and the inspector role; the report lists them so the
+ *     real email can be set on the Users page.
  *     A person is put in a team only if they are in no team yet (one team per person).
  *   - Team steps also run for licenses that already exist, so teams can be added
  *     to a list imported before teams existed. Nothing is added twice.
@@ -41,12 +43,6 @@ const { addUserToTeam } = require("./teamMembershipService");
 const { MOM_SECTOR_ID } = require("../utils/sectorConstants");
 const { findUserForName } = require("./personMatchService");
 
-// Accounts with the known password "password" only when explicitly allowed in .env
-// (SEED_DEV_PASSWORDS=true or SEED_USERS=true) and default false on production.
-const IS_PRODUCTION =
-  process.env.SEED_DEV_PASSWORDS === "true" || process.env.SEED_USERS === "true"
-    ? false
-    : process.env.NODE_ENV === "production";
 // Default domain for generated inspector emails
 const SEED_EMAIL_DOMAIN = process.env.SEED_USER_EMAIL_DOMAIN || "gmail.com";
 const DEV_PASSWORD = "password";
@@ -151,12 +147,13 @@ const writeReport = (report, { dryRun, reportDir, name = "license-import" }) => 
 
 /**
  * @param {string} file  path to the .xlsx
- * @param {{ dryRun?: boolean, reportDir?: string|null, sectorId?: string }} options  reportDir null = no report file;
+ * @param {{ dryRun?: boolean, reportDir?: string|null, sectorId?: string, contactFor?: Function|null }} options  reportDir null = no report file;
+ *        contactFor(name) → { email, phone } from the team contact sheet (services/teamContactsService.js loadContactBook);
  *        sectorId = the sector everything is imported into (default Ministry of Mines). Companies,
  *        licenses, teams and people are matched within that sector only.
  * @returns {Promise<{ stats: object, report: object[], reportFile: string|null }>}
  */
-async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REPORT_DIR, sectorId = MOM_SECTOR_ID } = {}) {
+async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REPORT_DIR, sectorId = MOM_SECTOR_ID, contactFor = null } = {}) {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(file);
   const ws = wb.worksheets[0];
@@ -199,7 +196,8 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
   const userCache = new Map();
   const inspectorRole = await db.Role.findOne({ where: { name: "inspector", sector_node_id: null, is_active: true }, transaction: t });
   const internalType = await db.UserType.findOne({ where: { name: "internal" }, transaction: t });
-  const devPasswordHash = IS_PRODUCTION ? null : await bcrypt.hash(DEV_PASSWORD, 10);
+  // Temporary password of new accounts ("password", to change at the first login)
+  const passwordHash = await bcrypt.hash(DEV_PASSWORD, 10);
 
   const userFor = async (name, r, companyName) => {
     const key = name.toLowerCase();
@@ -217,15 +215,22 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
       }
     } else if (matches.length > 1) {
       note(r, companyName, "", "Several users with this name", `${name}: add the right one to the team by hand.`);
-    } else if (IS_PRODUCTION) {
-      note(r, companyName, "", "User to create", `${name}: create their account on the Users page and choose their team.`);
     } else {
+      // The person's real email and phone, when the team contact sheet has them
+      let contact = contactFor ? contactFor(name) : null;
+      if (contact && (await User.findOne({ where: { email: contact.email }, attributes: ["user_id"], transaction: t }))) {
+        note(r, companyName, "", "Email used by another account", `${name}: ${contact.email} already belongs to another account.`);
+        contact = null;
+      }
       if (!inspectorRole || !internalType) throw new Error("The inspector role or internal user type is missing: run the seeders.");
-      // firstname.lastname@domain, numbered if taken
-      const local = emailLocalPart(name);
-      let email = `${local}@${SEED_EMAIL_DOMAIN}`;
-      for (let i = 2; await User.findOne({ where: { email }, attributes: ["user_id"], transaction: t }); i++) {
-        email = `${local}${i}@${SEED_EMAIL_DOMAIN}`;
+      let email = contact?.email;
+      if (!email) {
+        // Not in the contact sheet: firstname.lastname@domain, numbered if taken
+        const local = emailLocalPart(name);
+        email = `${local}@${SEED_EMAIL_DOMAIN}`;
+        for (let i = 2; await User.findOne({ where: { email }, attributes: ["user_id"], transaction: t }); i++) {
+          email = `${local}${i}@${SEED_EMAIL_DOMAIN}`;
+        }
       }
       const now = new Date();
       user = await User.create(
@@ -233,7 +238,8 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
           user_id: uuidv4(),
           full_name: name,
           email,
-          password: devPasswordHash,
+          phone_number: contact?.phone ?? null,
+          password: passwordHash,
           user_type_id: internalType.user_type_id,
           sector_node_id: sectorId,
           is_first_logged_in: true,
@@ -259,7 +265,7 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
           { transaction: t },
         );
       }
-      note(r, companyName, "", "User created", `${name}: ${email} (password "${DEV_PASSWORD}"; replace the email before go-live)`);
+      note(r, companyName, "", "User created", contact ? `${name}: ${email}${contact.phone ? `, ${contact.phone}` : ""} (temporary password "${DEV_PASSWORD}", to change at the first login)` : `${name}: ${email} (temporary password "${DEV_PASSWORD}"; generated email, not in the team contact sheet: replace it with their real email on the Users page)`);
     }
     userCache.set(key, user);
     return user;
@@ -445,7 +451,7 @@ const summarize = ({ stats, report, reportFile }, { dryRun = false } = {}) => {
     `  Linked to region only:  ${stats.regionFallback}`,
     `  No location linked:     ${stats.noLocation}`,
     `  Teams created:          ${stats.teamsCreated}`,
-    `  Users created:          ${stats.usersCreated}${stats.usersCreated ? `  (password "${DEV_PASSWORD}", emails @${SEED_EMAIL_DOMAIN})` : ""}`,
+    `  Users created:          ${stats.usersCreated}${stats.usersCreated ? `  (temporary password "${DEV_PASSWORD}", to change at the first login)` : ""}`,
     `  Team members added:     ${stats.membersAdded}`,
     `  Licenses given a team:  ${stats.teamLicenseLinks}`,
     `  To review: ${report.length}${report.length ? " " + JSON.stringify(byIssue) : ""}`,
@@ -465,7 +471,6 @@ module.exports = {
   travelOf,
   writeReport,
   emailLocalPart,
-  IS_PRODUCTION,
   DEV_PASSWORD,
   SEED_EMAIL_DOMAIN,
 };

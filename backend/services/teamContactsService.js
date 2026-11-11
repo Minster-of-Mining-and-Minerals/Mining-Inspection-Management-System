@@ -159,8 +159,27 @@ async function applyTeamContacts({ file, sectorId = MOM_SECTOR_ID, dryRun = fals
   return { stats, report, reportFile };
 }
 
+/**
+ * The sheet as a look-up for the importers: contactFor("Fitsum Kucha") → { email, phone } of the
+ * one response whose name matches (latest answer), else null. Used to create an account with the
+ * person's real email when the license list names someone who has none yet.
+ */
+async function loadContactBook(file) {
+  const responses = file ? await readContacts(file) : [];
+  return (name) => {
+    const found = responses.filter((r) => r.name.toLowerCase() === String(name).toLowerCase() || sameStartOfName(r.name, name));
+    if (!found.length) return null;
+    // Different people could match the same short name: then no contact is used
+    const people = new Set(found.map((r) => r.email));
+    if (people.size > 1) return null;
+    const latest = found.sort((a, b) => (a.when < b.when ? 1 : -1))[0];
+    if (!EMAIL.test(latest.email)) return null;
+    return { email: latest.email, phone: ethiopianMobile(latest.phone), fullName: latest.name };
+  };
+}
+
 /** Console summary. */
-const summarizeContacts = ({ stats, report, reportFile }, { dryRun = false } = {}) => {
+const summarizeContacts =({ stats, report, reportFile }, { dryRun = false } = {}) => {
   const byIssue = report.reduce((a, x) => ((a[x.issue] = (a[x.issue] || 0) + 1), a), {});
   return [
     dryRun ? "DRY RUN — nothing was saved. This is what would change:" : "Team contacts updated.",
@@ -173,4 +192,4 @@ const summarizeContacts = ({ stats, report, reportFile }, { dryRun = false } = {
   ].join("\n");
 };
 
-module.exports = { applyTeamContacts, summarizeContacts, readContacts, ethiopianMobile };
+module.exports = { applyTeamContacts, summarizeContacts, readContacts, loadContactBook, ethiopianMobile };

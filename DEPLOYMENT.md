@@ -96,8 +96,13 @@ Check: open **https://inspection.mom.gov.et** · on the server, `curl http://127
 - Log in as **admin@gmail.com** with the password **password**, then **change the password at once**
   (Profile → Change password) and the email address. This is the **central administrator**. Restarts never
   reset its password (on a server, base data only adds what is missing).
-- The license list creates companies, licenses and teams, **but no inspector accounts** on a server.
-  Add the inspectors under **Users** (choose their team when creating them).
+- The license list creates companies, licenses and teams, and an account for each inspector it names
+  who is in `backend/data/license-list/team-contacts.xlsx`: their real email (the login) and phone, the
+  inspector role, their team, and the temporary password **password**, which they must change at first
+  login. Tell the inspectors to log in and change it soon. Anyone not in that sheet (now Seid
+  Wehawrebe and Dr. Eyob Bekele) gets a generated email, `seid.wehawrebe@gmail.com` and
+  `eyob.bekele@gmail.com`, with no phone. Set their real email and phone under **Users** soon:
+  a generated address may belong to someone else, who would receive password-reset emails.
 - Create the inspection **Schedules**; tasks appear for the teams.
 
 ### Sectors
@@ -131,7 +136,13 @@ Restarts only **add** new licenses from `backend/data/license-list/`. To make ex
 ```bash
 docker compose exec backend npm run import:licenses -- --update --dry-run   # what would change; nothing saved
 docker compose exec backend npm run import:licenses -- --update             # apply it
+docker compose exec backend npm run import:team-contacts -- --dry-run       # emails/phones of existing accounts
+docker compose exec backend npm run import:team-contacts
 ```
+
+The update creates an account (temporary password **password**) for anyone in the list who has none
+yet: their real email and phone from `team-contacts.xlsx`, or a generated email if they are not in it. `import:team-contacts` sets the email and phone of
+accounts that already exist.
 
 The report is written to `backend/reports/` in the container: `docker compose cp backend:/app/reports ./reports`. See `backend/data/license-list/README.md`.
 

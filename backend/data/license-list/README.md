@@ -53,7 +53,7 @@ The files contain company and staff names. Keep the repository private.
 
 ## Team contacts
 
-- **`npm run seed`**: the inspector accounts it creates from the license list get their email and phone from `team-contacts.xlsx`. This only happens in development; on a server it creates no inspector accounts. Accounts that already exist are never changed by the seeder.
-- **`npm run import:team-contacts -- --dry-run`**, then the same without `--dry-run`, updates existing accounts. On a server, run it after creating the inspectors on the Users page. You can pass another sheet as the first argument.
+- **`npm run seed`** and **`npm run import:licenses -- --update`**: a person named in the license list who has no account yet gets one with their email and phone from `team-contacts.xlsx`, the inspector role and their team. This happens on a server too. The temporary password is `password`, to change at the first login. People not in the sheet (Seid Wehawrebe, Dr. Eyob Bekele) get a generated email, `firstname.lastname@gmail.com`, also on a server; replace it with their real email on the Users page. Accounts that already exist are never changed by these commands. `--contacts="<sheet.xlsx>"` uses another sheet.
+- **`npm run import:team-contacts -- --dry-run`**, then the same without `--dry-run`, updates the email and phone of existing accounts. You can pass another sheet as the first argument.
 
 Names are matched allowing spelling differences and extra name parts ("Fitsume Kucha Dewelle" matches Fitsum Kucha). Only the email (which is the login) and the phone change. The rules are in `services/teamContactsService.js`.
