@@ -127,7 +127,7 @@ const authenticateIntegrationClient = async (req, res, next) => {
         const authContext = await loadUserAuthContext(user.user_id);
         const hasAnalyticsPermission =
           authContext.permissions.includes("inspection_analytics:read") ||
-          authContext.roles.includes("admin") ||
+          authContext.roles.includes("central_admin") ||
           authContext.roles.includes("integration_client");
 
         if (!hasAnalyticsPermission) {

@@ -16,7 +16,12 @@ const teamFields = {
   description: Joi.string().trim().max(2000).allow(null, ""),
 };
 
-const createTeamSchema = Joi.object({ ...teamFields, name: teamFields.name.required().messages({ "any.required": "Team name is required." }) });
+const createTeamSchema = Joi.object({
+  ...teamFields,
+  name: teamFields.name.required().messages({ "any.required": "Team name is required." }),
+  // Central users choose the sector; ignored for sector users (services/sectorScope.js)
+  sector_node_id: Joi.string().uuid().optional(),
+});
 const updateTeamSchema = Joi.object({ ...teamFields, is_active: Joi.boolean() }).min(1).messages({ "object.min": "Nothing to update." });
 
 // Members are always user accounts

@@ -5,6 +5,7 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class Company extends Model {
     static associate(models) {
+      Company.belongsTo(models.SectorNode, { foreignKey: "sector_node_id", as: "sector" });
       Company.hasMany(models.CompanyLicense, { foreignKey: "company_id", as: "licenses" });
       Company.belongsTo(models.User, { foreignKey: "created_by", as: "creator", constraints: false });
     }
@@ -24,9 +25,9 @@ module.exports = (sequelize, DataTypes) => {
     {
       company_id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       name: { type: DataTypes.STRING(255), allowNull: false },
-      name_normalized: { type: DataTypes.STRING(255), allowNull: false, unique: true },
+      name_normalized: { type: DataTypes.STRING(255), allowNull: false },
       name_am: { type: DataTypes.STRING(255), allowNull: true },
-      tin: { type: DataTypes.STRING(30), allowNull: true, unique: true },
+      tin: { type: DataTypes.STRING(30), allowNull: true },
       phone: { type: DataTypes.STRING(50), allowNull: true },
       email: { type: DataTypes.STRING(255), allowNull: true },
       address: { type: DataTypes.TEXT, allowNull: true },
@@ -34,6 +35,8 @@ module.exports = (sequelize, DataTypes) => {
       contact_phone: { type: DataTypes.STRING(50), allowNull: true },
       notes: { type: DataTypes.TEXT, allowNull: true },
       is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+      // Owning sector (data is isolated per sector)
+      sector_node_id: { type: DataTypes.UUID, allowNull: false },
       created_by: { type: DataTypes.UUID, allowNull: true },
     },
     {

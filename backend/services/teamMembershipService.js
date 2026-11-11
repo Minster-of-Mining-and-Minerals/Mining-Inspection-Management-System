@@ -3,7 +3,8 @@
  * Rules:
  *   - a team member is a user account, active, in at most one team at a time;
  *   - joining a team gives the inspector role; leading it also gives team_leader;
- *   - a team can have multiple leaders.
+ *   - a team can have multiple leaders;
+ *   - a user can only join a team of their own sector.
  */
 const { v4: uuidv4 } = require("uuid");
 const { Team, TeamMember, User, Role, UserRoles } = require("../models");
@@ -13,7 +14,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 /** Give a user a role if they don't have it (re-activate it if it was switched off). */
 const ensureRole = async (userId, roleName, assignedBy, transaction) => {
-  const role = await Role.findOne({ where: { name: roleName, is_active: true }, transaction });
+  // The global role (sector copies are assigned by hand)
+  const role = await Role.findOne({ where: { name: roleName, sector_node_id: null, is_active: true }, transaction });
   if (!role) return;
   const existing = await UserRoles.findOne({ where: { user_id: userId, role_id: role.role_id }, transaction });
   if (existing) {
@@ -44,8 +46,9 @@ const addUserToTeam = async ({ teamId, userId, role = "member", joinedOn, create
   if (!team) throw fail(404, "Team not found.");
   if (!team.is_active) throw fail(400, `${team.name} is inactive.`);
 
-  const user = await User.findByPk(userId, { attributes: ["user_id", "full_name", "is_active"], transaction });
-  if (!user) throw fail(400, "User not found.");
+  const user = await User.findByPk(userId, { attributes: ["user_id", "full_name", "is_active", "sector_node_id"], transaction });
+  // Same sector only (a user of another sector is "not found")
+  if (!user || user.sector_node_id !== team.sector_node_id) throw fail(400, "User not found.");
   if (!user.is_active) throw fail(400, `${user.full_name}'s account is inactive.`);
 
   const current = await currentMembership(userId, transaction);

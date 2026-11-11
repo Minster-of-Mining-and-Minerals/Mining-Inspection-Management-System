@@ -19,6 +19,7 @@ import Loading01 from "@/features/template/component/Loading/Loading01";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useCreateFormMutation, useGetFormsQuery } from "@/redux/api/formApi";
 import { formatDate } from "@/utils/date";
+import { SectorFilter } from "@/components/common/SectorFilter";
 
 /** Forms: the inspection checklists, their current version and who they're for. */
 export default function FormsList() {
@@ -37,11 +38,14 @@ export default function FormsList() {
           <h1 className="text-2xl font-bold text-primary">Checklists</h1>
           <p className="text-sm text-slate-500">Inspection checklists. Each change is a new version; inspections keep the version they were filled with.</p>
         </div>
-        {canCreate && (
-          <Button onClick={() => setCreating(true)} className="gap-2">
-            <Plus className="h-4 w-4" /> New checklist
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <SectorFilter />
+          {canCreate && (
+            <Button onClick={() => setCreating(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> New checklist
+            </Button>
+          )}
+        </div>
       </div>
 
       {isError ? (

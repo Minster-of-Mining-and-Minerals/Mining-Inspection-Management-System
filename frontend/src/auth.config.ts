@@ -65,6 +65,8 @@ export default {
               profile_image: user.profile_image,
               is_first_logged_in: user.is_first_logged_in,
               sector: user.sector,
+              // Central users (root sector) see and manage every sector
+              is_central: !!user.is_central,
               department: user.department,
               role: roles?.[0]?.name ?? null,
               roles: roles ?? [],

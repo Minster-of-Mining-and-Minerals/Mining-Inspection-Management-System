@@ -4,6 +4,7 @@ const router = express.Router();
 const {
   validateCreateRole,
   validateUpdateRole,
+  validateCopyRole,
 } = require("../../validators/user-validators/roleValidator");
 
 const { authorize } = require("../../middlewares/authMiddleware");
@@ -20,6 +21,7 @@ const requirePermissionChangeRight = (req, res, next) => {
 
 const {
   createRole,
+  copyRole,
   getRoles,
   getRoleById,
   updateRole,
@@ -29,6 +31,8 @@ const {
 router.post("/", authorize("roles", "create"), requirePermissionChangeRight, validateCreateRole, createRole);
 router.get("/", authorize("roles", "read"), getRoles);
 router.get("/:id", authorize("roles", "read"), getRoleById);
+// Copy a (global) role into a sector to change it there: { name?, description?, sector_node_id? (central) }
+router.post("/:id/copy", authorize("roles", "create"), validateCopyRole, copyRole);
 router.put("/:id", authorize("roles", "update"), requirePermissionChangeRight, validateUpdateRole, updateRole);
 router.delete("/:id", authorize("roles", "delete"), deleteRole);
 

@@ -10,6 +10,7 @@ const {
   updateLicense,
   deleteLicense,
   getLicenses,
+  getLicenseMap,
   getCompanyStats,
 } = require("../../controllers/company-controllers/companyController");
 const {
@@ -53,11 +54,13 @@ companies.post("/:id/licenses", authorize("companies", "update"), validateCreate
 /**
  * /api/licenses
  *   GET    /?search=&area_id=&mineral_id=&license_type=&license_status=   flat list
+ *   GET    /map?…same filters…&team_id=&red_zone=true&overdue=true&is_active=   license areas for the map
  *   PUT    /:licenseId
  *   DELETE /:licenseId
  */
 const licenses = express.Router();
 licenses.get("/", authorize("companies", "read"), getLicenses);
+licenses.get("/map", authorize("companies", "read"), getLicenseMap);
 licenses.put("/:licenseId", authorize("companies", "update"), validateUpdateLicense, updateLicense);
 licenses.delete("/:licenseId", authorize("companies", "delete"), deleteLicense);
 

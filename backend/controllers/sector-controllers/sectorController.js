@@ -3,6 +3,20 @@
 const { SectorNode, User, sequelize } = require("../../models");
 const { v4: uuidv4, validate: isUuid } = require("uuid");
 const { Op } = require("sequelize");
+const { ROOT_SECTOR_ID } = require("../../utils/sectorConstants");
+const { likeContains } = require("../../utils/search");
+
+/*
+ * Sectors are flat: the root ("Central Admin") and the sectors directly under it.
+ * Central users see every sector; anyone else sees only their own.
+ */
+
+/** Sector nodes the request may see. */
+const visibleSectorsWhere = (req) => (req.scope.isCentral ? {} : { sector_node_id: req.scope.userSectorId });
+const canSeeSector = (req, id) => req.scope.isCentral || id === req.scope.userSectorId;
+
+/** Fields a sector update may change (never its parent: sectors stay directly under the root). */
+const SECTOR_FIELDS = ["name", "name_am", "description", "description_am", "head_id", "is_active"];
 
 /**
  * =================== Create Sector Node ===================
@@ -10,11 +24,13 @@ const { Op } = require("sequelize");
 const createSectorNode = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const { name, description, name_am, description_am, parent_id, level, head_id } = req.body;
+    const { name, description, name_am, description_am, head_id } = req.body;
+    // No sub-sectors: every new sector sits directly under the root
+    const parent_id = ROOT_SECTOR_ID;
 
     // ===== Check duplicate name under the same parent =====
     const existingNode = await SectorNode.findOne({
-      where: { name, parent_id: parent_id || null },
+      where: { name: { [Op.iLike]: String(name).trim() }, parent_id },
       transaction: t,
     });
 
@@ -46,9 +62,9 @@ const createSectorNode = async (req, res) => {
         description,
         name_am: name_am?.trim() || null,
         description_am: description_am || null,
-        parent_id: parent_id || null,
+        parent_id,
         head_id: head_id || null,
-        level: level || 1,
+        level: 1,
         is_active: true,
         created_at: new Date(),
         updated_at: new Date(),
@@ -64,7 +80,7 @@ const createSectorNode = async (req, res) => {
       data: node,
     });
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     console.error("Error creating sector node:", error);
     return res.status(500).json({
       success: false,
@@ -82,7 +98,7 @@ const getSectorNodes = async (req, res) => {
     const { is_active, search, page = 1, limit = 10, hierarchy } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const limitInt = parseInt(limit);
-    const whereClause = {};
+    const whereClause = { ...visibleSectorsWhere(req) };
 
     if (is_active !== undefined) {
       whereClause.is_active = is_active === "true";
@@ -90,11 +106,12 @@ const getSectorNodes = async (req, res) => {
 
     let finalWhere = whereClause;
     if (search) {
+      const term = likeContains(search);
       const searchWhere = {
         [Op.or]: [
-          { name: { [Op.iLike]: `%${search}%` } },
-          { name_am: { [Op.iLike]: `%${search}%` } },
-          { description: { [Op.iLike]: `%${search}%` } },
+          { name: { [Op.iLike]: term } },
+          { name_am: { [Op.iLike]: term } },
+          { description: { [Op.iLike]: term } },
         ],
       };
       
@@ -115,7 +132,8 @@ const getSectorNodes = async (req, res) => {
         }
 
         finalWhere = {
-          sector_node_id: { [Op.in]: Array.from(allIds) }
+          ...visibleSectorsWhere(req),
+          [Op.and]: [{ sector_node_id: { [Op.in]: Array.from(allIds) } }],
         };
       } else {
         finalWhere = { ...whereClause, ...searchWhere };
@@ -181,10 +199,11 @@ const getSectorsWithFlatChildren = async (req, res) => {
     }
 
     if (search) {
+      const term = likeContains(search);
       whereClause[Op.or] = [
-        { name: { [Op.iLike]: `%${search}%` } },
-        { name_am: { [Op.iLike]: `%${search}%` } },
-        { description: { [Op.iLike]: `%${search}%` } },
+        { name: { [Op.iLike]: term } },
+        { name_am: { [Op.iLike]: term } },
+        { description: { [Op.iLike]: term } },
       ];
     }
 
@@ -230,6 +249,8 @@ const getSectorsWithFlatChildren = async (req, res) => {
       const children = nodesByParent[root.sector_node_id] || [];
       firstLevelSectors.push(...children);
     });
+    // Sector users: only their own sector
+    firstLevelSectors = firstLevelSectors.filter((s) => canSeeSector(req, s.sector_node_id));
 
     // 6️⃣ Build final response
     const response = firstLevelSectors.map((sector) => ({
@@ -267,7 +288,7 @@ const getSectorNodeById = async (req, res) => {
       });
     }
 
-    const node = await SectorNode.findByPk(id, {
+    const node = canSeeSector(req, id) && await SectorNode.findByPk(id, {
       include: [
         { model: SectorNode, as: "children" },
         { model: SectorNode, as: "parent" },
@@ -327,10 +348,15 @@ const updateSectorNode = async (req, res) => {
       });
     }
 
-    // If updating head_id, verify user exists
+    if (node.sector_node_id === ROOT_SECTOR_ID && req.body.is_active === false) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: "The central sector can't be deactivated." });
+    }
+
+    // The head must be a user of this sector (or a central user)
     if (req.body.head_id) {
       const head = await User.findByPk(req.body.head_id, { transaction: t });
-      if (!head) {
+      if (!head || ![node.sector_node_id, ROOT_SECTOR_ID].includes(head.sector_node_id)) {
         await t.rollback();
         return res.status(400).json({
           success: false,
@@ -339,9 +365,10 @@ const updateSectorNode = async (req, res) => {
       }
     }
 
+    const changes = Object.fromEntries(SECTOR_FIELDS.filter((k) => req.body[k] !== undefined).map((k) => [k, req.body[k]]));
     await node.update(
       {
-        ...req.body,
+        ...changes,
         updated_at: new Date(),
       },
       { transaction: t },
@@ -355,7 +382,7 @@ const updateSectorNode = async (req, res) => {
       data: node,
     });
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
     console.error("Error updating sector node:", error);
     return res.status(500).json({
       success: false,
@@ -389,6 +416,10 @@ const deleteSectorNode = async (req, res) => {
         success: false,
         message: "Sector node not found.",
       });
+    }
+    if (node.sector_node_id === ROOT_SECTOR_ID) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: "The central sector can't be deactivated." });
     }
 
     await node.update(
@@ -438,8 +469,10 @@ const toggleSectorNodeActiveStatus = async (req, res) => {
         message: "Sector node not found.",
       });
     }
-
-
+    if (node.sector_node_id === ROOT_SECTOR_ID) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: "The central sector can't be deactivated." });
+    }
 
     await node.update(
       { is_active: !node.is_active, updated_at: new Date() },
@@ -478,7 +511,7 @@ const getSectorNodeUsers = async (req, res) => {
       });
     }
 
-    const node = await SectorNode.findByPk(id, {
+    const node = canSeeSector(req, id) && await SectorNode.findByPk(id, {
       include: [
         {
           model: User,
@@ -530,7 +563,7 @@ const getSectorNodeChildrenUsers = async (req, res) => {
       });
     }
 
-    const node = await SectorNode.findByPk(id);
+    const node = canSeeSector(req, id) && await SectorNode.findByPk(id);
 
     if (!node) {
       return res.status(404).json({

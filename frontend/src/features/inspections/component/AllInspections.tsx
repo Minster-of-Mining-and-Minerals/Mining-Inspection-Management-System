@@ -14,6 +14,7 @@ import { TaskListParams, useGetTasksQuery } from "@/redux/api/inspectionApi";
 import { useGetSubmissionMapOptionsQuery } from "@/redux/api/dashboardApi";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge, dueText, scoreText, scoreTone } from "./taskUi";
+import { SectorFilter } from "@/components/common/SectorFilter";
 
 const STATUSES: [NonNullable<TaskListParams["status"]> | "", string][] = [
   ["", "All"],
@@ -104,6 +105,7 @@ export default function AllInspections() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input aria-label="Search company or license" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Company or license number" className="h-9 bg-white pl-9" />
         </div>
+        <SectorFilter />
         <Select k="region_id" label="Region" list={options?.regions} />
         <Select k="team_id" label="Team" list={options?.teams} />
         <Select k="submitted_by" label="Inspector" list={options?.inspectors} />

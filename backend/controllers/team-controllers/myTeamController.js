@@ -8,6 +8,7 @@ const { sequelize, TeamMember, User, InspectionSchedule } = require("../../model
 const { currentMembership } = require("../../services/teamMembershipService");
 const { coveredLicenses } = require("../../services/scheduleService");
 const { localToday } = require("../../utils/scheduleDates");
+const { scopeWhere } = require("../../services/sectorScope");
 
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 const q = (sql, replacements) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
@@ -49,7 +50,8 @@ const getMyTeam = async (req, res) => {
 
 /**
  * GET /api/teams/mine/licenses — companies and licenses the team covers, with the forms
- * scheduled for each, the team's latest results there and the next open task.
+ * scheduled for each, the team's latest results there and the next open task, and the
+ * license area (boundary, GeoJSON in WGS 84) and travel information for the map.
  */
 const getMyLicenses = async (req, res) => {
   try {
@@ -58,6 +60,7 @@ const getMyLicenses = async (req, res) => {
     const team = membership.team_id;
     const licenses = await q(
       `SELECT l.license_id, l.license_number, l.license_type, l.site_name, l.status, l.mineral_text, l.issued_on, l.expires_on,
+              l.boundary, l.center_lat, l.center_lng, l.travel_mode, l.airport, l.notes,
               c.company_id, c.name AS company_name, c.name_am AS company_name_am, c.contact_person, c.contact_phone, c.phone, c.email, c.address,
               (SELECT string_agg(m.name, ', ' ORDER BY m.name) FROM license_minerals lm JOIN minerals m ON m.mineral_id = lm.mineral_id WHERE lm.license_id = l.license_id) AS minerals,
               (SELECT string_agg(a.name, ', ' ORDER BY a.name) FROM license_areas la JOIN admin_areas a ON a.area_id = la.area_id AND a.level = 'region' WHERE la.license_id = l.license_id) AS region,
@@ -98,7 +101,7 @@ const getMyLicenses = async (req, res) => {
     );
 
     // Which active schedules cover each license
-    const schedules = await InspectionSchedule.findAll({ where: { status: "active" }, include: [{ association: "form", attributes: ["form_id", "name", "name_am"] }] });
+    const schedules = await InspectionSchedule.findAll({ where: { status: "active", ...scopeWhere(req) }, include: [{ association: "form", attributes: ["form_id", "name", "name_am"] }] });
     const scheduled = new Map();
     for (const s of schedules) {
       const covered = new Set((await coveredLicenses(s)).map((l) => l.license_id));

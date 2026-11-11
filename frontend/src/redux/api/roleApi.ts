@@ -53,6 +53,19 @@ export const roleApi = baseApi.injectEndpoints({
     ),
 
     /** ---------------------------
+     * COPY ROLE into a sector (to change it there)
+     * --------------------------- */
+    copyRole: builder.mutation<Role, { id: string; name?: string; sector_node_id?: string }>({
+      query: ({ id, ...body }) => ({
+        url: `/roles/${id}/copy`,
+        method: "POST",
+        body,
+      }),
+      transformResponse: (response: any): Role => response.data,
+      invalidatesTags: ["Roles"],
+    }),
+
+    /** ---------------------------
      * DELETE ROLE (SOFT DELETE)
      * --------------------------- */
     deleteRole: builder.mutation<{ message: string }, string>({
@@ -72,4 +85,5 @@ export const {
   useCreateRoleMutation,
   useUpdateRoleMutation,
   useDeleteRoleMutation,
+  useCopyRoleMutation,
 } = roleApi;

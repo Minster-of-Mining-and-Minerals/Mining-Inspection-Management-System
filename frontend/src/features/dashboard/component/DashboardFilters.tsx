@@ -4,6 +4,7 @@
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { useGetSubmissionMapOptionsQuery, MapFilters } from "@/redux/api/dashboardApi";
+import { SectorFilter } from "@/components/common/SectorFilter";
 
 const todayLocal = () => new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
 const daysAgo = (n: number) => new Date(Date.now() + 3 * 3600e3 - (n - 1) * 86400e3).toISOString().slice(0, 10);
@@ -52,6 +53,7 @@ export function DashboardFilterBar({ state, busy }: { state: DashboardFiltersSta
 
   return (
     <div className="sticky top-14 z-20 -mx-3 flex flex-wrap items-center gap-2 border-b border-slate-200 bg-slate-100/95 px-3 py-2.5 backdrop-blur sm:top-16 sm:-mx-6 sm:px-6">
+      <SectorFilter />
       <select aria-label="Period" className={selectClass} value={period} onChange={(e) => setPeriod(e.target.value as Period)}>
         {PERIODS.map(([k, label]) => (
           <option key={k} value={k}>

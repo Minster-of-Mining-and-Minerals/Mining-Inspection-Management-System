@@ -1,4 +1,4 @@
-const { SectorNode, User } = require("../models");
+const { SectorNode } = require("../models");
 
 /**
  * Recursively gets all descendant sector node IDs for a given sector node.
@@ -39,41 +39,9 @@ const getAncestorSectorNodeIds = async (sectorNodeId, ids = []) => {
   return ids;
 };
 
-/**
- * Determines the administrative and sector-based access scope for a given user.
- * @param {string} user_id - The ID of the user.
- * @returns {Promise<{isAdmin: boolean, accessSectorIds: string[]}>}
- */
-const getUserAccessSectors = async (user_id) => {
-  if (!user_id) {
-    return { isAdmin: false, accessSectorIds: [] };
-  }
-
-  const user = await User.findByPk(user_id);
-  // If user has no sector_node_id, they are considered a "global admin" (no sector restriction)
-  if (!user) return { isAdmin: false, accessSectorIds: [] };
-  if (!user.sector_node_id) return { isAdmin: true, accessSectorIds: [] };
-
-  // Find sectors where user is a HEAD
-  const sectorsWhereHead = await SectorNode.findAll({
-    where: { head_id: user_id },
-    attributes: ["sector_node_id"],
-  });
-
-  const manageableBaseIds = sectorsWhereHead.map((s) => s.sector_node_id);
-
-  // Collect all descendants for these sectors
-  let accessSectorIds = [...manageableBaseIds];
-  for (const baseId of manageableBaseIds) {
-    const descendants = await getDescendantSectorNodeIds(baseId);
-    accessSectorIds.push(...descendants);
-  }
-
-  return { isAdmin: false, accessSectorIds: [...new Set(accessSectorIds)] };
-};
+// Sector access (who sees which sector) lives in services/sectorScope.js.
 
 module.exports = {
   getDescendantSectorNodeIds,
   getAncestorSectorNodeIds,
-  getUserAccessSectors,
 };

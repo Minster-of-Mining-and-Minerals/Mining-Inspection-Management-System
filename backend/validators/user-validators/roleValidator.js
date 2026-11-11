@@ -16,6 +16,8 @@ const createRoleSchema = Joi.object({
       "any.only": "role_type must be either 'internal' or 'external'",
     }),
   is_active: Joi.boolean().optional(),
+  // Central users: the sector the role belongs to (empty = a global role). Sector users: ignored.
+  sector_node_id: Joi.string().guid().allow(null, "").optional(),
   permission_ids: Joi.alternatives()
     .try(
       Joi.array().items(
@@ -133,6 +135,25 @@ const updateRoleSchema = Joi.object({
 // Middleware wrappers
 exports.validateCreateRole = (req, res, next) => {
   const { error } = createRoleSchema.validate(req.body, { abortEarly: false });
+  if (error)
+    return res.status(400).json({
+      success: false,
+      message: "Validation error",
+      errors: error.details.map((e) => e.message),
+    });
+  next();
+};
+
+// Copy a role into a sector, to change it there
+const copyRoleSchema = Joi.object({
+  name: Joi.string().trim().min(2).max(100).optional(),
+  description: Joi.string().trim().allow("").optional(),
+  // Central users: the sector to copy into. Sector users: ignored (their own sector).
+  sector_node_id: Joi.string().guid().optional(),
+});
+
+exports.validateCopyRole = (req, res, next) => {
+  const { error } = copyRoleSchema.validate(req.body ?? {}, { abortEarly: false });
   if (error)
     return res.status(400).json({
       success: false,

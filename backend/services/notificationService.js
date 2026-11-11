@@ -8,7 +8,7 @@ const { sendEmail } = require("../utils/sendEmail");
 
 class NotificationService {
   /**
-   * Helper to fetch all users with 'admin' role
+   * Helper to fetch all central administrators (global "central_admin" role)
    */
   static async getAdminUsers(transaction = null) {
     return await User.findAll({
@@ -16,7 +16,7 @@ class NotificationService {
         {
           model: Role,
           as: "roles",
-          where: { name: "admin" },
+          where: { name: "central_admin", sector_node_id: null },
           required: true,
         },
       ],

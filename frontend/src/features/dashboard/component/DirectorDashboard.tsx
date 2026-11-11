@@ -5,10 +5,16 @@
  *   Workload  — tasks whose round opened in the period: due, submitted, overdue
  *   Results   — inspections submitted in the period: on time, scores, answers, regions, companies
  *   Map       — where they were submitted
+ * Central users looking at all sectors also get the headline numbers per sector.
  */
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
+import { useDispatch } from "react-redux";
+import { baseApi } from "@/redux/baseApi";
+import { setSelectedSectorId } from "@/lib/sectorSelection";
+import { localizedName } from "@/utils/localizedName";
 import { AlertTriangle, ArrowDown, ArrowUp, MapPin, Minus, Table2 } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Loading01 from "@/features/template/component/Loading/Loading01";
@@ -92,6 +98,9 @@ function Body({ data, base }: { data: Analytics; base: MapFilters }) {
         <Kpi label="Companies inspected" value={r.companies} note={`${r.licenses} license${r.licenses === 1 ? "" : "s"}`} href={go({ status: "submitted" })} />
         <Kpi label="Returned for correction" value={r.returned} note={r.no_location ? `${r.no_location} without location` : "of submitted"} href={go({ status: "returned" })} />
       </section>
+
+      {/* Central users, all sectors: the same numbers per sector */}
+      {data.by_sector && <BySector rows={data.by_sector} />}
 
       {/* Over time */}
       <div className="grid gap-4 xl:grid-cols-2">
@@ -306,6 +315,58 @@ function Body({ data, base }: { data: Analytics; base: MapFilters }) {
         </section>
       </div>
     </>
+  );
+}
+
+/** Headline numbers per sector (central users looking at every sector). Clicking a sector switches to it. */
+function BySector({ rows }: { rows: NonNullable<Analytics["by_sector"]> }) {
+  const locale = useLocale();
+  const dispatch = useDispatch();
+  const open = (id: string) => {
+    setSelectedSectorId(id);
+    dispatch(baseApi.util.resetApiState());
+  };
+  return (
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white" aria-labelledby="sectors-title">
+      <div className="p-4 pb-2">
+        <h2 id="sectors-title" className="font-semibold text-slate-900">
+          By sector
+        </h2>
+        <p className="text-xs text-slate-500">Same period and filters. Choose a sector to see only its numbers.</p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[560px] text-sm">
+          <thead className="bg-slate-50 text-left text-xs text-slate-500">
+            <tr>
+              <th className="px-4 py-2 font-medium">Sector</th>
+              <th className="px-3 py-2 text-right font-medium">Due</th>
+              <th className="px-3 py-2 text-right font-medium">Completed</th>
+              <th className="px-3 py-2 text-right font-medium">Overdue</th>
+              <th className="px-3 py-2 text-right font-medium">Submitted</th>
+              <th className="px-3 py-2 text-right font-medium">On time</th>
+              <th className="px-4 py-2 text-right font-medium">Average score</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {rows.map((s) => (
+              <tr key={s.sector_node_id}>
+                <td className="px-4 py-2">
+                  <button type="button" onClick={() => open(s.sector_node_id)} className="font-medium text-primary hover:underline">
+                    {localizedName({ name: s.sector, name_am: s.sector_am }, locale)}
+                  </button>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums">{s.due}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{pct(ratio(s.completed, s.due))}</td>
+                <td className={`px-3 py-2 text-right tabular-nums ${s.overdue ? "font-semibold text-red-700" : ""}`}>{s.overdue}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{s.submitted}</td>
+                <td className="px-3 py-2 text-right tabular-nums">{pct(ratio(s.submitted - s.late, s.submitted))}</td>
+                <td className="px-4 py-2 text-right font-semibold tabular-nums">{pct(s.avg_score)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 

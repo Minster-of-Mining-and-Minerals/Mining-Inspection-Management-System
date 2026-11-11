@@ -76,6 +76,18 @@ export interface Analytics {
   by_region: { region: string; region_id: string | null; submitted: number; avg_score: number | null }[];
   teams: { team: string; team_id: string | null; due: number; submitted: number; overdue: number; submitted_in_period: number; on_time: number; avg_score: number | null }[];
   lowest_companies: { company_id: string; company: string; submitted: number; avg_score: number; last_score: number | null; scores: (number | null)[] }[];
+  /** Central users looking at all sectors: headline numbers per sector (otherwise null) */
+  by_sector: {
+    sector_node_id: string;
+    sector: string;
+    sector_am: string | null;
+    due: number;
+    completed: number;
+    submitted: number;
+    late: number;
+    avg_score: number | null;
+    overdue: number;
+  }[] | null;
   answers: {
     distribution: { met: number; partial: number; not_met: number; not_counted: number };
     sections: { form: string; section: string; score: number; answers: number }[];

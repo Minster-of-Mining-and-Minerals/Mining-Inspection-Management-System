@@ -1,6 +1,7 @@
 const { Op, literal } = require("sequelize");
 const { validate: isUuid } = require("uuid");
-const { sequelize, Team, TeamMember, TeamLicense, User, Role, Company, CompanyLicense } = require("../../models");
+const { sequelize, Team, TeamMember, TeamLicense, User, Role, Company, CompanyLicense, SectorNode } = require("../../models");
+const { scopeWhere, inScope, findInScope, sectorForCreate } = require("../../services/sectorScope");
 const { licenseAreasInclude, licenseMineralsInclude, pageParams, pageMeta } = require("../../services/companyQueryService");
 const { addUserToTeam, ensureRole } = require("../../services/teamMembershipService");
 const { likeContains, escapeLike } = require("../../utils/search");
@@ -13,7 +14,8 @@ const handleError = (res, error, fallback) => {
   if (error.name === "SequelizeUniqueConstraintError") {
     const constraint = error.parent?.constraint || "";
     if (constraint.includes("one_active_team")) return fail(res, 409, "This person is already in a team. A person can be in only one team.");
-    const field = Object.keys(error.fields || {})[0];
+    // Unique per sector: the constraint lists sector_node_id first
+    const field = Object.keys(error.fields || {}).find((f) => f !== "sector_node_id");
     return fail(res, 409, `A team with this ${field === "code" ? "code" : "name"} already exists.`);
   }
   console.error(fallback, error);
@@ -30,9 +32,11 @@ const memberInclude = (where) => ({
   include: [{ model: User, as: "user", attributes: USER_ATTRS }],
 });
 
+const sectorInclude = { model: SectorNode, as: "sector", attributes: ["sector_node_id", "name", "name_am"] };
+
 const loadTeam = async (id, transaction) => {
   const team = await Team.findByPk(id, {
-    include: [memberInclude()],
+    include: [memberInclude(), sectorInclude],
     order: [
       [{ model: TeamMember, as: "members" }, "left_on", "DESC NULLS FIRST"],
       [{ model: TeamMember, as: "members" }, "role", "ASC"],
@@ -58,7 +62,7 @@ const loadTeam = async (id, transaction) => {
 const getTeams = async (req, res) => {
   try {
     const { page, limit, offset } = pageParams(req.query, 50);
-    const where = {};
+    const where = { ...scopeWhere(req) };
     if (req.query.is_active === "true" || req.query.is_active === "false") where.is_active = req.query.is_active === "true";
     if (req.query.search?.trim()) {
       const term = likeContains(req.query.search);
@@ -75,7 +79,7 @@ const getTeams = async (req, res) => {
       attributes: {
         include: [[literal(`(SELECT COUNT(*)::int FROM team_licenses tl WHERE tl.team_id = "Team"."team_id")`), "license_count"]],
       },
-      include: [memberInclude({ left_on: null })],
+      include: [memberInclude({ left_on: null }), sectorInclude],
       // "Team 2" before "Team 10": by code as a number when it is one, then by name
       order: [[literal(`CASE WHEN "Team"."code" ~ '^[0-9]+$' THEN "Team"."code"::int END`), "ASC NULLS LAST"], ["name", "ASC"]],
       distinct: true,
@@ -92,22 +96,22 @@ const getTeamById = async (req, res) => {
   try {
     if (!isUuid(req.params.id)) return fail(res, 400, "Invalid team id.");
     const team = await loadTeam(req.params.id);
-    if (!team) return fail(res, 404, "Team not found.");
+    if (!team || !inScope(req, team.sector_node_id)) return fail(res, 404, "Team not found.");
     return res.status(200).json({ success: true, data: team });
   } catch (error) {
     return handleError(res, error, "Failed to fetch team.");
   }
 };
 
-/** Another team with the same name or code, ignoring case and extra spaces. */
-const teamClash = async ({ name, code }, exceptId) => {
+/** Another team in the sector with the same name or code, ignoring case and extra spaces. */
+const teamClash = async ({ name, code }, sectorId, exceptId) => {
   const tidy = (s) => String(s || "").replace(/\s+/g, " ").trim();
   const conditions = [];
   if (name !== undefined && tidy(name)) conditions.push({ name: { [Op.iLike]: escapeLike(tidy(name)) } });
   if (code !== undefined && tidy(code)) conditions.push({ code: { [Op.iLike]: escapeLike(tidy(code)) } });
   if (!conditions.length) return null;
   const other = await Team.findOne({
-    where: { [Op.or]: conditions, ...(exceptId && { team_id: { [Op.ne]: exceptId } }) },
+    where: { [Op.or]: conditions, sector_node_id: sectorId, ...(exceptId && { team_id: { [Op.ne]: exceptId } }) },
   });
   if (!other) return null;
   return tidy(other.name).toLowerCase() === tidy(name).toLowerCase()
@@ -117,9 +121,11 @@ const teamClash = async ({ name, code }, exceptId) => {
 
 const createTeam = async (req, res) => {
   try {
-    const clash = await teamClash(req.body);
+    const sector_node_id = await sectorForCreate(req);
+    const clash = await teamClash(req.body, sector_node_id);
     if (clash) return fail(res, 409, clash);
     const team = await Team.create({
+      sector_node_id,
       name: req.body.name.trim().replace(/\s+/g, " "),
       code: req.body.code?.trim() || null,
       description: req.body.description?.trim() || null,
@@ -134,9 +140,9 @@ const createTeam = async (req, res) => {
 const updateTeam = async (req, res) => {
   try {
     if (!isUuid(req.params.id)) return fail(res, 400, "Invalid team id.");
-    const team = await Team.findByPk(req.params.id);
+    const team = await findInScope(Team, req.params.id, req);
     if (!team) return fail(res, 404, "Team not found.");
-    const clash = await teamClash(req.body, team.team_id);
+    const clash = await teamClash(req.body, team.sector_node_id, team.team_id);
     if (clash) return fail(res, 409, clash);
     await team.update({
       ...(req.body.name !== undefined && { name: req.body.name.trim().replace(/\s+/g, " ") }),
@@ -151,10 +157,15 @@ const updateTeam = async (req, res) => {
 };
 
 /* =================== Members (always user accounts) =================== */
-const findActiveMember = async (id) => {
+const findActiveMember = async (id, req) => {
   if (!isUuid(id)) throw Object.assign(new Error("Invalid member id."), { status: 400 });
-  const member = await TeamMember.findByPk(id, { include: [{ model: User, as: "user", attributes: USER_ATTRS }] });
-  if (!member) throw Object.assign(new Error("Member not found."), { status: 404 });
+  const member = await TeamMember.findByPk(id, {
+    include: [
+      { model: User, as: "user", attributes: USER_ATTRS },
+      { model: Team, as: "team", attributes: ["team_id", "sector_node_id"] },
+    ],
+  });
+  if (!member || !inScope(req, member.team?.sector_node_id)) throw Object.assign(new Error("Member not found."), { status: 404 });
   if (member.left_on) throw Object.assign(new Error("This person has already left the team."), { status: 400 });
   return member;
 };
@@ -165,6 +176,10 @@ const addMember = async (req, res) => {
     if (!isUuid(req.params.id)) {
       await t.rollback();
       return fail(res, 400, "Invalid team id.");
+    }
+    if (!(await findInScope(Team, req.params.id, req, { transaction: t }))) {
+      await t.rollback();
+      return fail(res, 404, "Team not found.");
     }
     const { user_id, role = "member", joined_on } = req.body;
     await addUserToTeam({ teamId: req.params.id, userId: user_id, role, joinedOn: joined_on, createdBy: req.user.user_id, transaction: t });
@@ -178,7 +193,7 @@ const addMember = async (req, res) => {
 
 const updateMember = async (req, res) => {
   try {
-    const member = await findActiveMember(req.params.memberId);
+    const member = await findActiveMember(req.params.memberId, req);
     await member.update({ role: req.body.role });
     if (req.body.role === "leader") await ensureRole(member.user_id, "team_leader", req.user.user_id);
     return res.status(200).json({ success: true, message: "Member updated.", data: await loadTeam(member.team_id) });
@@ -190,7 +205,7 @@ const updateMember = async (req, res) => {
 /** Leave the team: kept as history with the date they left. */
 const removeMember = async (req, res) => {
   try {
-    const member = await findActiveMember(req.params.memberId);
+    const member = await findActiveMember(req.params.memberId, req);
     const leftOn = req.body?.left_on || today();
     if (leftOn < member.joined_on) return fail(res, 400, "The leaving date can't be before the joining date.");
     await member.update({ left_on: leftOn, role: "member" });
@@ -204,10 +219,11 @@ const removeMember = async (req, res) => {
 const addTeamLicenses = async (req, res) => {
   try {
     if (!isUuid(req.params.id)) return fail(res, 400, "Invalid team id.");
-    const team = await Team.findByPk(req.params.id);
+    const team = await findInScope(Team, req.params.id, req);
     if (!team) return fail(res, 404, "Team not found.");
     const ids = [...new Set(req.body.license_ids)];
-    const found = await CompanyLicense.count({ where: { license_id: ids } });
+    // Only the team's own sector's licenses
+    const found = await CompanyLicense.count({ where: { license_id: ids, sector_node_id: team.sector_node_id } });
     if (found !== ids.length) return fail(res, 400, "One or more licenses were not found.");
     await TeamLicense.bulkCreate(
       ids.map((license_id) => ({ team_id: team.team_id, license_id, created_by: req.user.user_id })),
@@ -222,6 +238,7 @@ const addTeamLicenses = async (req, res) => {
 const removeTeamLicense = async (req, res) => {
   try {
     if (!isUuid(req.params.id) || !isUuid(req.params.licenseId)) return fail(res, 400, "Invalid id.");
+    if (!(await findInScope(Team, req.params.id, req))) return fail(res, 404, "Team not found.");
     const removed = await TeamLicense.destroy({ where: { team_id: req.params.id, license_id: req.params.licenseId } });
     if (!removed) return fail(res, 404, "This license is not assigned to the team.");
     return res.status(200).json({ success: true, message: "License removed from the team.", data: await loadTeam(req.params.id) });
@@ -233,7 +250,15 @@ const removeTeamLicense = async (req, res) => {
 /* =================== People who can be added: active internal staff, with their current team =================== */
 const getAssignableUsers = async (req, res) => {
   try {
-    const where = { is_active: true };
+    // People of the team's sector (?team_id=), else of the request's sector
+    let sectorWhere = scopeWhere(req);
+    if (req.query.team_id) {
+      if (!isUuid(req.query.team_id)) return fail(res, 400, "Invalid team id.");
+      const team = await findInScope(Team, req.query.team_id, req);
+      if (!team) return fail(res, 404, "Team not found.");
+      sectorWhere = { sector_node_id: team.sector_node_id };
+    }
+    const where = { is_active: true, ...sectorWhere };
     if (req.query.search?.trim()) {
       const term = likeContains(req.query.search);
       where[Op.or] = [{ full_name: { [Op.iLike]: term } }, { email: { [Op.iLike]: term } }];

@@ -58,9 +58,10 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
+      // Required. The root sector ("Central Admin") = central staff; any other = that sector only.
       sector_node_id: {
         type: DataTypes.UUID,
-        allowNull: true,
+        allowNull: false,
         references: {
           model: "sector_nodes",
           key: "sector_node_id",

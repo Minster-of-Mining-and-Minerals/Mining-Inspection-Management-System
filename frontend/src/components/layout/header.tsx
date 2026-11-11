@@ -10,6 +10,7 @@ interface HeaderProps {
 
 /**
  * Navy admin top bar (layout A4): sidebar toggle, breadcrumb + page title, notifications.
+ * (The central admin's sector choice is the Sector filter on each page: components/common/SectorFilter.tsx.)
  * The profile lives in the sidebar footer (SidebarUserCard).
  */
 export function Header({ title }: HeaderProps) {

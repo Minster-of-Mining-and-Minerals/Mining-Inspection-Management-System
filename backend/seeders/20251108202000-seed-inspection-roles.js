@@ -1,13 +1,22 @@
 "use strict";
 const { v4: uuidv4 } = require("uuid");
+const { MOM_SECTOR_ID, CENTRAL_ONLY_PERMISSIONS } = require("../utils/sectorConstants");
+const { devAccountsAllowed } = require("../utils/seedMode");
 
 /**
- * Default roles for the Mining Inspection Management System.
- * The "admin" role (all permissions) is created by the demo-users seeder.
+ * Default (global) roles for the Mining Inspection Management System. Every sector can use them,
+ * and a sector admin can copy one into their sector and change the copy.
+ * The "central_admin" role (all permissions) is created by the demo-users seeder.
  * Safe to re-run: existing roles are kept, missing permission links are added, and links listed
  * under "revoke" (permissions a role used to have) are removed.
+ * A role with `allExcept` gets every permission except those listed (and loses them if it had them).
  */
 const ROLES = {
+  // Runs one sector: everything inside it, nothing that affects the whole ministry
+  sector_admin: {
+    description: "Sector administrator: manages the users, companies, teams, checklists and inspections of one sector",
+    allExcept: CENTRAL_ONLY_PERMISSIONS,
+  },
   supervisor: {
     description: "Plans inspection rounds, assigns teams and reviews submitted inspections",
     permissions: [
@@ -68,8 +77,11 @@ module.exports = {
       );
       const permId = new Map(perms.map((p) => [`${p.resource}:${p.action}`, p.permission_id]));
 
-      for (const [name, { description, permissions, revoke = [] }] of Object.entries(ROLES)) {
-        let roleId = await queryInterface.rawSelect("roles", { where: { name }, transaction }, ["role_id"]);
+      for (const [name, role] of Object.entries(ROLES)) {
+        const { description } = role;
+        const permissions = role.allExcept ? [...permId.keys()].filter((k) => !role.allExcept.includes(k)) : role.permissions;
+        const revoke = role.allExcept || role.revoke || [];
+        let roleId = await queryInterface.rawSelect("roles", { where: { name, sector_node_id: null }, transaction }, ["role_id"]);
         if (!roleId) {
           roleId = uuidv4();
           await queryInterface.bulkInsert(
@@ -100,6 +112,12 @@ module.exports = {
         }
       }
 
+      // Demo users (password "password") only outside production
+      if (!devAccountsAllowed()) {
+        await transaction.commit();
+        return;
+      }
+
       // Seed standard demo users for the inspection roles
       const bcrypt = require("bcrypt");
       const hashedPassword = await bcrypt.hash("password", 10);
@@ -124,6 +142,8 @@ module.exports = {
               email: du.email,
               password: hashedPassword,
               user_type_id: userType,
+              // Demo users all belong to Ministry of Mines
+              sector_node_id: MOM_SECTOR_ID,
               phone_number: du.phone,
               is_first_logged_in: true,
               is_active: true,
@@ -141,7 +161,7 @@ module.exports = {
           );
         }
 
-        const roleId = await queryInterface.rawSelect("roles", { where: { name: du.role }, transaction }, ["role_id"]);
+        const roleId = await queryInterface.rawSelect("roles", { where: { name: du.role, sector_node_id: null }, transaction }, ["role_id"]);
         if (roleId) {
           const hasRole = await queryInterface.rawSelect(
             "user_roles",
@@ -178,7 +198,7 @@ module.exports = {
     const transaction = await queryInterface.sequelize.transaction();
     try {
       const roles = await queryInterface.sequelize.query(
-        "SELECT role_id FROM roles WHERE name IN (:names)",
+        "SELECT role_id FROM roles WHERE name IN (:names) AND sector_node_id IS NULL",
         { replacements: { names: Object.keys(ROLES) }, type: Sequelize.QueryTypes.SELECT, transaction },
       );
       const ids = roles.map((r) => r.role_id);

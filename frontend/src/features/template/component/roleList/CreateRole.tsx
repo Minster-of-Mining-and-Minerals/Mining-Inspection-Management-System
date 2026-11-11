@@ -2,7 +2,16 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useLocale } from "next-intl";
 import { toast } from "sonner";
+import { Info } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useSelectedSectorId } from "@/lib/sectorSelection";
+import { useGetSectorNodesQuery } from "@/redux/api/sectorNodeApi";
+import { localizedName } from "@/utils/localizedName";
+import type { Role } from "@/redux/types/auth";
+import { CopyRoleButton } from "./CopyRoleButton";
 import { Permission, ResourceGroup, PermissionMatrix } from "../../types/role";
 import { useGetPermissionsQuery } from "@/redux/api/permissionApi";
 import {
@@ -46,12 +55,29 @@ export default function CreateRole() {
 
   const isLoading = isCreating || isUpdating;
 
+  // Sectors: a sector user only works with permissions they have, and can't change global roles
+  const { data: session } = useSession();
+  const isCentral = !!session?.user?.is_central;
+  const { permissions: myPermissions } = usePermissions();
+  // A string, so the permission groups below aren't rebuilt (and the form reset) on every render
+  const myPermissionsKey = myPermissions.join(",");
+  const locale = useLocale();
+  const switcherSectorId = useSelectedSectorId();
+  const { data: sectorNodes } = useGetSectorNodesQuery({ limit: 100 }, { skip: !isCentral || !switcherSectorId });
+  const switcherSector = sectorNodes?.data?.find((s) => s.sector_node_id === switcherSectorId);
+  const role = roleResponse as Role | undefined;
+  const readOnly = isEditMode && role?.can_edit === false;
+
   // Group permissions by resource
   const resourceGroups = useMemo((): ResourceGroup[] => {
     if (!permissionsResponse) return [];
 
+    // Sector users: only permissions they have themselves (the server refuses the others)
+    const mine = new Set(myPermissionsKey.split(","));
     const activePermissions = permissionsResponse.filter(
-      (p: Permission) => p.is_active === true
+      (p: Permission) =>
+        p.is_active === true &&
+        (isCentral || mine.has(`${p.resource.toUpperCase()}:${p.action.toUpperCase()}`))
     );
 
     const grouped = activePermissions.reduce(
@@ -71,7 +97,7 @@ export default function CreateRole() {
       permissions: permissions as Permission[],
       selected: false,
     }));
-  }, [permissionsResponse]);
+  }, [permissionsResponse, isCentral, myPermissionsKey]);
 
   // Initialize permission matrix
   useEffect(() => {
@@ -228,6 +254,7 @@ export default function CreateRole() {
   // Form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (readOnly) return;
 
     if (!name.trim()) {
       toast.error("Role name is required");
@@ -298,6 +325,31 @@ export default function CreateRole() {
 
         <form onSubmit={handleSubmit} className="flex flex-col">
           <div className="flex-1 overflow-y-auto py-5 space-y-6">
+            {/* Where the role applies */}
+            {readOnly && role ? (
+              <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                <Info className="h-5 w-5 shrink-0" />
+                <p className="flex-1 min-w-[200px]">
+                  This is a global role used by every sector, so only the central administrator can change it.
+                  Copy it to make your own version for your sector.
+                </p>
+                <CopyRoleButton role={role} label="Copy to my sector" />
+              </div>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-slate-600">
+                <Info className="h-4 w-4 shrink-0" />
+                {isEditMode
+                  ? role?.sector_node_id
+                    ? `Used only in ${localizedName(role.sector, locale) || "one sector"}.`
+                    : "Global role: every sector can use it."
+                  : !isCentral
+                    ? "The role will be used only in your sector."
+                    : switcherSector
+                      ? `The role will be used only in ${localizedName(switcherSector, locale)}.`
+                      : "No sector is chosen in the Sector filter, so this will be a global role every sector can use."}
+              </p>
+            )}
+
             {/* Basic Information */}
             <BasicInfo
               name={name}
@@ -325,14 +377,14 @@ export default function CreateRole() {
             />
           </div>
 
-          {/* Footer Actions */}
-          <FooterActions
+          {/* Footer Actions (not for roles this user can't change) */}
+          {!readOnly && <FooterActions
             isLoading={isLoading}
             isEditMode={isEditMode}
             name={name}
             selectedPermissionsCount={getSelectedPermissionsCount()}
             onSubmit={() => handleSubmit}
-          />
+          />}
         </form>
       </div>
     </div>

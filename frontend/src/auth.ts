@@ -50,6 +50,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           profile_image: user.profile_image,
           is_first_logged_in: user.is_first_logged_in,
           sector: user.sector,
+          is_central: user.is_central ?? false,
           department: user.department,
           roles: user.roles,
           accessToken: user.accessToken,
@@ -71,6 +72,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             profile_image: token.profile_image as string | null | undefined,
             is_first_logged_in: token.is_first_logged_in as boolean | undefined,
             sector: token.sector as any,
+            is_central: token.is_central === true,
             department: token.department as any,
             roles: token.roles as any,
           },
@@ -103,6 +105,8 @@ declare module "next-auth" {
       }>;
     }>;
     sector?: SectorNode;
+    /** In the root sector: sees and manages every sector */
+    is_central?: boolean;
     department?: SectorNode;
   }
 
@@ -120,6 +124,8 @@ declare module "next-auth" {
       profile_image?: string | null;
       is_first_logged_in?: boolean;
       sector?: SectorNode;
+      /** In the root sector: sees and manages every sector */
+      is_central?: boolean;
       department?: SectorNode;
       roles?: Array<{
         role_id: string;
@@ -143,6 +149,7 @@ declare module "next-auth/jwt" {
     profile_image?: string | null;
     is_first_logged_in?: boolean;
     sector?: SectorNode;
+    is_central?: boolean;
     department?: SectorNode;
     roles?: Array<{
       role_id: string;

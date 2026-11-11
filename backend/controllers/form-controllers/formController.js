@@ -1,6 +1,7 @@
 const { Op, literal } = require("sequelize");
 const { validate: isUuid } = require("uuid");
-const { sequelize, Form, FormVersion, FormAssignment, FormVersionEdit, Company, CompanyLicense, User } = require("../../models");
+const { sequelize, Form, FormVersion, FormAssignment, FormVersionEdit, Company, CompanyLicense, User, SectorNode } = require("../../models");
+const { scopeWhere, findInScope, sectorForCreate } = require("../../services/sectorScope");
 const { diffDefinitions } = require("../../utils/formDiff");
 const { countInspectionsForVersion } = require("../../services/formUsageService");
 const { validateDefinition, summarizeDefinition, emptyDefinition } = require("../../utils/formDefinition");
@@ -25,16 +26,20 @@ const handleError = (res, error, fallback) => {
 const VERSION_META = ["version_id", "form_id", "version_number", "status", "change_note", "published_at", "published_by", "created_at", "updated_at"];
 const versionMeta = (v) => ({ ...Object.fromEntries(VERSION_META.map((k) => [k, v[k]])), edit_count: v.get ? v.get("edit_count") ?? 0 : 0 });
 
-const findForm = async (id, transaction) => {
+/** A checklist in the request's sector; 404 when missing or in another sector. */
+const findForm = async (id, req, transaction) => {
   if (!isUuid(id)) throw err(400, "Invalid checklist id.");
-  const form = await Form.findByPk(id, { transaction });
+  const form = await findInScope(Form, id, req, { transaction });
   if (!form) throw err(404, "Checklist not found.");
   return form;
 };
 
-/** Form with its version list (no definitions) plus the current published and draft definitions. */
+const sectorInclude = { model: SectorNode, as: "sector", attributes: ["sector_node_id", "name", "name_am"] };
+
+/** Form with its version list (no definitions) plus the current published and draft definitions. Call after findForm. */
 const loadForm = async (id, transaction) => {
-  const form = await findForm(id, transaction);
+  const form = await Form.findByPk(id, { include: [sectorInclude], transaction });
+  if (!form) throw err(404, "Checklist not found.");
   const versions = await FormVersion.findAll({
     where: { form_id: id },
     attributes: { include: [[literal(`(SELECT COUNT(*)::int FROM form_version_edits e WHERE e.version_id = "FormVersion"."version_id")`), "edit_count"]] },
@@ -58,7 +63,7 @@ const loadForm = async (id, transaction) => {
 /* =================== Forms =================== */
 const getForms = async (req, res) => {
   try {
-    const where = {};
+    const where = { ...scopeWhere(req) };
     if (req.query.is_active === "true" || req.query.is_active === "false") where.is_active = req.query.is_active === "true";
     if (req.query.search?.trim()) {
       const term = likeContains(req.query.search);
@@ -66,6 +71,7 @@ const getForms = async (req, res) => {
     }
     const forms = await Form.findAll({
       where,
+      include: [sectorInclude],
       attributes: {
         include: [
           [literal(`(SELECT COUNT(*)::int FROM form_assignments a WHERE a.form_id = "Form"."form_id")`), "assignment_count"],
@@ -96,7 +102,8 @@ const getForms = async (req, res) => {
 
 const getFormById = async (req, res) => {
   try {
-    return res.status(200).json({ success: true, data: await loadForm(req.params.id) });
+    const form = await findForm(req.params.id, req);
+    return res.status(200).json({ success: true, data: await loadForm(form.form_id) });
   } catch (error) {
     return handleError(res, error, "Failed to fetch the checklist.");
   }
@@ -105,7 +112,8 @@ const getFormById = async (req, res) => {
 const getFormVersion = async (req, res) => {
   try {
     if (!isUuid(req.params.versionId)) return fail(res, 400, "Invalid version id.");
-    const version = await FormVersion.findOne({ where: { version_id: req.params.versionId, form_id: req.params.id } });
+    const form = await findForm(req.params.id, req);
+    const version = await FormVersion.findOne({ where: { version_id: req.params.versionId, form_id: form.form_id } });
     if (!version) return fail(res, 404, "Version not found.");
     return res.status(200).json({ success: true, data: { ...version.toJSON(), summary: summarizeDefinition(version.definition) } });
   } catch (error) {
@@ -113,13 +121,14 @@ const getFormVersion = async (req, res) => {
   }
 };
 
-const nameClash = async ({ name, code }, exceptId) => {
+/** Another checklist in the sector with the same name or code. */
+const nameClash = async ({ name, code }, sectorId, exceptId) => {
   const tidy = (s) => String(s || "").replace(/\s+/g, " ").trim();
   const conds = [];
   if (name && tidy(name)) conds.push({ name: { [Op.iLike]: escapeLike(tidy(name)) } });
   if (code && tidy(code)) conds.push({ code: { [Op.iLike]: escapeLike(tidy(code)) } });
   if (!conds.length) return null;
-  const other = await Form.findOne({ where: { [Op.or]: conds, ...(exceptId && { form_id: { [Op.ne]: exceptId } }) } });
+  const other = await Form.findOne({ where: { [Op.or]: conds, sector_node_id: sectorId, ...(exceptId && { form_id: { [Op.ne]: exceptId } }) } });
   if (!other) return null;
   return tidy(other.name).toLowerCase() === tidy(name).toLowerCase() ? `A checklist called "${other.name}" already exists.` : `Code "${other.code}" is already used by ${other.name}.`;
 };
@@ -128,10 +137,12 @@ const nameClash = async ({ name, code }, exceptId) => {
 const createForm = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const clash = await nameClash(req.body);
+    const sector_node_id = await sectorForCreate(req, req.body.sector_node_id, t);
+    const clash = await nameClash(req.body, sector_node_id);
     if (clash) throw err(409, clash);
     const form = await Form.create(
       {
+        sector_node_id,
         name: req.body.name.trim().replace(/\s+/g, " "),
         name_am: req.body.name_am?.trim() || null,
         code: req.body.code?.trim().toUpperCase() || null,
@@ -154,8 +165,8 @@ const createForm = async (req, res) => {
 
 const updateForm = async (req, res) => {
   try {
-    const form = await findForm(req.params.id);
-    const clash = await nameClash(req.body, form.form_id);
+    const form = await findForm(req.params.id, req);
+    const clash = await nameClash(req.body, form.sector_node_id, form.form_id);
     if (clash) return fail(res, 409, clash);
     await form.update({
       ...(req.body.name !== undefined && { name: req.body.name.trim().replace(/\s+/g, " ") }),
@@ -175,7 +186,7 @@ const updateForm = async (req, res) => {
 const createDraft = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const form = await findForm(req.params.id, t);
+    const form = await findForm(req.params.id, req, t);
     const existing = await FormVersion.findOne({ where: { form_id: form.form_id, status: "draft" }, transaction: t });
     if (existing) throw err(409, "This checklist already has a draft. Continue editing it, or discard it first.");
     const published = await FormVersion.findOne({ where: { form_id: form.form_id, status: "published" }, transaction: t });
@@ -201,7 +212,7 @@ const createDraft = async (req, res) => {
 /** Save the draft's questions (checked, but it may still be incomplete). */
 const saveDraft = async (req, res) => {
   try {
-    const form = await findForm(req.params.id);
+    const form = await findForm(req.params.id, req);
     const draft = await FormVersion.findOne({ where: { form_id: form.form_id, status: "draft" } });
     if (!draft) return fail(res, 409, "There is no draft to save. Start a new draft first.");
     const { value, errors } = validateDefinition(req.body.definition);
@@ -215,7 +226,7 @@ const saveDraft = async (req, res) => {
 
 const discardDraft = async (req, res) => {
   try {
-    const form = await findForm(req.params.id);
+    const form = await findForm(req.params.id, req);
     const draft = await FormVersion.findOne({ where: { form_id: form.form_id, status: "draft" } });
     if (!draft) return fail(res, 404, "There is no draft.");
     const others = await FormVersion.count({ where: { form_id: form.form_id, status: { [Op.ne]: "draft" } } });
@@ -231,7 +242,7 @@ const discardDraft = async (req, res) => {
 const publishDraft = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const form = await findForm(req.params.id, t);
+    const form = await findForm(req.params.id, req, t);
     const draft = await FormVersion.findOne({ where: { form_id: form.form_id, status: "draft" }, transaction: t });
     if (!draft) throw err(409, "There is no draft to publish.");
     const { value, errors } = validateDefinition(draft.definition, { forPublish: true });
@@ -265,7 +276,7 @@ const publishDraft = async (req, res) => {
 const editLive = async (req, res) => {
   const t = await sequelize.transaction();
   try {
-    const form = await findForm(req.params.id, t);
+    const form = await findForm(req.params.id, req, t);
     const current = await FormVersion.findOne({ where: { form_id: form.form_id, status: "published" }, transaction: t, lock: t.LOCK.UPDATE });
     if (!current) throw err(409, "This checklist has no published version to edit. Edit its draft instead.");
 
@@ -309,7 +320,7 @@ const editLive = async (req, res) => {
  */
 const compareWithCurrent = async (req, res) => {
   try {
-    const form = await findForm(req.params.id);
+    const form = await findForm(req.params.id, req);
     const current = await FormVersion.findOne({ where: { form_id: form.form_id, status: "published" } });
     let candidate = req.body?.definition;
     if (!candidate) {
@@ -332,6 +343,8 @@ const compareWithCurrent = async (req, res) => {
 const getVersionEdits = async (req, res) => {
   try {
     if (!isUuid(req.params.versionId)) return fail(res, 400, "Invalid version id.");
+    const form = await findForm(req.params.id, req);
+    if (!(await FormVersion.count({ where: { version_id: req.params.versionId, form_id: form.form_id } }))) return fail(res, 404, "Version not found.");
     const edits = await FormVersionEdit.findAll({
       where: { version_id: req.params.versionId },
       attributes: ["edit_id", "version_id", "summary", "note", "created_at", "edited_by"],
@@ -367,11 +380,11 @@ const ASSIGNMENT_INCLUDE = [
 
 const getAssignments = async (req, res) => {
   try {
-    const form = await findForm(req.params.id);
+    const form = await findForm(req.params.id, req);
     const rows = await FormAssignment.findAll({ where: { form_id: form.form_id }, include: ASSIGNMENT_INCLUDE, order: [["created_at", "ASC"]] });
     const data = rows.map((a) => ({ ...a.toJSON(), description: describeAssignment(a) }));
     // How many licenses that adds up to
-    const licenseCount = (await licensesForForm(form.form_id)).length;
+    const licenseCount = (await licensesForForm(form)).length;
     return res.status(200).json({ success: true, data, meta: { license_count: licenseCount } });
   } catch (error) {
     return handleError(res, error, "Failed to fetch assignments.");
@@ -380,10 +393,12 @@ const getAssignments = async (req, res) => {
 
 const addAssignment = async (req, res) => {
   try {
-    const form = await findForm(req.params.id);
+    const form = await findForm(req.params.id, req);
     const { target_type, license_type, company_id, license_id } = req.body;
-    if (target_type === "company" && !(await Company.findByPk(company_id))) return fail(res, 400, "Company not found.");
-    if (target_type === "license" && !(await CompanyLicense.findByPk(license_id))) return fail(res, 400, "License not found.");
+    // Only companies / licenses of the checklist's own sector
+    const sameSector = { sector_node_id: form.sector_node_id };
+    if (target_type === "company" && !(await Company.findOne({ where: { company_id, ...sameSector } }))) return fail(res, 400, "Company not found.");
+    if (target_type === "license" && !(await CompanyLicense.findOne({ where: { license_id, ...sameSector } }))) return fail(res, 400, "License not found.");
     const a = await FormAssignment.create({
       form_id: form.form_id,
       target_type,
@@ -402,7 +417,9 @@ const addAssignment = async (req, res) => {
 const removeAssignment = async (req, res) => {
   try {
     if (!isUuid(req.params.assignmentId)) return fail(res, 400, "Invalid assignment id.");
-    const removed = await FormAssignment.destroy({ where: { assignment_id: req.params.assignmentId } });
+    const assignment = await FormAssignment.findByPk(req.params.assignmentId);
+    if (!assignment || !(await findInScope(Form, assignment.form_id, req))) return fail(res, 404, "Assignment not found.");
+    const removed = await FormAssignment.destroy({ where: { assignment_id: assignment.assignment_id } });
     if (!removed) return fail(res, 404, "Assignment not found.");
     return res.status(200).json({ success: true, message: "Assignment removed." });
   } catch (error) {
@@ -410,17 +427,17 @@ const removeAssignment = async (req, res) => {
   }
 };
 
-/** License ids a form applies to, through any of its assignments. */
-const licensesForForm = async (formId) => {
+/** License ids a form applies to, through any of its assignments (licenses of the form's sector only). */
+const licensesForForm = async (form) => {
   const [rows] = await sequelize.query(
     `SELECT DISTINCT l.license_id
        FROM company_licenses l
-       JOIN form_assignments a ON a.form_id = :formId AND (
+       JOIN form_assignments a ON a.form_id = :formId AND l.sector_node_id = :sector AND (
             a.target_type = 'all'
          OR (a.target_type = 'license_type' AND a.license_type = l.license_type)
          OR (a.target_type = 'company'      AND a.company_id   = l.company_id)
          OR (a.target_type = 'license'      AND a.license_id   = l.license_id))`,
-    { replacements: { formId } },
+    { replacements: { formId: form.form_id, sector: form.sector_node_id } },
   );
   return rows.map((r) => r.license_id);
 };
@@ -429,20 +446,20 @@ const licensesForForm = async (formId) => {
 const getFormsForLicense = async (req, res) => {
   try {
     if (!isUuid(req.params.licenseId)) return fail(res, 400, "Invalid license id.");
-    const license = await CompanyLicense.findByPk(req.params.licenseId);
+    const license = await findInScope(CompanyLicense, req.params.licenseId, req);
     if (!license) return fail(res, 404, "License not found.");
     const [rows] = await sequelize.query(
       `SELECT DISTINCT f.form_id, f.code, f.name, f.name_am, v.version_id, v.version_number
          FROM forms f
          JOIN form_assignments a ON a.form_id = f.form_id
          JOIN form_versions v ON v.form_id = f.form_id AND v.status = 'published'
-        WHERE f.is_active AND (
+        WHERE f.is_active AND f.sector_node_id = :sector AND (
               a.target_type = 'all'
            OR (a.target_type = 'license_type' AND a.license_type = :type)
            OR (a.target_type = 'company'      AND a.company_id   = :company)
            OR (a.target_type = 'license'      AND a.license_id   = :license))
         ORDER BY f.name`,
-      { replacements: { type: license.license_type, company: license.company_id, license: license.license_id } },
+      { replacements: { sector: license.sector_node_id, type: license.license_type, company: license.company_id, license: license.license_id } },
     );
     return res.status(200).json({ success: true, data: rows });
   } catch (error) {

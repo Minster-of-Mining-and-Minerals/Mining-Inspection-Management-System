@@ -1,6 +1,7 @@
 /** What a field team sees about itself (backend controllers/team-controllers/myTeamController.js). */
 import type { LicenseTypeKey } from "./form";
 import type { Frequency } from "./inspection";
+import type { LicenseBoundary } from "@/utils/licenseArea";
 
 export interface MyTeamMember {
   team_member_id: string;
@@ -50,6 +51,13 @@ export interface MyLicense {
   recent_scores: (number | null)[];
   inspection_count: number;
   open_tasks: { inspection_id: string; due_at: string; status: string; return_count: number; form_name: string; is_overdue: boolean }[];
+  /** Surveyed license area (null when not in the coordinate list) */
+  boundary: LicenseBoundary | null;
+  center_lat: number | null;
+  center_lng: number | null;
+  travel_mode: "car" | "plane" | null;
+  airport: string | null;
+  notes: string | null;
 }
 
 export interface TeamStats {

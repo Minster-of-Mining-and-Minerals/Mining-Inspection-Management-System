@@ -6,7 +6,9 @@ import {
   CompanyListParams,
   CompanyPayload,
   CompanyStats,
+  LicenseMapParams,
   LicensePayload,
+  MapLicenseRow,
   Mineral,
   MineralCategory,
   MineralCategoryPayload,
@@ -70,6 +72,13 @@ export const companyApi = baseApi.injectEndpoints({
       providesTags: ["Company"],
     }),
 
+    /** License areas for the companies map, with the list's filters */
+    getLicenseMap: builder.query<{ data: MapLicenseRow[]; meta: { licenses: number; companies: number; without_area: number } }, LicenseMapParams>({
+      query: (params) => ({ url: "/licenses/map", params }),
+      transformResponse: (response: any) => ({ data: response.data ?? [], meta: response.meta }),
+      providesTags: ["Company", "Inspection"],
+    }),
+
     getMinerals: builder.query<Mineral[], { search?: string; is_active?: boolean; category_id?: string } | void>({
       query: (params) => ({ url: "/minerals", params: params || undefined }),
       transformResponse: (response: any): Mineral[] => response.data ?? [],
@@ -123,6 +132,7 @@ export const {
   useUpdateLicenseMutation,
   useDeleteLicenseMutation,
   useGetLicensesQuery,
+  useGetLicenseMapQuery,
   useGetMineralsQuery,
   useCreateMineralMutation,
   useUpdateMineralMutation,

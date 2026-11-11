@@ -2,20 +2,23 @@
 const { v4: uuidv4 } = require("uuid");
 const bcrypt = require("bcrypt");
 
+const { ROOT_SECTOR_ID } = require("../utils/sectorConstants");
+const { devAccountsAllowed } = require("../utils/seedMode");
+
 module.exports = {
   async up(queryInterface, Sequelize) {
     const transaction = await queryInterface.sequelize.transaction();
     const now = new Date();
 
     try {
-      // Step 1: Find or create Admin Role
-      console.log("Creating Admin Role...");
+      // Step 1: Find or create the Central Admin role (global: sector_node_id NULL)
+      console.log("Creating Central Admin role...");
       const adminRoleId = uuidv4();
 
       const existingRole = await queryInterface.rawSelect(
         "roles",
         {
-          where: { name: "admin" },
+          where: { name: "central_admin", sector_node_id: null },
           transaction,
         },
         ["role_id"],
@@ -32,8 +35,8 @@ module.exports = {
           [
             {
               role_id: roleId,
-              name: "admin",
-              description: "System Administrator with full permissions",
+              name: "central_admin",
+              description: "Central administrator: manages every sector and has all permissions",
               is_active: true,
               created_at: now,
               updated_at: now,
@@ -144,12 +147,17 @@ module.exports = {
       );
 
       let userId;
-      if (existingUser) {
+      if (existingUser && !devAccountsAllowed()) {
+        // Production: the central admin exists; never reset its password or status on a restart
+        userId = existingUser;
+        console.log("Central admin already exists - left unchanged");
+      } else if (existingUser) {
         userId = existingUser;
         await queryInterface.bulkUpdate(
           "users",
           {
             password: hashedPassword,
+            sector_node_id: ROOT_SECTOR_ID,
             is_first_logged_in: true,
             is_active: true,
             updated_at: now,
@@ -165,10 +173,11 @@ module.exports = {
           [
             {
               user_id: userId,
-              full_name: "System Administrator",
+              full_name: "Central Administrator",
               email: "admin@gmail.com",
               password: hashedPassword,
               user_type_id: userTypeId,
+              sector_node_id: ROOT_SECTOR_ID,
               phone_number: "251911000001",
               profile_image: null,
               is_first_logged_in: true,

@@ -31,6 +31,7 @@ import {
 import { toast } from "react-toastify";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { useSectorFilter } from "@/components/common/SectorFilter";
 
 const getColumns = (
     onEdit: (user: User) => void,
@@ -197,8 +198,11 @@ export default function InternalUserTable({ sideActions }: UserTableProps) {
 
     // Filters
     const [statusFilter, setStatusFilter] = useState("");
+    // Central admin: one sector or all
+    const sectorField = useSectorFilter().field;
 
     const filters: FilterField[] = [
+        ...(sectorField ? [sectorField] : []),
         {
             key: "status",
             label: "Status",

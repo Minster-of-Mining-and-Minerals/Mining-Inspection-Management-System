@@ -11,6 +11,7 @@ import "leaflet.markercluster/dist/MarkerCluster.css";
 import "leaflet.markercluster/dist/MarkerCluster.Default.css";
 import type { MapPoint } from "@/redux/api/dashboardApi";
 import { deviceLabel } from "@/utils/device";
+import { showOnlyEthiopia } from "@/utils/ethiopiaOnly";
 
 export type MapMode = "heat" | "points";
 
@@ -64,6 +65,7 @@ export default function SubmissionMap({ points, mode, focusId }: { points: MapPo
           attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         })
         .addTo(map.current);
+      void showOnlyEthiopia(leaflet, map.current);
       draw();
     })();
     return () => {

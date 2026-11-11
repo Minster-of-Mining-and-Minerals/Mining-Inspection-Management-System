@@ -8,6 +8,7 @@ const {
 const { Op } = require("sequelize");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { ROOT_SECTOR_ID } = require("../../utils/sectorConstants");
 
 const login = async (req, res) => {
   try {
@@ -51,7 +52,7 @@ const login = async (req, res) => {
         {
           model: SectorNode,
           as: "sectorNode",
-          attributes: ["sector_node_id", "name", "level"],
+          attributes: ["sector_node_id", "name", "name_am", "level"],
         },
         {
           model: SectorNode,
@@ -109,6 +110,8 @@ const login = async (req, res) => {
         profile_image: user.profile_image,
         is_first_logged_in: user.is_first_logged_in,
         sector: user.sectorNode ? user.sectorNode.get({ plain: true }) : null,
+        // Central users (root sector) manage every sector; everyone else only their own
+        is_central: user.sector_node_id === ROOT_SECTOR_ID,
         department: user.department ? user.department.get({ plain: true }) : null,
       },
       roles: userRoles,

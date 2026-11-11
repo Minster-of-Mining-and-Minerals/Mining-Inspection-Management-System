@@ -5,6 +5,7 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class CompanyLicense extends Model {
     static associate(models) {
+      CompanyLicense.belongsTo(models.SectorNode, { foreignKey: "sector_node_id", as: "sector" });
       CompanyLicense.belongsTo(models.Company, { foreignKey: "company_id", as: "company" });
       CompanyLicense.belongsToMany(models.Mineral, {
         through: models.LicenseMineral,
@@ -34,7 +35,7 @@ module.exports = (sequelize, DataTypes) => {
     {
       license_id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
       company_id: { type: DataTypes.UUID, allowNull: false },
-      license_number: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+      license_number: { type: DataTypes.STRING(100), allowNull: false },
       license_type: { type: DataTypes.STRING(20), allowNull: false, validate: { isIn: [CompanyLicense.TYPES] } },
       mineral_text: { type: DataTypes.STRING(255), allowNull: true },
       issued_on: { type: DataTypes.DATEONLY, allowNull: true },
@@ -48,11 +49,24 @@ module.exports = (sequelize, DataTypes) => {
         validate: { isIn: [CompanyLicense.STATUSES] },
       },
       notes: { type: DataTypes.TEXT, allowNull: true },
+      // Owning sector (data is isolated per sector)
+      sector_node_id: { type: DataTypes.UUID, allowNull: false },
+      // Surveyed license area: GeoJSON MultiPolygon, [lng, lat] in WGS 84 (left out of queries unless asked for)
+      boundary: { type: DataTypes.JSONB, allowNull: true },
+      center_lat: { type: DataTypes.DOUBLE, allowNull: true },
+      center_lng: { type: DataTypes.DOUBLE, allowNull: true },
+      // Where the woreda/zone/region links come from: 'coordinates' (the boundary) or 'list' (typed names)
+      location_source: { type: DataTypes.STRING(20), allowNull: true, validate: { isIn: [["coordinates", "list"]] } },
+      // How the team travels there (license list "Traveling By" / "Airport")
+      travel_mode: { type: DataTypes.STRING(10), allowNull: true, validate: { isIn: [["car", "plane"]] } },
+      airport: { type: DataTypes.STRING(60), allowNull: true },
       created_by: { type: DataTypes.UUID, allowNull: true },
     },
     {
       sequelize,
       modelName: "CompanyLicense",
+      defaultScope: { attributes: { exclude: ["boundary"] } },
+      scopes: { withBoundary: { attributes: { include: ["boundary"] } } },
       tableName: "company_licenses",
       timestamps: true,
       createdAt: "created_at",

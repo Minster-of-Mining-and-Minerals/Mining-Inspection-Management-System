@@ -15,6 +15,13 @@ const { likeContains } = require("../../utils/search");
 const bcrypt = require("bcrypt");
 const { generateRandomPassword } = require("../../utils/password");
 const { addUserToTeam } = require("../../services/teamMembershipService");
+const { scopeWhere, isDataSector } = require("../../services/sectorScope");
+const { assertAssignableRoles, assertCanManageUser, userSectorFor } = require("../../services/userAccessService");
+const { ROOT_SECTOR_ID } = require("../../utils/sectorConstants");
+
+/** A user in the request's sector (central: any), or null. */
+const findUserInScope = (id, options = {}) => (req) =>
+  User.findOne({ ...options, where: { user_id: id, ...scopeWhere(req) } });
 
 // Returns true when the email went out; never throws.
 const trySendEmail = async (...args) => {
@@ -117,18 +124,8 @@ const createUser = async (req, res) => {
         .json({ success: false, message: "Invalid user type." });
     }
 
-    // ====== Validate sector node ======
-    if (sector_node_id) {
-      const sectorNode = await SectorNode.findByPk(sector_node_id, {
-        transaction: t,
-      });
-      if (!sectorNode) {
-        await t.rollback();
-        return res
-          .status(400)
-          .json({ success: false, message: "Invalid sector node." });
-      }
-    }
+    // ====== Sector: sector users create users in their own sector; central users choose ======
+    const targetSectorId = await userSectorFor(req, sector_node_id, t);
 
     // ====== Validate department if provided (the organization tree is optional) ======
     if (department_id) {
@@ -143,20 +140,9 @@ const createUser = async (req, res) => {
       }
     }
 
-    // ====== MULTIPLE ROLE VALIDATION ======
+    // ====== MULTIPLE ROLE VALIDATION (global or this sector's roles; no escalation) ======
     if (role_ids && Array.isArray(role_ids) && role_ids.length > 0) {
-      const roles = await Role.findAll({
-        where: { role_id: role_ids },
-        transaction: t,
-      });
-
-      if (roles.length !== role_ids.length) {
-        await t.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "One or more provided role IDs are invalid.",
-        });
-      }
+      await assertAssignableRoles(req, role_ids, targetSectorId, t);
     }
 
     // ====== Generate a random temporary password (changed on first login) ======
@@ -173,7 +159,7 @@ const createUser = async (req, res) => {
         password: hashedPassword,
         phone_number: phone_number || null,
         user_type_id,
-        sector_node_id: sector_node_id || null,
+        sector_node_id: targetSectorId,
         department_id: department_id || null,
         is_first_logged_in: true,
         is_active: true,
@@ -269,9 +255,12 @@ const updateUser = async (req, res) => {
       department_id,
     } = req.body;
 
-    // ====== Find user ======
-    const user = await User.findByPk(user_id, { transaction: t });
-    // console.log("user: ", user, "user_idL ", user_id, req.params);
+    // ====== Find user (in the request's sector) ======
+    if (!isUuid(user_id)) {
+      await t.rollback();
+      return res.status(400).json({ success: false, message: "Invalid user id." });
+    }
+    const user = await findUserInScope(user_id, { transaction: t })(req);
     if (!user) {
       await t.rollback();
       return res.status(404).json({
@@ -279,6 +268,7 @@ const updateUser = async (req, res) => {
         message: "User not found.",
       });
     }
+    await assertCanManageUser(req, user.user_id);
 
     // ====== Check for email duplication ======
     if (email && email !== user.email) {
@@ -308,16 +298,27 @@ const updateUser = async (req, res) => {
       }
     }
 
-    // ====== Validate sector node ======
-    if (sector_node_id) {
-      const sectorNode = await SectorNode.findByPk(sector_node_id, {
-        transaction: t,
-      });
-      if (!sectorNode) {
+    // ====== Moving to another sector: central users only ======
+    const newSectorId = sector_node_id && sector_node_id !== user.sector_node_id ? sector_node_id : user.sector_node_id;
+    if (newSectorId !== user.sector_node_id) {
+      if (!req.scope.isCentral) {
         await t.rollback();
-        return res
-          .status(400)
-          .json({ success: false, message: "Invalid sector node." });
+        return res.status(403).json({ success: false, message: "Only the central administrator can move a user to another sector." });
+      }
+      if (newSectorId !== ROOT_SECTOR_ID && !(await isDataSector(newSectorId, t))) {
+        await t.rollback();
+        return res.status(400).json({ success: false, message: "Invalid sector." });
+      }
+      // Teams belong to a sector
+      const inTeam = await TeamMember.count({ where: { user_id: user.user_id, left_on: null }, transaction: t });
+      if (inTeam) {
+        await t.rollback();
+        return res.status(409).json({ success: false, message: "Remove this user from their team before moving them to another sector." });
+      }
+      // Their current roles must still fit (unless new roles are given in the same request)
+      if (!Array.isArray(role_ids)) {
+        const current = await UserRoles.findAll({ where: { user_id: user.user_id }, attributes: ["role_id"], transaction: t });
+        await assertAssignableRoles(req, current.map((r) => r.role_id), newSectorId, t);
       }
     }
 
@@ -342,7 +343,7 @@ const updateUser = async (req, res) => {
         phone_number: phone_number ?? user.phone_number,
         user_type_id: user_type_id ?? user.user_type_id,
         is_active: is_active ?? user.is_active,
-        sector_node_id: sector_node_id ?? user.sector_node_id,
+        sector_node_id: newSectorId,
         department_id: department_id ?? user.department_id,
         updated_at: new Date(),
       },
@@ -351,18 +352,8 @@ const updateUser = async (req, res) => {
 
     // ====== Update roles if provided ======
     if (role_ids && Array.isArray(role_ids)) {
-      // Validate roles exist
-      const roles = await Role.findAll({
-        where: { role_id: role_ids },
-        transaction: t,
-      });
-      if (roles.length !== role_ids.length) {
-        await t.rollback();
-        return res.status(400).json({
-          success: false,
-          message: "One or more provided role IDs are invalid.",
-        });
-      }
+      // Global or this sector's roles, with no permissions beyond the editor's own
+      await assertAssignableRoles(req, role_ids, newSectorId, t);
 
       // Delete old roles
       await UserRoles.destroy({
@@ -391,6 +382,7 @@ const updateUser = async (req, res) => {
     });
   } catch (error) {
     if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
     console.error("Error updating user:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -419,7 +411,12 @@ const getUsers = async (req, res) => {
 
     // if (institute_id) whereClause.institute_id = institute_id;
     if (user_type_id) whereClause.user_type_id = user_type_id;
-    if (sector_node_id) whereClause.sector_node_id = sector_node_id;
+    // Sector filter: central users may pick any sector; everyone else is limited to theirs
+    if (sector_node_id && req.scope.isCentral && !req.scope.sectorId) {
+      if (!isUuid(sector_node_id)) return res.status(400).json({ success: false, message: "Invalid sector_node_id." });
+      whereClause.sector_node_id = sector_node_id;
+    }
+    Object.assign(whereClause, scopeWhere(req));
     if (department_id) whereClause.department_id = department_id;
     if (is_active !== undefined) whereClause.is_active = is_active === "true";
 
@@ -524,8 +521,9 @@ const getUserById = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid user id." });
     }
 
-    // ====== Find user with relations ======
-    const user = await User.findByPk(user_id, {
+    // ====== Find user with relations (in the request's sector) ======
+    const user = await User.findOne({
+      where: { user_id, ...scopeWhere(req) },
       // Never send password hashes or one-time codes to the browser
       attributes: { exclude: ["password", "otp", "otp_expiry"] },
       include: [
@@ -539,6 +537,7 @@ const getUserById = async (req, res) => {
           as: "roles",
           through: { attributes: [] },
         },
+        { model: SectorNode, as: "sectorNode", attributes: ["sector_node_id", "name", "name_am", "parent_id"] },
         // Team history: current team first, then past teams
         {
           model: TeamMember,
@@ -586,7 +585,7 @@ const deleteUser = async (req, res) => {
       });
     }
 
-    const user = await User.findByPk(id, { transaction: t });
+    const user = await findUserInScope(id, { transaction: t })(req);
     if (!user) {
       await t.rollback();
       return res.status(404).json({
@@ -594,6 +593,7 @@ const deleteUser = async (req, res) => {
         message: "User not found.",
       });
     }
+    await assertCanManageUser(req, user.user_id);
 
     // Soft delete (deactivate)
     await user.update(
@@ -607,7 +607,8 @@ const deleteUser = async (req, res) => {
       message: "User deactivated successfully.",
     });
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
     return res.status(500).json({
       success: false,
       message: "Error deactivating user",
@@ -637,7 +638,7 @@ const toggleUserActiveStatus = async (req, res) => {
       });
     }
 
-    const user = await User.findByPk(id, { transaction: t });
+    const user = await findUserInScope(id, { transaction: t })(req);
     if (!user) {
       await t.rollback();
       return res.status(404).json({
@@ -645,6 +646,7 @@ const toggleUserActiveStatus = async (req, res) => {
         message: "User not found.",
       });
     }
+    await assertCanManageUser(req, user.user_id);
 
     await user.update(
       { is_active, updated_at: new Date() },
@@ -658,7 +660,8 @@ const toggleUserActiveStatus = async (req, res) => {
       data: { user_id: id, is_active },
     });
   } catch (error) {
-    await t.rollback();
+    if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
     return res.status(500).json({
       success: false,
       message: "Error toggling user status",
@@ -680,7 +683,7 @@ const resetUserPassword = async (req, res) => {
       });
     }
 
-    const user = await User.findByPk(id, { transaction: t });
+    const user = await findUserInScope(id, { transaction: t })(req);
     if (!user) {
       await t.rollback();
       return res.status(404).json({
@@ -688,6 +691,7 @@ const resetUserPassword = async (req, res) => {
         message: "User not found.",
       });
     }
+    await assertCanManageUser(req, user.user_id);
 
     // Reset to "password" or requested password, and require change on next login
     const newPassword = req.body?.new_password || "password";
@@ -726,6 +730,7 @@ const resetUserPassword = async (req, res) => {
     });
   } catch (error) {
     if (!t.finished) await t.rollback();
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
     return res.status(500).json({
       success: false,
       message: "Error resetting user password",

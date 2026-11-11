@@ -18,6 +18,8 @@ import Loading01 from "@/features/template/component/Loading/Loading01";
 import type { FormLanguage } from "@/features/forms/component/FormRenderer";
 import { InspectionStepper } from "./InspectionStepper";
 import { SubmitFlow, quickLocation } from "./SubmitFlow";
+import { SiteView } from "./SiteView";
+import { distanceText } from "@/utils/licenseArea";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel } from "@/utils/device";
@@ -100,7 +102,8 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
   const [returning, setReturning] = useState(false);
   // Amharic for now; a language switch for inspectors comes later
   const language: FormLanguage = "am";
-  const [view, setView] = useState<"questions" | "history">("questions");
+  // A task not started yet opens on the site map (where to go); otherwise on the questions
+  const [view, setView] = useState<"site" | "questions" | "history">(editable && task.status === "todo" && task.site?.boundary ? "site" : "questions");
   const [jumpKey, setJumpKey] = useState<string | null>(null);
 
 
@@ -264,6 +267,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       <div className="flex gap-1 border-b" role="tablist" aria-label="Inspection">
         {(
           [
+            ["site", "Site"],
             ["questions", "Questions"],
             ["history", `History (${task.events.length})`],
           ] as const
@@ -325,6 +329,8 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
         </FormFilesContext.Provider>
       </div>
 
+      {view === "site" && <SiteView task={task} onStart={() => setView("questions")} />}
+
       {view === "history" &&
         (task.events.length ? (
           <EventHistory task={task} />
@@ -364,6 +370,11 @@ function SubmittedSummary({ task, onReturn }: { task: TaskDetail; onReturn?: () 
           )}
           {task.submit_device && <span className="ml-2">· 📱 {deviceLabel(task.submit_device.user_agent, task.submit_device.platform)}</span>}
         </p>
+        {loc?.site && (
+          <p className={`text-xs font-semibold ${loc.site.inside ? "text-green-700" : "text-orange-800"}`}>
+            {loc.site.inside ? "Submitted inside the license area" : `Submitted ${distanceText(loc.site.distance_m)} from the license area`}
+          </p>
+        )}
       </div>
       <div className="text-right">
         <p className="text-xs text-slate-500">Score</p>

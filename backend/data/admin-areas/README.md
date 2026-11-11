@@ -21,3 +21,13 @@ npm run seed:only -- 20261108100000-seed-admin-areas.js
 ```
 
 Re-seeding updates boundaries and versions by P-code. It keeps the names, Amharic names, active flags and aliases that were edited in the app.
+
+## Ethiopia's outline for the maps
+
+`frontend/public/maps/ethiopia-outline.json` is the same data with the regions merged into one border and simplified to about 500 m (461 points). The maps use it to grey out everything outside Ethiopia. Rebuild it after updating the boundaries:
+
+```bash
+npm i --no-save polygon-clipping && node scripts/build-country-outline.js
+```
+
+The same source and licence apply (OCHA COD-AB, CC BY-IGO).

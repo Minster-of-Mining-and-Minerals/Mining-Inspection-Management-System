@@ -11,6 +11,7 @@ import type { Schedule } from "@/redux/types/inspection";
 import { formatCalendarDate } from "@/utils/date";
 import { ScheduleFormDialog } from "./ScheduleFormDialog";
 import { describeDue, describeFrequency, describeTarget } from "./taskUi";
+import { SectorFilter } from "@/components/common/SectorFilter";
 
 const STATUS_CHIP: Record<Schedule["status"], string> = {
   active: "bg-green-100 text-green-800",
@@ -37,11 +38,14 @@ export default function SchedulesList() {
           <h1 className="text-2xl font-bold text-primary">Inspection schedules</h1>
           <p className="text-sm text-slate-500">Which checklist is filled for which licenses, how often, and how long teams have. Each round gives every license a task for its team.</p>
         </div>
-        {canCreate && (
-          <Button onClick={() => setCreating(true)} className="gap-2">
-            <Plus className="h-4 w-4" /> New schedule
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          <SectorFilter />
+          {canCreate && (
+            <Button onClick={() => setCreating(true)} className="gap-2">
+              <Plus className="h-4 w-4" /> New schedule
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-1">

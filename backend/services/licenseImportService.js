@@ -15,9 +15,11 @@
  *   - Locations: only certain matches are linked. If no woreda is certain, the
  *     license is linked to its zone, else its region. Everything uncertain goes
  *     into the report for a person to fix in the app.
- *   - Teams: "Team <n>" is created once and each license is assigned to its team.
- *   - Members are user accounts. A name matches an existing user with exactly that
- *     full name; otherwise a user is created with a generated email
+ *   - Teams: "Team <n>" is created once and each license without a team is assigned to its
+ *     team. A license that already has a team keeps it (moving licenses between teams is done
+ *     by the update, services/licenseListUpdateService.js).
+ *   - Members are user accounts. A name matches an existing user of the sector with that name,
+ *     also when spelled slightly differently (services/personMatchService.js); otherwise a user is created with a generated email
  *     (firstname.lastname@<SEED_USER_EMAIL_DOMAIN>, default gmail.com),
  *     password "password" and the inspector role — but only when .env has
  *     SEED_DEV_PASSWORDS=true (never with NODE_ENV=production). Otherwise no users
@@ -32,12 +34,12 @@ const path = require("path");
 const ExcelJS = require("exceljs");
 const bcrypt = require("bcrypt");
 const { v4: uuidv4 } = require("uuid");
-const { Op } = require("sequelize");
 const db = require("../models");
 const { AreaMatcher, splitAreaList } = require("./areaMatchingService");
 const { parseMineralText } = require("../utils/mineralNames");
-const { escapeLike } = require("../utils/search");
 const { addUserToTeam } = require("./teamMembershipService");
+const { MOM_SECTOR_ID } = require("../utils/sectorConstants");
+const { findUserForName } = require("./personMatchService");
 
 // Accounts with the known password "password" only when explicitly allowed in .env
 // (SEED_DEV_PASSWORDS=true or SEED_USERS=true) and default false on production.
@@ -65,7 +67,7 @@ const emailLocalPart = (fullName) => {
   return words.length === 1 ? words[0] : `${words[0]}.${words[words.length - 1]}`;
 };
 
-const COL = { company: 2, type: 3, number: 4, mineral: 5, date: 6, region: 7, zone: 8, woreda: 9, team: 10, members: [11, 12, 13], comment: 14 };
+const COL = { company: 2, type: 3, number: 4, mineral: 5, date: 6, region: 7, zone: 8, woreda: 9, team: 10, members: [11, 12, 13], comment: 14, travel: 15, airport: 16 };
 const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
 const MISSING_NUMBER = /^(n\s*[\\/]?\s*a|na|none|-+|)$/i;
 const DEFAULT_REPORT_DIR = path.join(__dirname, "..", "reports");
@@ -116,6 +118,16 @@ const parseIssueDate = (value) => {
   return { date: m ? iso(+m[3], +m[2], +m[1]) : null, note: `Issue date as written: ${text}`.slice(0, 255) };
 };
 
+/** "Plane" / "Car" and the airport (columns O and P), when the list has them. */
+const travelOf = (row) => {
+  const mode = String(cellText(row, COL.travel) || "").toLowerCase();
+  const airport = String(cellText(row, COL.airport) || "").trim();
+  return {
+    travel_mode: mode.startsWith("plane") || mode.startsWith("air") ? "plane" : mode.startsWith("car") || mode.startsWith("road") ? "car" : null,
+    airport: airport ? airport.slice(0, 60) : null,
+  };
+};
+
 const licenseTypeOf = (raw) => {
   const t = String(raw || "").toLowerCase();
   if (t.startsWith("explor")) return "exploration";
@@ -128,10 +140,10 @@ const csvCell = (v) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-const writeReport = (report, { dryRun, reportDir }) => {
+const writeReport = (report, { dryRun, reportDir, name = "license-import" }) => {
   fs.mkdirSync(reportDir, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
-  const file = path.join(reportDir, `license-import-${dryRun ? "dry-run-" : ""}${stamp}.csv`);
+  const file = path.join(reportDir, `${name}-${dryRun ? "dry-run-" : ""}${stamp}.csv`);
   const lines = ["Row,Company,License number,Issue,Detail", ...report.map((x) => [x.row, x.company, x.license, x.issue, x.detail].map(csvCell).join(","))];
   fs.writeFileSync(file, "﻿" + lines.join("\r\n"), "utf8"); // BOM so Excel shows Amharic correctly
   return file;
@@ -139,10 +151,12 @@ const writeReport = (report, { dryRun, reportDir }) => {
 
 /**
  * @param {string} file  path to the .xlsx
- * @param {{ dryRun?: boolean, reportDir?: string|null }} options  reportDir null = no report file
+ * @param {{ dryRun?: boolean, reportDir?: string|null, sectorId?: string }} options  reportDir null = no report file;
+ *        sectorId = the sector everything is imported into (default Ministry of Mines). Companies,
+ *        licenses, teams and people are matched within that sector only.
  * @returns {Promise<{ stats: object, report: object[], reportFile: string|null }>}
  */
-async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REPORT_DIR } = {}) {
+async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REPORT_DIR, sectorId = MOM_SECTOR_ID } = {}) {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(file);
   const ws = wb.worksheets[0];
@@ -176,12 +190,14 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
     teamLicenseLinks: 0,
   };
   const createdUsers = [];
+  // New licenses, so the seeder can give them their surveyed area
+  const createdLicenseIds = [];
 
   const t = await sequelize.transaction();
 
   // ----- people: an existing user with this exact name, else a new inspector account -----
   const userCache = new Map();
-  const inspectorRole = await db.Role.findOne({ where: { name: "inspector", is_active: true }, transaction: t });
+  const inspectorRole = await db.Role.findOne({ where: { name: "inspector", sector_node_id: null, is_active: true }, transaction: t });
   const internalType = await db.UserType.findOne({ where: { name: "internal" }, transaction: t });
   const devPasswordHash = IS_PRODUCTION ? null : await bcrypt.hash(DEV_PASSWORD, 10);
 
@@ -189,14 +205,12 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
     const key = name.toLowerCase();
     if (userCache.has(key)) return userCache.get(key);
 
-    const matches = await User.findAll({
-      where: { full_name: { [Op.iLike]: escapeLike(name) } },
-      attributes: ["user_id", "full_name", "email", "is_active"],
-      transaction: t,
-    });
+    const found = await findUserForName(name, sectorId, t);
+    const matches = found.user ? [found.user] : found.candidates;
     let user = null;
     if (matches.length === 1) {
       user = matches[0];
+      if (found.how === "spelling") note(r, companyName, "", "Name spelled differently", `"${name}" taken to be ${user.full_name} (${user.email}).`);
       if (!user.is_active) {
         note(r, companyName, "", "Person's account is inactive", `${name} (${user.email}) was not added to a team.`);
         user = null;
@@ -221,6 +235,7 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
           email,
           password: devPasswordHash,
           user_type_id: internalType.user_type_id,
+          sector_node_id: sectorId,
           is_first_logged_in: true,
           is_active: true,
           created_at: now,
@@ -257,9 +272,9 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
     if (!code) return;
     let team = teamCache.get(code);
     if (!team) {
-      team = await Team.findOne({ where: { code }, transaction: t });
+      team = await Team.findOne({ where: { code, sector_node_id: sectorId }, transaction: t });
       if (!team) {
-        team = await Team.create({ name: `Team ${code}`, code }, { transaction: t });
+        team = await Team.create({ name: `Team ${code}`, code, sector_node_id: sectorId }, { transaction: t });
         stats.teamsCreated++;
       }
       teamCache.set(code, team);
@@ -286,7 +301,8 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
       stats.membersAdded++;
     }
 
-    if (license) {
+    // A license that already has a team keeps it (the update moves licenses between teams)
+    if (license && !(await TeamLicense.count({ where: { license_id: license.license_id }, transaction: t }))) {
       const [, created] = await TeamLicense.findOrCreate({
         where: { team_id: team.team_id, license_id: license.license_id },
         defaults: { team_id: team.team_id, license_id: license.license_id },
@@ -309,10 +325,10 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
       const key = Company.normalizeName(companyName);
       let company = companyCache.get(key);
       if (!company) {
-        company = await Company.findOne({ where: { name_normalized: key }, transaction: t });
+        company = await Company.findOne({ where: { name_normalized: key, sector_node_id: sectorId }, transaction: t });
         if (company) stats.companiesExisting++;
         else {
-          company = await Company.create({ name: companyName }, { transaction: t });
+          company = await Company.create({ name: companyName, sector_node_id: sectorId }, { transaction: t });
           stats.companiesCreated++;
         }
         companyCache.set(key, company);
@@ -327,7 +343,7 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
         continue;
       }
       const number = rawNumber.trim().replace(/\//g, "\\").toUpperCase();
-      const existing = await CompanyLicense.findOne({ where: { license_number: number }, transaction: t });
+      const existing = await CompanyLicense.findOne({ where: { license_number: number, sector_node_id: sectorId }, transaction: t });
       if (existing) {
         stats.licensesExisting++;
         if (existing.company_id !== company.company_id) {
@@ -357,6 +373,7 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
       const license = await CompanyLicense.create(
         {
           company_id: company.company_id,
+          sector_node_id: sectorId,
           license_number: number,
           license_type: type,
           mineral_text: mineralText || null,
@@ -364,10 +381,12 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
           date_note: dateNote,
           notes: comment || null,
           status: "active",
+          ...travelOf(row),
         },
         { transaction: t },
       );
       stats.licensesCreated++;
+      createdLicenseIds.push(license.license_id);
       if (licenseMinerals.length) await license.setMinerals(licenseMinerals.map((m) => m.mineral_id), { transaction: t });
 
       // ----- locations: certain matches only -----
@@ -410,7 +429,7 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
   // A report only when there is something new to look at (re-seeding adds nothing)
   const addedSomething = dryRun || stats.licensesCreated > 0 || stats.companiesCreated > 0 || stats.teamsCreated > 0 || stats.membersAdded > 0 || stats.usersCreated > 0;
   const reportFile = reportDir && report.length && addedSomething ? writeReport(report, { dryRun, reportDir }) : null;
-  return { stats, report, reportFile, createdUsers };
+  return { stats, report, reportFile, createdUsers, createdLicenseIds };
 }
 
 /** Console summary shared by the script and the seeder. */
@@ -434,4 +453,19 @@ const summarize = ({ stats, report, reportFile }, { dryRun = false } = {}) => {
   ].join("\n");
 };
 
-module.exports = { importLicenseList, summarize, parseIssueDate };
+module.exports = {
+  importLicenseList,
+  summarize,
+  parseIssueDate,
+  // shared with the update (services/licenseListUpdateService.js)
+  COL,
+  MISSING_NUMBER,
+  cellText,
+  licenseTypeOf,
+  travelOf,
+  writeReport,
+  emailLocalPart,
+  IS_PRODUCTION,
+  DEV_PASSWORD,
+  SEED_EMAIL_DOMAIN,
+};

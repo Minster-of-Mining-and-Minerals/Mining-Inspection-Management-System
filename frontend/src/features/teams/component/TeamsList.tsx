@@ -10,6 +10,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import { useGetTeamsQuery } from "@/redux/api/teamApi";
 import { memberName } from "@/redux/types/team";
 import { TeamDialog } from "./TeamDialogs";
+import { SectorFilter } from "@/components/common/SectorFilter";
 
 /** Teams: cards with current members and how many licenses each covers. */
 export default function TeamsList() {
@@ -43,6 +44,7 @@ export default function TeamsList() {
           <p className="text-sm text-slate-500">Inspection teams, their members and the licenses each team covers.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <SectorFilter />
           <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Team or member name…" className="w-60 pl-9" />

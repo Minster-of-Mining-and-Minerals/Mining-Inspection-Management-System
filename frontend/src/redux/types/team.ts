@@ -31,6 +31,9 @@ export interface Team {
   updated_at: string;
   license_count?: number;
   members: TeamMember[];
+  /** The sector the team belongs to */
+  sector_node_id?: string;
+  sector?: { sector_node_id: string; name: string; name_am?: string | null } | null;
 }
 
 export interface TeamDetail extends Team {

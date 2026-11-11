@@ -2,6 +2,7 @@
 const { validate: isUuid } = require("uuid");
 const { Inspection } = require("../../models");
 const { currentMembership } = require("../../services/teamMembershipService");
+const { findInScope } = require("../../services/sectorScope");
 
 const can = (req, action) => req.user.permissions.includes(`inspections:${action}`);
 
@@ -13,11 +14,12 @@ const myTeamId = async (req) => {
 
 /**
  * Load a task the user may see; also says what they may do with it.
- * Seen by: inspections:read_all, or members of the task's team.
+ * Seen by: inspections:read_all (within their sector), or members of the task's team.
+ * A task of another sector is "not found".
  */
 const loadTask = async (req, id) => {
   if (!isUuid(id)) throw Object.assign(new Error("Invalid inspection id."), { status: 400 });
-  const task = await Inspection.findByPk(id);
+  const task = await findInScope(Inspection, id, req);
   if (!task) throw Object.assign(new Error("Inspection not found."), { status: 404 });
   const team = await myTeamId(req);
   const inTeam = !!team && task.team_id === team;

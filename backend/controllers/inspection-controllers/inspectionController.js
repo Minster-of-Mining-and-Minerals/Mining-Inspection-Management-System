@@ -18,6 +18,8 @@ const {
 const { currentMembership } = require("../../services/teamMembershipService");
 const { validateAnswers, scoreOf, visibleStructure } = require("../../utils/formAnswers");
 const { likeContains } = require("../../utils/search");
+const { scopeWhere } = require("../../services/sectorScope");
+const { positionInArea } = require("../../utils/geodesy");
 
 const fail = (res, status, message, extra) => res.status(status).json({ success: false, message, ...extra });
 const { can, myTeamId, loadTask } = require("./inspectionAccess");
@@ -59,7 +61,7 @@ const localDay = (col) => `("Inspection"."${col}" AT TIME ZONE 'Africa/Addis_Aba
 /** All tasks (inspections:read_all), or the user's team's tasks (read_own). */
 const getInspections = async (req, res) => {
   try {
-    const where = {};
+    const where = { ...scopeWhere(req) };
     const q = req.query;
     if (!can(req, "read_all")) {
       const team = await myTeamId(req);
@@ -205,7 +207,7 @@ const getMyTasks = async (req, res) => {
 const getLicenseHistory = async (req, res) => {
   try {
     if (!isUuid(req.params.licenseId)) return fail(res, 400, "Invalid license id.");
-    const where = { license_id: req.params.licenseId, status: "submitted" };
+    const where = { license_id: req.params.licenseId, status: "submitted", ...scopeWhere(req) };
     if (!can(req, "read_all")) {
       const team = await myTeamId(req);
       if (!team) return fail(res, 403, "You are not in a team.");
@@ -273,6 +275,11 @@ const getInspectionById = async (req, res) => {
     });
     const version = await versionFor(task);
     const data = summary(full);
+    // The license area for the site map (GeoJSON in WGS 84; null when it has no surveyed area)
+    const site = await CompanyLicense.scope("withBoundary").findByPk(task.license_id, {
+      attributes: ["boundary", "center_lat", "center_lng", "travel_mode", "airport", "notes"],
+    });
+    data.site = site ? site.get({ plain: true }) : null;
     if (!can(req, "read_all")) delete data.submit_ip;
     return res.status(200).json({
       success: true,
@@ -362,7 +369,7 @@ const submitInspection = async (req, res) => {
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
       throw Object.assign(new Error("Your location is needed to submit. Turn on location for this site and try again."), { status: 400, extra: { location_required: true } });
     const version = await saveAnswersInternal(req, task, transaction);
-    const license = await CompanyLicense.findByPk(task.license_id, { attributes: ["license_type"], transaction });
+    const license = await CompanyLicense.scope("withBoundary").findByPk(task.license_id, { attributes: ["license_type", "boundary"], transaction });
     const problems = validateAnswers(version.definition, license?.license_type, task.answers);
     if (problems.length) {
       await transaction.commit(); // keep the saved answers
@@ -373,6 +380,8 @@ const submitInspection = async (req, res) => {
     // Where it was submitted, with the place name (woreda, zone, region) from the boundaries
     const location = pick(req.body.location, LOCATION_KEYS);
     if (location?.lat != null && location?.lng != null) location.place = await placeOf(Number(location.lat), Number(location.lng)).catch(() => null);
+    // Was the inspector at the license area? Recorded for supervisors; it never blocks the submission.
+    if (location?.lat != null && location?.lng != null && license?.boundary) location.site = positionInArea(Number(location.lat), Number(location.lng), license.boundary);
     await task.update(
       {
         status: "submitted",
@@ -435,7 +444,7 @@ const updateAssignment = async (req, res) => {
     if (req.body.team_id !== undefined && req.body.team_id !== task.team_id) {
       if (req.body.team_id) {
         const team = await Team.findByPk(req.body.team_id, { transaction });
-        if (!team || !team.is_active) throw Object.assign(new Error("Choose an active team."), { status: 400 });
+        if (!team || !team.is_active || team.sector_node_id !== task.sector_node_id) throw Object.assign(new Error("Choose an active team."), { status: 400 });
       }
       await InspectionEvent.create(
         { inspection_id: task.inspection_id, type: "reassigned", user_id: req.user.user_id, details: { from: task.team_id, to: req.body.team_id || null } },

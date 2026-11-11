@@ -3,6 +3,10 @@ import type { BaseQueryFn } from "@reduxjs/toolkit/query";
 import { getSession } from "next-auth/react";
 import { performLogout } from "@/utils/logout";
 import { fetchWithTimeout, resolveApiBaseUrl } from "@/utils/apiUrl";
+import { getSelectedSectorId, setSelectedSectorId } from "@/lib/sectorSelection";
+
+/** The backend's answer when the chosen sector no longer exists (e.g. deactivated). */
+const UNKNOWN_SECTOR = "The selected sector does not exist.";
 
 const rawBaseQuery = fetchBaseQuery({
   baseUrl: "/api",
@@ -12,6 +16,9 @@ const rawBaseQuery = fetchBaseQuery({
     if (session?.accessToken) {
       headers.set("authorization", `Bearer ${session.accessToken}`);
     }
+    // Central users: the sector chosen in the Sector filter (none = all sectors)
+    const sectorId = session?.user?.is_central ? getSelectedSectorId() : null;
+    if (sectorId) headers.set("x-sector-id", sectorId);
     headers.set("content-type", "application/json");
     headers.set("accept", "application/json");
     return headers;
@@ -29,6 +36,14 @@ const baseQuery: BaseQueryFn = async (args, api, extraOptions) => {
 
 const baseQueryWithReauth: BaseQueryFn = async (args, api, extraOptions) => {
   let result = await baseQuery(args, api, extraOptions);
+
+  // The remembered sector is gone: fall back to all sectors and try again
+  const error = result.error as { status?: unknown; data?: { message?: string } } | undefined;
+  if (error?.status === 400 && error.data?.message === UNKNOWN_SECTOR && getSelectedSectorId()) {
+    setSelectedSectorId(null);
+    result = await baseQuery(args, api, extraOptions);
+  }
+
   const requestUrl =
     typeof args === "string" ? args : args?.url?.toString?.() ?? "";
   const isChangePassword = requestUrl.includes("/change-password");

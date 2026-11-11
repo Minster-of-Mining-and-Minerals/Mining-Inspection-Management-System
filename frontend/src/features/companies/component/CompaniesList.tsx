@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
-import { Eye, Plus } from "lucide-react";
+import { Eye, List, Map as MapIcon, Plus } from "lucide-react";
 import { DataTable } from "@/features/template/component/tableList/DataTable";
 import { TableLayout } from "@/features/template/component/tableList/TableLayout";
 import Loading01 from "@/features/template/component/Loading/Loading01";
@@ -21,6 +21,8 @@ import {
   regionsOf,
 } from "@/redux/types/company";
 import { CompanyDialog } from "./CompanyDialog";
+import { CompaniesMap } from "./CompaniesMap";
+import { useSectorFilter } from "@/components/common/SectorFilter";
 
 const ALL = "all";
 const pick = (v: string) => (v && v !== ALL ? v : undefined);
@@ -40,6 +42,7 @@ export default function CompaniesList() {
   const [licenseStatus, setLicenseStatus] = useState(ALL);
   const [activeFilter, setActiveFilter] = useState(ALL);
   const [creating, setCreating] = useState(false);
+  const [view, setView] = useState<"table" | "map">("table");
 
   useEffect(() => setPageIndex(0), [search, regionId, mineralId, licenseType, licenseStatus, activeFilter]);
 
@@ -146,7 +149,10 @@ export default function CompaniesList() {
     [router],
   );
 
+  // Central admin: one sector or all
+  const sectorField = useSectorFilter().field;
   const filters: FilterField[] = [
+    ...(sectorField ? [sectorField] : []),
     ...(canReadAreas
       ? [
           {
@@ -218,9 +224,29 @@ export default function CompaniesList() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-primary">Companies</h1>
-        <p className="text-sm text-slate-500">Licensed exploration and mining companies. Search by company name, TIN or license number.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-primary">Companies</h1>
+          <p className="text-sm text-slate-500">Licensed exploration and mining companies. Search by company name, TIN or license number.</p>
+        </div>
+        <div role="group" aria-label="View" className="flex rounded-lg border border-slate-300 bg-white p-1">
+          {(
+            [
+              ["table", "Table", List],
+              ["map", "Map", MapIcon],
+            ] as const
+          ).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={view === key}
+              onClick={() => setView(key)}
+              className={`flex min-h-9 items-center gap-1.5 rounded-md px-3 text-sm font-semibold ${view === key ? "bg-primary text-white" : "text-primary hover:bg-slate-100"}`}
+            >
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -233,7 +259,19 @@ export default function CompaniesList() {
       </div>
 
       <TableLayout actions={actions} filters={filters} filterColumnsPerRow={1}>
-        {isError ? (
+        {view === "map" ? (
+          <CompaniesMap
+            regionId={pick(regionId)}
+            base={{
+              search: search || undefined,
+              area_id: pick(regionId),
+              mineral_id: pick(mineralId),
+              license_type: pick(licenseType) as LicenseType | undefined,
+              license_status: pick(licenseStatus) as LicenseStatus | undefined,
+              is_active: activeFilter === "active" ? true : activeFilter === "inactive" ? false : undefined,
+            }}
+          />
+        ) : isError ? (
           <div className="py-10 text-center text-red-600">Could not load companies.</div>
         ) : (
           <div className={isFetching ? "opacity-60 transition-opacity" : ""}>

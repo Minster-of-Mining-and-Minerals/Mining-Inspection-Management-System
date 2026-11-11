@@ -7,11 +7,13 @@
 const { v4: uuidv4 } = require("uuid");
 const sample = require("../data/forms/sample-site-check");
 const { validateDefinition } = require("../utils/formDefinition");
+// Belongs to Ministry of Mines
+const { MOM_SECTOR_ID } = require("../utils/sectorConstants");
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    const existing = await queryInterface.sequelize.query(`SELECT form_id FROM forms WHERE code = :code`, {
-      replacements: { code: sample.code },
+    const existing = await queryInterface.sequelize.query(`SELECT form_id FROM forms WHERE code = :code AND sector_node_id = :sector`, {
+      replacements: { code: sample.code, sector: MOM_SECTOR_ID },
       type: Sequelize.QueryTypes.SELECT,
     });
     if (existing.length) {
@@ -28,7 +30,7 @@ module.exports = {
     try {
       await queryInterface.bulkInsert(
         "forms",
-        [{ form_id: formId, code: sample.code, name: sample.name, name_am: sample.name_am, description: sample.description, is_active: true, created_at: now, updated_at: now }],
+        [{ form_id: formId, sector_node_id: MOM_SECTOR_ID, code: sample.code, name: sample.name, name_am: sample.name_am, description: sample.description, is_active: true, created_at: now, updated_at: now }],
         { transaction },
       );
       await queryInterface.sequelize.query(

@@ -24,8 +24,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useGetSectorNodesQuery, useGetSectorNodesWithFlatChildrenQuery } from "@/redux/api/sectorNodeApi";
-import { SectorNode } from "@/redux/types/sectorNode";
+import { useLocale } from "next-intl";
+import { useGetSectorNodesQuery } from "@/redux/api/sectorNodeApi";
+import { useSelectedSectorId } from "@/lib/sectorSelection";
+import { localizedName } from "@/utils/localizedName";
 import { TemporaryPasswordDialog } from "./TemporaryPasswordDialog";
 import { useGetTeamsQuery } from "@/redux/api/teamApi";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -53,8 +55,9 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const [teamId, setTeamId] = useState(presetTeamId || NO_TEAM);
   const [teamLeader, setTeamLeader] = useState(false);
   const { data: teamsResponse } = useGetTeamsQuery({ is_active: true, limit: 100 }, { skip: !isOpen || !canAssignTeam });
-  const teams = teamsResponse?.data ?? [];
+  const allTeams = teamsResponse?.data ?? [];
   const hasTeam = teamId !== NO_TEAM;
+  const locale = useLocale();
 
   // Each time the form opens from a team page, start with that team
   useEffect(() => {
@@ -69,22 +72,31 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const [email, setEmail] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
-  const [sectorId, setSectorId] = useState("");
-  const [departments, setDepartments] = useState<SectorNode[]>([]);
-  const [departmentId, setDepartmentId] = useState("");
   // Set when the welcome email failed: the password is shown once to hand over
   const [tempPassword, setTempPassword] = useState<{ password: string; email: string } | null>(null);
 
+  // Sector users always create users in their own sector (the backend enforces it).
+  // Central users choose: a sector, or "Central Admin" for another central user.
+  const isCentral = !!session?.user?.is_central;
+  const switcherSectorId = useSelectedSectorId();
+  // Until chosen here: the sector chosen in the page's Sector filter
+  const [sectorChoice, setSectorId] = useState<string | null>(null);
+  const sectorId = sectorChoice ?? switcherSectorId ?? "";
+
   const { data: rolesResponse } = useGetRolesQuery();
-  const { data = [] } = useGetSectorNodesWithFlatChildrenQuery();
+  const { data: sectorNodes } = useGetSectorNodesQuery({ limit: 100, is_active: true }, { skip: !isCentral });
   const { data: userTypes = [] } = useGetUserTypesQuery();
 
-
-  const roles = rolesResponse || [];
-  const sectors = data.map((item) => ({
-    ...item.sector,
-    children: item.children || [],
-  }));
+  // Only roles this user may give: global or of the chosen sector, and (for sector users)
+  // with no permissions they don't have themselves
+  const targetSectorId = sector_node_id || (isCentral ? sectorId : session?.user?.sector?.sector_node_id);
+  // Teams of the new user's sector only
+  const teams = allTeams.filter((t) => !targetSectorId || !t.sector_node_id || t.sector_node_id === targetSectorId);
+  const roles = (rolesResponse || []).filter(
+    (r) => r.is_active !== false && r.can_assign !== false && (!r.sector_node_id || r.sector_node_id === targetSectorId),
+  );
+  // The root ("Central Admin") first, then the sectors
+  const sectors = [...(sectorNodes?.data ?? [])].sort((a, b) => Number(!!a.parent_id) - Number(!!b.parent_id));
 
   const [createUser, { isLoading }] = useCreateUserMutation();
   const userTypeId = userTypes?.find(
@@ -93,17 +105,22 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
 
   const handleSectorChange = (value: string) => {
     setSectorId(value);
-    setDepartmentId("");
-    const selectedSector = sectors.find(
-      (item) => item.sector_node_id === value
-    );
-    setDepartments(selectedSector?.children || []);
+    // Roles of another sector no longer apply
+    setSelectedRoles((prev) => prev.filter((id) => {
+      const r = (rolesResponse || []).find((x) => x.role_id === id);
+      return !!r && (!r.sector_node_id || r.sector_node_id === value);
+    }));
   };
 
   const handleSubmit = async () => {
     // A role is required, unless the person joins a team (that gives the inspector role)
     if (!fullName || !email || (!selectedRoles.length && !hasTeam)) {
       toast.error("Please fill all required fields");
+      return;
+    }
+
+    if (isCentral && !sector_node_id && !sectorId) {
+      toast.error("Choose the sector this user belongs to");
       return;
     }
 
@@ -124,7 +141,6 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
             ? { sector_node_id: sectorId }
             : {}
       ),
-      ...(departmentId && { department_id: departmentId }),
       ...(phoneNumber && { phone_number: phoneNumber }),
       ...(userTypeId && { user_type_id: userTypeId }),
       ...(hasTeam && { team_id: teamId, team_role: teamLeader ? "leader" : "member" }),
@@ -149,9 +165,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
     setEmail("");
     setPhoneNumber("");
     setSelectedRoles([]);
-    setSectorId("");
-    setDepartmentId("");
-    setDepartments([]);
+    setSectorId(null);
     setTeamId(presetTeamId || NO_TEAM);
     setTeamLeader(false);
     onClose();
@@ -193,11 +207,11 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
         <div className="w-full flex flex-col space-y-4">
           {/* User Detail */}
           <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-4  mt-2 pr-2">
-            {/* Sector Selection (only if not passed from parent) */}
-            {!sector_node_id && user_type === "internal" && (
-              <div className="w-full space-y-2">
+            {/* Sector: central users only (sector users' new users join their own sector) */}
+            {isCentral && !sector_node_id && user_type === "internal" && (
+              <div className="w-full space-y-2 md:col-span-2">
                 <Label className="block text-sm text-golden-dark font-medium mb-2">
-                  Sector <span className="text-xs font-normal text-slate-400">(optional)</span>
+                  Sector <span className="text-red-500">*</span>
                 </Label>
 
                 <Select
@@ -208,45 +222,18 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
                   </SelectTrigger>
 
                   <SelectContent className="text-primary bg-white max-h-64 overflow-y-auto">
-                    {sectors.map((s: any) => (
+                    {sectors.map((s) => (
                       <SelectItem
                         key={s.sector_node_id}
                         value={s.sector_node_id}
                       >
-                        {s.name}
+                        {s.parent_id ? localizedName(s, locale) : `${localizedName(s, locale)} (central)`}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
-            {/* Department Selection */}
-            <div className="w-full space-y-2">
-              <Label className="block text-sm text-golden-dark font-medium mb-2">
-                Department <span className="text-xs font-normal text-slate-400">(optional)</span>
-              </Label>
-
-              <Select
-                value={departmentId}
-                onValueChange={setDepartmentId}
-                disabled={!sectorId || isLoading}
-              >
-                <SelectTrigger className="w-full h-12 border border-golden-dark focus:ring focus:ring-golden-dark focus:border-transparent rounded-md transition-all duration-200 outline-none px-4 py-3 text-primary bg-white">
-                  <SelectValue placeholder="Select Department" />
-                </SelectTrigger>
-
-                <SelectContent className="text-primary bg-white max-h-64 overflow-y-auto">
-                  {departments.map((dept) => (
-                    <SelectItem
-                      key={dept.sector_node_id}
-                      value={dept.sector_node_id}
-                    >
-                      {dept.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
             <div className="space-y-2">
               <Label className="block text-sm text-golden-dark font-medium mb-2">

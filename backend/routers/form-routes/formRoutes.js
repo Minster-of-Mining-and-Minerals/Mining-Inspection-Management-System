@@ -38,7 +38,12 @@ const formFields = {
   code: Joi.string().trim().max(40).pattern(/^[A-Za-z0-9_-]+$/).allow("", null).messages({ "string.pattern.base": "Code may use letters, numbers, - and _." }),
   description: Joi.string().trim().max(4000).allow("", null),
 };
-const createFormSchema = Joi.object({ ...formFields, name: formFields.name.required().messages({ "any.required": "Checklist name is required." }) });
+const createFormSchema = Joi.object({
+  ...formFields,
+  name: formFields.name.required().messages({ "any.required": "Checklist name is required." }),
+  // Central users choose the sector; ignored for sector users (services/sectorScope.js)
+  sector_node_id: Joi.string().uuid().optional(),
+});
 const updateFormSchema = Joi.object({ ...formFields, is_active: Joi.boolean() }).min(1).messages({ "object.min": "Nothing to update." });
 // The definition itself is checked in detail by utils/formDefinition.js
 const saveDraftSchema = Joi.object({ definition: Joi.object().required().unknown(true), change_note: Joi.string().trim().max(2000).allow("", null) });

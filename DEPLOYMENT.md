@@ -94,10 +94,46 @@ Check: open **https://inspection.mom.gov.et** · on the server, `curl http://127
 ## 4. First login
 
 - Log in as **admin@gmail.com** with the password **password**, then **change the password at once**
-  (Profile → Change password) and the email address.
+  (Profile → Change password) and the email address. This is the **central administrator**. Restarts never
+  reset its password (on a server, base data only adds what is missing).
 - The license list creates companies, licenses and teams, **but no inspector accounts** on a server.
   Add the inspectors under **Users** (choose their team when creating them).
 - Create the inspection **Schedules**; tasks appear for the teams.
+
+### Sectors
+
+Each sector (Ministry of Mines, GIE, MIDI …) works separately. Its users, companies, teams,
+checklists, schedules, inspections and dashboard are visible only inside that sector.
+Existing data belongs to **Ministry of Mines**.
+
+- The **central administrator** sees every sector. The **Sector** filter on the dashboard, teams,
+  companies, inspections, schedules, checklists, users and roles pages shows all sectors together, or
+  one sector. The choice stays the same on every page until it is changed. Anything the central
+  administrator creates goes into the sector chosen there (or, for users, the sector chosen in the form).
+- One sector admin per sector is created on the first start, each with the password **password** to change at first login:
+  - `mom-admin@gmail.com` for Ministry of Mines
+  - `gie-admin@gmail.com` for GIE
+  - `midi-admin@gmail.com` for MIDI
+
+  Log in as each one (or have its owner do it) to set a real password, and change the email in Profile. Restarts never reset these accounts. For a new sector, create a user with the **sector_admin** role in that sector. A sector admin
+  manages everything in their sector, but can't create sectors, change the shared locations and
+  minerals, or give anyone permissions they don't have themselves. Give a sector admin the
+  `sector:create` permission (or the **central_admin** role) only if they should manage sectors too.
+- Roles such as supervisor and inspector are **global**: every sector uses them, and only the central
+  administrator changes them. A sector admin who needs a different version uses **Copy** on the
+  Roles page and changes the copy, which belongs to their sector only.
+- The Plan Management System analytics API still covers the whole ministry.
+
+### Applying a new license list
+
+Restarts only **add** new licenses from `backend/data/license-list/`. To make existing licenses, teams, members and locations match a new list (and the coordinate list), run the update by hand. Take a database backup first (section 5):
+
+```bash
+docker compose exec backend npm run import:licenses -- --update --dry-run   # what would change; nothing saved
+docker compose exec backend npm run import:licenses -- --update             # apply it
+```
+
+The report is written to `backend/reports/` in the container: `docker compose cp backend:/app/reports ./reports`. See `backend/data/license-list/README.md`.
 
 ## 5. Backups (important)
 

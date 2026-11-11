@@ -7,10 +7,14 @@
  *   - workload: tasks whose round opened in the period (due, submitted, overdue, completion)
  *   - results:  inspections submitted in the period (on time, scores, answers, regions, companies)
  * Results are compared with the period of the same length just before.
+ *
+ * Sector users see their sector. Central users see every sector combined (plus a by_sector
+ * breakdown), or one sector when the sector switcher sends X-Sector-Id.
  */
 const { QueryTypes } = require("sequelize");
 const { validate: isUuid } = require("uuid");
 const { sequelize, FormVersion } = require("../../models");
+const { scopeSql } = require("../../services/sectorScope");
 const { visibleStructure } = require("../../utils/formAnswers");
 const { statusOptionsFor, questionText } = require("../../utils/formDefinition");
 
@@ -34,9 +38,9 @@ const REGION_OF = `(SELECT CASE a.level WHEN 'region' THEN a.name WHEN 'zone' TH
 /** …and its id (for links to that region's inspections). */
 const REGION_ID_OF = REGION_OF.replace("CASE a.level WHEN 'region' THEN a.name WHEN 'zone' THEN p.name ELSE g.name END", "CASE a.level WHEN 'region' THEN a.area_id WHEN 'zone' THEN p.area_id ELSE g.area_id END");
 
-/** Filters that apply to both kinds of numbers. */
-const commonFilters = (query) => {
-  const where = [];
+/** Filters that apply to both kinds of numbers (always limited to the request's sector). */
+const commonFilters = (query, req) => {
+  const where = [scopeSql(req, "i")];
   const r = {};
   for (const [param, column] of [
     ["team_id", "i.team_id"],
@@ -69,7 +73,7 @@ const getAnalytics = async (req, res) => {
     const query = req.query;
     const from = DATE.test(query.from || "") ? query.from : null;
     const to = DATE.test(query.to || "") ? query.to : null;
-    const { where, r } = commonFilters(query);
+    const { where, r } = commonFilters(query, req);
     const by = query.submitted_by && isUuid(query.submitted_by) ? query.submitted_by : null;
 
     // ---- workload: tasks whose round opened in the period ----
@@ -104,7 +108,26 @@ const getAnalytics = async (req, res) => {
         rr,
       ).then(([x]) => x);
 
-    const [workload, results, previous, weekly, byRegion, teamTasks, teamResults, companies] = await Promise.all([
+    // Central users looking at every sector: the same headline numbers per sector
+    const bySector =
+      req.scope.isCentral && !req.scope.sectorId
+        ? q(
+            `SELECT s.sector_node_id, s.name AS sector, s.name_am AS sector_am,
+                    COUNT(i.inspection_id) FILTER (WHERE ${taskWhere.length ? taskWhere.join(" AND ") : "TRUE"})::int AS due,
+                    COUNT(i.inspection_id) FILTER (WHERE (${taskWhere.length ? taskWhere.join(" AND ") : "TRUE"}) AND i.status = 'submitted')::int AS completed,
+                    COUNT(i.inspection_id) FILTER (WHERE ${sw.replace(/^WHERE /, "")})::int AS submitted,
+                    COUNT(i.inspection_id) FILTER (WHERE (${sw.replace(/^WHERE /, "")}) AND i.is_late)::int AS late,
+                    AVG(i.score) FILTER (WHERE ${sw.replace(/^WHERE /, "")})::float AS avg_score,
+                    COUNT(i.inspection_id) FILTER (WHERE (${taskWhere.length ? taskWhere.join(" AND ") : "TRUE"}) AND i.status <> 'submitted' AND i.due_at < NOW())::int AS overdue
+               FROM sector_nodes s
+               LEFT JOIN (inspections i JOIN company_licenses l ON l.license_id = i.license_id) ON i.sector_node_id = s.sector_node_id
+              WHERE s.parent_id IS NOT NULL AND s.deleted_at IS NULL AND s.is_active
+              GROUP BY 1, 2, 3 ORDER BY s.name`,
+            rr,
+          )
+        : Promise.resolve(null);
+
+    const [workload, results, previous, weekly, byRegion, teamTasks, teamResults, companies, sectors] = await Promise.all([
       q(
         `SELECT COUNT(*)::int AS due,
                 COUNT(*) FILTER (WHERE i.status = 'submitted')::int AS submitted,
@@ -150,6 +173,7 @@ const getAnalytics = async (req, res) => {
           GROUP BY 1, 2 HAVING AVG(i.score) IS NOT NULL ORDER BY avg_score ASC LIMIT 10`,
         rr,
       ),
+      bySector,
     ]);
 
     // Teams: workload + results side by side
@@ -222,6 +246,7 @@ const getAnalytics = async (req, res) => {
         by_region: byRegion,
         teams,
         lowest_companies: companies,
+        by_sector: sectors,
         answers: { distribution: dist, sections: sectionScores, top_not_met: topNotMet, scanned: rows.length, limited: rows.length >= MAX_ANSWER_SCAN },
       },
     });

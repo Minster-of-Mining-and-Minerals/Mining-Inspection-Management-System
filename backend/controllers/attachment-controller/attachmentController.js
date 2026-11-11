@@ -72,7 +72,10 @@ const deleteAttachment = async (req, res) => {
   try {
     const { attachment_id } = req.params;
 
-    const file = await Attachment.findByPk(attachment_id);
+    // Own uploads only (central users: any)
+    const file = await Attachment.findOne({
+      where: { attachment_id, ...(req.scope?.isCentral ? {} : { uploaded_by: req.user.user_id }) },
+    });
     if (!file) {
       return res.status(404).json({
         success: false,
@@ -109,7 +112,9 @@ const deleteAttachment = async (req, res) => {
 // ================================
 const getAllAttachments = async (req, res) => {
   try {
+    // Own uploads only (central users: all)
     const attachments = await Attachment.findAll({
+      where: req.scope?.isCentral ? {} : { uploaded_by: req.user.user_id },
       order: [["created_at", "DESC"]],
       attributes: [
         "attachment_id",

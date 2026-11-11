@@ -1,5 +1,6 @@
 /** Inspection schedules and their tasks. Mirrors backend controllers/inspection-controllers. */
 import type { FormDefinition, LicenseTypeKey } from "./form";
+import type { LicenseBoundary } from "@/utils/licenseArea";
 
 export type Frequency = "once" | "daily" | "weekly" | "monthly" | "quarterly" | "yearly" | "every_n_days";
 export type ScheduleTarget = "assigned" | "license_type" | "licenses";
@@ -124,7 +125,16 @@ export interface InspectionFile {
 export interface TaskDetail extends TaskListItem {
   files: InspectionFile[];
   answers: Record<string, any>;
-  submit_location: { lat?: number; lng?: number; accuracy?: number; captured_at?: string; error?: string; place?: { label: string; woreda?: string | null; zone?: string | null; region?: string | null } | null } | null;
+  submit_location: {
+    lat?: number;
+    lng?: number;
+    accuracy?: number;
+    captured_at?: string;
+    error?: string;
+    place?: { label: string; woreda?: string | null; zone?: string | null; region?: string | null } | null;
+    /** Where the submission was relative to the license area (when the license has one) */
+    site?: { inside: boolean; distance_m: number } | null;
+  } | null;
   submit_device: Record<string, any> | null;
   submit_ip?: string | null;
   last_saved_by: string | null;
@@ -133,6 +143,15 @@ export interface TaskDetail extends TaskListItem {
   version: { version_id: string; version_number: number; definition: FormDefinition } | null;
   prefill: Record<string, string>;
   can: { fill: boolean; return: boolean; reassign: boolean };
+  /** The license area for the site map */
+  site: {
+    boundary: LicenseBoundary | null;
+    center_lat: number | null;
+    center_lng: number | null;
+    travel_mode: "car" | "plane" | null;
+    airport: string | null;
+    notes: string | null;
+  } | null;
 }
 
 /** returned (sent back for correction) › overdue › in_progress › todo; then submitted */

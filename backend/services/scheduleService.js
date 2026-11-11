@@ -15,12 +15,13 @@ const { localToday, addDays, occurrencesBetween, lastOccurrenceOnOrBefore, dueAt
 
 const CATCH_UP_DAYS = 60;
 
-/** Active licenses a schedule covers: [{ license_id, company_id, license_type, team_id }] */
+/** Active licenses a schedule covers, within the schedule's sector: [{ license_id, company_id, license_type, team_id }] */
 const coveredLicenses = async (schedule, transaction) => {
   const s = schedule.get ? schedule.get({ plain: true }) : schedule;
-  const team = `(SELECT tl.team_id FROM team_licenses tl JOIN teams t ON t.team_id = tl.team_id AND t.is_active
+  const team = `(SELECT tl.team_id FROM team_licenses tl JOIN teams t ON t.team_id = tl.team_id AND t.is_active AND t.sector_node_id = l.sector_node_id
                  WHERE tl.license_id = l.license_id ORDER BY tl.created_at LIMIT 1) AS team_id`;
-  const base = `SELECT l.license_id, l.company_id, l.license_type, ${team} FROM company_licenses l JOIN companies c ON c.company_id = l.company_id AND c.is_active`;
+  const base = `SELECT l.license_id, l.company_id, l.license_type, ${team} FROM company_licenses l
+                JOIN companies c ON c.company_id = l.company_id AND c.is_active AND l.sector_node_id = :sector`;
   let sql;
   if (s.target_type === "licenses" && !s.schedule_id) {
     // not saved yet (preview): the chosen ids
@@ -39,7 +40,7 @@ const coveredLicenses = async (schedule, transaction) => {
                OR (a.target_type = 'license' AND a.license_id = l.license_id)))`;
   }
   return sequelize.query(sql, {
-    replacements: { ids: s.license_ids?.length ? [...new Set(s.license_ids)] : [null], schedule: s.schedule_id ?? null, type: s.license_type ?? null, form: s.form_id },
+    replacements: { sector: s.sector_node_id, ids: s.license_ids?.length ? [...new Set(s.license_ids)] : [null], schedule: s.schedule_id ?? null, type: s.license_type ?? null, form: s.form_id },
     type: QueryTypes.SELECT,
     transaction,
   });
@@ -68,6 +69,7 @@ const generateForSchedule = async (schedule, now = new Date()) => {
     for (const d of dates) {
       const rows = licenses.map((l) => ({
         schedule_id: schedule.schedule_id,
+        sector_node_id: schedule.sector_node_id,
         form_id: schedule.form_id,
         license_id: l.license_id,
         company_id: l.company_id,

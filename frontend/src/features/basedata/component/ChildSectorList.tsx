@@ -127,16 +127,18 @@ export default function ChildSectorList() {
         },
     ];
 
-    // Actions
-    const actions: ActionButton[] = [
-        {
-            label: "New Child Sector",
-            icon: <Plus className="h-4 w-4" />,
-            variant: "default",
-            onClick: () => setModalOpen(true),
-            permissions: ["SECTOR:CREATE"],
-        },
-    ];
+    // Actions: sectors are flat, so new sectors are only added under the top level
+    const actions: ActionButton[] = sector.parent_id
+        ? []
+        : [
+              {
+                  label: "New Sector",
+                  icon: <Plus className="h-4 w-4" />,
+                  variant: "default",
+                  onClick: () => setModalOpen(true),
+                  permissions: ["SECTOR:CREATE"],
+              },
+          ];
 
 
 

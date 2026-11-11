@@ -5,6 +5,7 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class Form extends Model {
     static associate(models) {
+      Form.belongsTo(models.SectorNode, { foreignKey: "sector_node_id", as: "sector" });
       Form.hasMany(models.FormVersion, { foreignKey: "form_id", as: "versions" });
       Form.hasMany(models.FormAssignment, { foreignKey: "form_id", as: "assignments" });
     }
@@ -13,11 +14,13 @@ module.exports = (sequelize, DataTypes) => {
   Form.init(
     {
       form_id: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, primaryKey: true },
-      code: { type: DataTypes.STRING(40), allowNull: true, unique: true },
+      code: { type: DataTypes.STRING(40), allowNull: true },
       name: { type: DataTypes.STRING(200), allowNull: false },
       name_am: { type: DataTypes.STRING(300), allowNull: true },
       description: { type: DataTypes.TEXT, allowNull: true },
       is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
+      // Owning sector (data is isolated per sector)
+      sector_node_id: { type: DataTypes.UUID, allowNull: false },
       created_by: { type: DataTypes.UUID, allowNull: true },
     },
     {

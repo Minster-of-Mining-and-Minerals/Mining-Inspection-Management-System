@@ -7,11 +7,13 @@
 const { v4: uuidv4 } = require("uuid");
 const mom = require("../data/forms/mom-field-monitoring-checklist");
 const { validateDefinition } = require("../utils/formDefinition");
+// Belongs to Ministry of Mines
+const { MOM_SECTOR_ID } = require("../utils/sectorConstants");
 
 module.exports = {
   async up(queryInterface, Sequelize) {
-    const existing = await queryInterface.sequelize.query(`SELECT form_id FROM forms WHERE code = :code`, {
-      replacements: { code: mom.code },
+    const existing = await queryInterface.sequelize.query(`SELECT form_id FROM forms WHERE code = :code AND sector_node_id = :sector`, {
+      replacements: { code: mom.code, sector: MOM_SECTOR_ID },
       type: Sequelize.QueryTypes.SELECT,
     });
     if (existing.length) {
@@ -28,7 +30,7 @@ module.exports = {
     try {
       await queryInterface.bulkInsert(
         "forms",
-        [{ form_id: formId, code: mom.code, name: mom.name, name_am: mom.name_am, description: mom.description, is_active: true, created_at: now, updated_at: now }],
+        [{ form_id: formId, sector_node_id: MOM_SECTOR_ID, code: mom.code, name: mom.name, name_am: mom.name_am, description: mom.description, is_active: true, created_at: now, updated_at: now }],
         { transaction },
       );
       await queryInterface.sequelize.query(

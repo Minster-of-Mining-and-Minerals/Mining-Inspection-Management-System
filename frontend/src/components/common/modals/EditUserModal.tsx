@@ -25,13 +25,16 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useGetRolesQuery } from "@/redux/api/roleApi";
 import { useGetUserByIdQuery, useUpdateUserMutation } from "@/redux/api/userApi";
-import { useGetSectorNodesWithFlatChildrenQuery } from "@/redux/api/sectorNodeApi";
+import { useSession } from "next-auth/react";
+import { useLocale } from "next-intl";
+import { useGetSectorNodesQuery } from "@/redux/api/sectorNodeApi";
 import { UpdateUserPayload } from "@/redux/types/user";
+import { localizedName } from "@/utils/localizedName";
 
 interface EditUserModalProps {
   /** User to edit; the modal is open while this is set. */
   userId: string | null;
-  /** Internal users also have a sector and department. */
+  /** Internal users also have a sector (only central users can move them to another one). */
   userType: "internal" | "external";
   onClose: () => void;
 }
@@ -46,7 +49,6 @@ type FormState = {
   email: string;
   phoneNumber: string;
   sectorId: string;
-  departmentId: string;
   roleIds: string[];
   isActive: boolean;
 };
@@ -58,14 +60,18 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ userId, userType, 
     refetchOnMountOrArgChange: true,
   });
   const { data: roles = [] } = useGetRolesQuery();
-  const { data: sectorData = [] } = useGetSectorNodesWithFlatChildrenQuery(undefined, {
-    skip: userType !== "internal",
-  });
+  const { data: session } = useSession();
+  const isCentral = !!session?.user?.is_central;
+  const locale = useLocale();
+  // Only central users move people between sectors
+  const canChangeSector = isCentral && userType === "internal";
+  const { data: sectorNodes } = useGetSectorNodesQuery({ limit: 100, is_active: true }, { skip: !canChangeSector });
   const [updateUser, { isLoading: saving }] = useUpdateUserMutation();
 
+  // The root ("Central Admin") first, then the sectors
   const sectors = useMemo(
-    () => sectorData.map((item: any) => ({ ...item.sector, children: item.children || [] })),
-    [sectorData]
+    () => [...(sectorNodes?.data ?? [])].sort((a, b) => Number(!!a.parent_id) - Number(!!b.parent_id)),
+    [sectorNodes]
   );
 
   const [initial, setInitial] = useState<FormState | null>(null);
@@ -80,7 +86,6 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ userId, userType, 
       email: u.email ?? "",
       phoneNumber: u.phone_number ?? "",
       sectorId: u.sector_node_id ?? "",
-      departmentId: u.department_id ?? "",
       roleIds: (u.roles ?? []).map((r: any) => r.role_id),
       isActive: Boolean(u.is_active),
     };
@@ -96,9 +101,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ userId, userType, 
     }
   }, [isOpen]);
 
-  const departments = useMemo(
-    () => sectors.find((s: any) => s.sector_node_id === form?.sectorId)?.children ?? [],
-    [sectors, form?.sectorId]
+  // Roles that can be given: global or of the user's sector, and only ones this user may give
+  const assignableRoles = roles.filter(
+    (r) => r.is_active !== false && r.can_assign !== false && (!r.sector_node_id || r.sector_node_id === form?.sectorId),
   );
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
@@ -120,10 +125,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ userId, userType, 
     if (form.email.trim() !== initial.email) data.email = form.email.trim();
     if (form.phoneNumber.trim() !== initial.phoneNumber) data.phone_number = form.phoneNumber.trim();
     if (form.isActive !== initial.isActive) data.is_active = form.isActive;
-    if (userType === "internal") {
-      if (form.sectorId && form.sectorId !== initial.sectorId) data.sector_node_id = form.sectorId;
-      if (form.departmentId && form.departmentId !== initial.departmentId) data.department_id = form.departmentId;
-    }
+    if (canChangeSector && form.sectorId && form.sectorId !== initial.sectorId) data.sector_node_id = form.sectorId;
     const sameRoles =
       form.roleIds.length === initial.roleIds.length &&
       form.roleIds.every((id) => initial.roleIds.includes(id));
@@ -179,42 +181,42 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ userId, userType, 
               <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} className={fieldClass} />
             </div>
 
-            {userType === "internal" && (
-              <>
-                <div className="space-y-2">
-                  <Label className={labelClass}>Sector</Label>
-                  <Select
-                    value={form.sectorId}
-                    onValueChange={(v) => setForm((prev) => (prev ? { ...prev, sectorId: v, departmentId: "" } : prev))}
-                  >
-                    <SelectTrigger className={fieldClass}>
-                      <SelectValue placeholder="Select sector" />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64 bg-white">
-                      {sectors.map((s: any) => (
-                        <SelectItem key={s.sector_node_id} value={s.sector_node_id}>{s.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className={labelClass}>Department</Label>
-                  <Select
-                    value={form.departmentId}
-                    onValueChange={(v) => set("departmentId", v)}
-                    disabled={!form.sectorId || departments.length === 0}
-                  >
-                    <SelectTrigger className={fieldClass}>
-                      <SelectValue placeholder={departments.length ? "Select department" : "No departments"} />
-                    </SelectTrigger>
-                    <SelectContent className="max-h-64 bg-white">
-                      {departments.map((d: any) => (
-                        <SelectItem key={d.sector_node_id} value={d.sector_node_id}>{d.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
+            {canChangeSector && (
+              <div className="space-y-2 md:col-span-2">
+                <Label className={labelClass}>Sector</Label>
+                <Select
+                  value={form.sectorId}
+                  onValueChange={(v) =>
+                    // Roles of the old sector don't apply in the new one
+                    setForm((prev) =>
+                      prev
+                        ? {
+                            ...prev,
+                            sectorId: v,
+                            roleIds: prev.roleIds.filter((id) => {
+                              const r = roles.find((x) => x.role_id === id);
+                              return !r?.sector_node_id || r.sector_node_id === v;
+                            }),
+                          }
+                        : prev
+                    )
+                  }
+                >
+                  <SelectTrigger className={fieldClass}>
+                    <SelectValue placeholder="Select sector" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-64 bg-white">
+                    {sectors.map((s) => (
+                      <SelectItem key={s.sector_node_id} value={s.sector_node_id}>
+                        {s.parent_id ? localizedName(s, locale) : `${localizedName(s, locale)} (central)`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {form.sectorId !== initial?.sectorId && (
+                  <p className="text-xs text-amber-700">Moving a user to another sector: remove them from their team first.</p>
+                )}
+              </div>
             )}
 
             {/* Roles (multi-select) */}
@@ -253,7 +255,7 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({ userId, userType, 
                 </PopoverTrigger>
                 <PopoverContent className="w-[300px] bg-white p-2" align="start">
                   <div className="max-h-64 overflow-y-auto">
-                    {roles.map((r: any) => {
+                    {assignableRoles.map((r) => {
                       const selected = form.roleIds.includes(r.role_id);
                       return (
                         <button

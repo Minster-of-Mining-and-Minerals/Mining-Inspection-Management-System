@@ -72,6 +72,8 @@ const createCompanySchema = Joi.object({
   ...companyFields,
   name: companyFields.name.required(),
   licenses: Joi.array().items(createLicenseSchema).max(50).optional(),
+  // Central users choose the sector; ignored for sector users (services/sectorScope.js)
+  sector_node_id: Joi.string().uuid().optional(),
 });
 
 const updateCompanySchema = Joi.object({ ...companyFields, is_active: Joi.boolean().optional() })

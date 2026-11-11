@@ -120,3 +120,24 @@
   border: 1px solid #f5b5b5;
   font-weight: 500;
 }
+/* License area names on the inspector map (features/my-work/component/LicenseMap.tsx) */
+.leaflet-tooltip.license-area-label {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  color: #073a55;
+  font: 600 11px/1.2 Inter, system-ui, sans-serif;
+  text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff;
+  white-space: nowrap;
+}
+.leaflet-tooltip.license-area-label::before {
+  display: none;
+}
+
+/* Maps: keep Leaflet's own layers (panes 200–700, controls 1000) inside the map, so they never
+   cover the header (z-30), sticky filter bars (z-20), dropdowns or dialogs (z-50). */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}

@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
 const db = require("../models");
 const { loadUserAuthContext } = require("../services/permissionService");
+const { resolveScope } = require("../services/sectorScope");
 
 const authenticateToken = async (req, res, next) => {
   const authHeader = req.headers["authorization"];
@@ -33,9 +34,17 @@ const authenticateToken = async (req, res, next) => {
       user_id: user.user_id,
       email: user.email,
       full_name: user.full_name,
+      sector_node_id: user.sector_node_id,
       permissions: authContext.permissions,
       roles: authContext.roles,
     };
+
+    // Which sector's data this request may see (see services/sectorScope.js)
+    try {
+      req.scope = await resolveScope(user.sector_node_id, req.headers["x-sector-id"]);
+    } catch (error) {
+      return res.status(error.status || 500).json({ success: false, message: error.message });
+    }
 
     next();
   } catch (error) {

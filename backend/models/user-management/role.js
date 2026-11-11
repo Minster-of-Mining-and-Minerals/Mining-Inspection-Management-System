@@ -11,6 +11,9 @@ module.exports = (sequelize, DataTypes) => {
         as: "rolePermissions",
       });
 
+      Role.belongsTo(models.SectorNode, { foreignKey: "sector_node_id", as: "sector" });
+      Role.belongsTo(models.Role, { foreignKey: "copied_from_role_id", as: "copiedFrom" });
+
       Role.belongsToMany(models.User, {
         through: models.UserRoles,
         foreignKey: "role_id",
@@ -27,10 +30,20 @@ module.exports = (sequelize, DataTypes) => {
         defaultValue: DataTypes.UUIDV4,
         primaryKey: true,
       },
+      // Unique among global roles, and within a sector for sector roles (DB indexes)
       name: {
         type: DataTypes.STRING(100),
         allowNull: false,
-        unique: true,
+      },
+      // NULL = global template every sector can use; set = this sector's own role
+      sector_node_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
+      },
+      // The role this one was copied from, if any
+      copied_from_role_id: {
+        type: DataTypes.UUID,
+        allowNull: true,
       },
       description: {
         type: DataTypes.TEXT,

@@ -8,6 +8,7 @@ const { Model } = require("sequelize");
 module.exports = (sequelize, DataTypes) => {
   class InspectionSchedule extends Model {
     static associate(models) {
+      InspectionSchedule.belongsTo(models.SectorNode, { foreignKey: "sector_node_id", as: "sector" });
       InspectionSchedule.belongsTo(models.Form, { foreignKey: "form_id", as: "form" });
       InspectionSchedule.belongsTo(models.User, { foreignKey: "created_by", as: "creator", constraints: false });
       InspectionSchedule.belongsToMany(models.CompanyLicense, {
@@ -41,6 +42,8 @@ module.exports = (sequelize, DataTypes) => {
       status: { type: DataTypes.STRING(10), allowNull: false, defaultValue: "active", validate: { isIn: [InspectionSchedule.STATUSES] } },
       notes: { type: DataTypes.TEXT, allowNull: true },
       last_generated_on: { type: DataTypes.DATEONLY, allowNull: true },
+      // Owning sector (data is isolated per sector)
+      sector_node_id: { type: DataTypes.UUID, allowNull: false },
       created_by: { type: DataTypes.UUID, allowNull: true },
     },
     {

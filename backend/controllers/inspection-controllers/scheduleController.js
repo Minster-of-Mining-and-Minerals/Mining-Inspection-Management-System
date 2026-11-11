@@ -2,6 +2,7 @@ const { QueryTypes } = require("sequelize");
 const { validate: isUuid } = require("uuid");
 const { sequelize, InspectionSchedule, ScheduleLicense, Inspection, Form, FormVersion, CompanyLicense, Company } = require("../../models");
 const { coveredLicenses, generateForSchedule } = require("../../services/scheduleService");
+const { scopeWhere, findInScope } = require("../../services/sectorScope");
 const { localToday, nextOccurrences, dueAtFor, lastOccurrenceOnOrBefore } = require("../../utils/scheduleDates");
 
 const fail = (res, status, message, extra) => res.status(status).json({ success: false, message, ...extra });
@@ -60,21 +61,23 @@ const describe = (s, statsRows = []) => {
   };
 };
 
-const checkForm = async (formId) => {
-  if (!isUuid(formId)) return "Choose a checklist.";
-  const form = await Form.findByPk(formId);
-  if (!form) return "Checklist not found.";
-  if (!form.is_active) return "This checklist is inactive. Activate it first.";
+/** The checklist to schedule, if usable: { form } or { problem }. Only checklists of the request's sector. */
+const checkForm = async (formId, req) => {
+  if (!isUuid(formId)) return { problem: "Choose a checklist." };
+  const form = await findInScope(Form, formId, req);
+  if (!form) return { problem: "Checklist not found." };
+  if (!form.is_active) return { problem: "This checklist is inactive. Activate it first." };
   const published = await FormVersion.count({ where: { form_id: formId, status: "published" } });
-  if (!published) return "Publish the checklist before scheduling it.";
-  return null;
+  if (!published) return { problem: "Publish the checklist before scheduling it." };
+  return { form };
 };
 
-const setLicenses = async (scheduleId, licenseIds, transaction) => {
+const setLicenses = async (scheduleId, sectorId, licenseIds, transaction) => {
   await ScheduleLicense.destroy({ where: { schedule_id: scheduleId }, transaction });
   const ids = [...new Set(licenseIds || [])];
   if (!ids.length) return;
-  const found = await CompanyLicense.count({ where: { license_id: ids }, transaction });
+  // Licenses of the schedule's own sector only
+  const found = await CompanyLicense.count({ where: { license_id: ids, sector_node_id: sectorId }, transaction });
   if (found !== ids.length) throw Object.assign(new Error("Some of the chosen licenses no longer exist."), { status: 400 });
   await ScheduleLicense.bulkCreate(ids.map((license_id) => ({ schedule_id: scheduleId, license_id })), { transaction });
 };
@@ -82,7 +85,7 @@ const setLicenses = async (scheduleId, licenseIds, transaction) => {
 /* =================== list / one =================== */
 const getSchedules = async (req, res) => {
   try {
-    const where = {};
+    const where = { ...scopeWhere(req) };
     if (req.query.form_id && isUuid(req.query.form_id)) where.form_id = req.query.form_id;
     if (req.query.status) where.status = req.query.status;
     const schedules = await InspectionSchedule.findAll({
@@ -108,7 +111,7 @@ const getSchedules = async (req, res) => {
 const getScheduleById = async (req, res) => {
   try {
     if (!isUuid(req.params.id)) return fail(res, 400, "Invalid schedule id.");
-    const s = await InspectionSchedule.findByPk(req.params.id, {
+    const s = await findInScope(InspectionSchedule, req.params.id, req, {
       include: [
         { model: Form, as: "form", attributes: ["form_id", "name", "name_am", "code"] },
         {
@@ -142,9 +145,9 @@ const getScheduleById = async (req, res) => {
 const previewSchedule = async (req, res) => {
   try {
     const s = normalize(req.body);
-    const formProblem = await checkForm(s.form_id);
-    if (formProblem) return fail(res, 400, formProblem);
-    const licenses = await coveredLicenses({ ...s, schedule_id: null });
+    const { form, problem } = await checkForm(s.form_id, req);
+    if (problem) return fail(res, 400, problem);
+    const licenses = await coveredLicenses({ ...s, sector_node_id: form.sector_node_id, schedule_id: null });
     const today = localToday();
     const dates = nextOccurrences(s, lastOccurrenceOnOrBefore(s, today) ?? s.start_date, 5);
     return res.status(200).json({
@@ -166,16 +169,21 @@ const createSchedule = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const s = normalize(req.body);
-    const formProblem = await checkForm(s.form_id);
-    if (formProblem) {
+    const { form, problem } = await checkForm(s.form_id, req);
+    if (problem) {
       await transaction.rollback();
-      return fail(res, 400, formProblem);
+      return fail(res, 400, problem);
     }
     const schedule = await InspectionSchedule.create(
-      { ...Object.fromEntries(SCHEDULE_FIELDS.map((k) => [k, s[k]])), status: "active", created_by: req.user.user_id },
+      {
+        ...Object.fromEntries(SCHEDULE_FIELDS.map((k) => [k, s[k]])),
+        sector_node_id: form.sector_node_id,
+        status: "active",
+        created_by: req.user.user_id,
+      },
       { transaction },
     );
-    if (s.target_type === "licenses") await setLicenses(schedule.schedule_id, s.license_ids, transaction);
+    if (s.target_type === "licenses") await setLicenses(schedule.schedule_id, schedule.sector_node_id, s.license_ids, transaction);
     await transaction.commit();
     const created = await generateForSchedule(schedule);
     return res.status(201).json({ success: true, message: created ? `Schedule saved. ${created} task(s) created for today.` : "Schedule saved.", data: { schedule_id: schedule.schedule_id, tasks_created: created } });
@@ -195,7 +203,7 @@ const updateSchedule = async (req, res) => {
       await transaction.rollback();
       return fail(res, 400, "Invalid schedule id.");
     }
-    const schedule = await InspectionSchedule.findByPk(req.params.id, { transaction });
+    const schedule = await findInScope(InspectionSchedule, req.params.id, req, { transaction });
     if (!schedule) {
       await transaction.rollback();
       return fail(res, 404, "Schedule not found.");
@@ -207,7 +215,9 @@ const updateSchedule = async (req, res) => {
         await transaction.rollback();
         return fail(res, 409, "This schedule already has tasks, so its checklist can't change. End it and create a new schedule.");
       }
-      const formProblem = await checkForm(req.body.form_id);
+      const { form, problem } = await checkForm(req.body.form_id, req);
+      // The schedule stays in its sector
+      const formProblem = problem || (form.sector_node_id !== schedule.sector_node_id ? "Checklist not found." : null);
       if (formProblem) {
         await transaction.rollback();
         return fail(res, 400, formProblem);
@@ -219,7 +229,7 @@ const updateSchedule = async (req, res) => {
       return fail(res, 400, "The end date has passed. Change it before restarting the schedule.");
     }
     await schedule.update(Object.fromEntries(SCHEDULE_FIELDS.map((k) => [k, merged[k]])), { transaction });
-    if (merged.target_type === "licenses" && req.body.license_ids) await setLicenses(schedule.schedule_id, req.body.license_ids, transaction);
+    if (merged.target_type === "licenses" && req.body.license_ids) await setLicenses(schedule.schedule_id, schedule.sector_node_id, req.body.license_ids, transaction);
     if (merged.target_type !== "licenses") await ScheduleLicense.destroy({ where: { schedule_id: schedule.schedule_id }, transaction });
     await transaction.commit();
     const created = await generateForSchedule(schedule);
@@ -240,7 +250,7 @@ const deleteSchedule = async (req, res) => {
       await transaction.rollback();
       return fail(res, 400, "Invalid schedule id.");
     }
-    const schedule = await InspectionSchedule.findByPk(req.params.id, { transaction });
+    const schedule = await findInScope(InspectionSchedule, req.params.id, req, { transaction });
     if (!schedule) {
       await transaction.rollback();
       return fail(res, 404, "Schedule not found.");

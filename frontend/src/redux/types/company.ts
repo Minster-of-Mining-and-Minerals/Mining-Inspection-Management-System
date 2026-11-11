@@ -1,3 +1,4 @@
+import type { LicenseBoundary } from "@/utils/licenseArea";
 import type { AreaRef } from "./adminArea";
 
 export type LicenseType = "exploration" | "mining";
@@ -101,6 +102,40 @@ export interface CompanyListParams {
   is_active?: boolean;
   page?: number;
   limit?: number;
+}
+
+/** Filters of the license map (the company list's filters plus team, RED ZONE and overdue). */
+export interface LicenseMapParams extends Omit<CompanyListParams, "page" | "limit"> {
+  team_id?: string;
+  red_zone?: boolean;
+  overdue?: boolean;
+}
+
+/** A license on the companies map (GET /api/licenses/map). */
+export interface MapLicenseRow {
+  license_id: string;
+  license_number: string;
+  license_type: LicenseType;
+  status: LicenseStatus;
+  /** GeoJSON MultiPolygon in WGS 84; null when the license has no surveyed area */
+  boundary: LicenseBoundary | null;
+  center_lat: number | null;
+  center_lng: number | null;
+  notes: string | null;
+  travel_mode: "car" | "plane" | null;
+  airport: string | null;
+  mineral_text: string | null;
+  minerals: string | null;
+  company_id: string;
+  company_name: string;
+  team_id: string | null;
+  team_name: string | null;
+  region: string | null;
+  woreda: string | null;
+  last_score: number | null;
+  last_inspected_at: string | null;
+  open_tasks: number;
+  overdue_tasks: number;
 }
 
 export interface CompanyPayload {

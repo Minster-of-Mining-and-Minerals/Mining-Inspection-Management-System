@@ -67,7 +67,9 @@ const CustomNode: React.FC<CustomNodeProps> = ({
   onDetails,
   onEdit,
 }) => {
-  const { sector_node_id, name_am, is_active: isActive, child_count = 0, head_name } = nodeDatum.attributes;
+  const { sector_node_id, name_am, is_active: isActive, child_count = 0, head_name, parent_id } = nodeDatum.attributes;
+  // Sectors are flat: new sectors are only added under the top level (the central admin)
+  const canHaveChildren = !parent_id;
   const hasChildren = !!nodeDatum.children?.length;
   const isCollapsed = nodeDatum.__rd3t?.collapsed ?? false;
   const depth = nodeDatum.__rd3t?.depth ?? 0;
@@ -149,15 +151,17 @@ const CustomNode: React.FC<CustomNodeProps> = ({
                 </button>
               </PermissionGuard>
             )}
-            <PermissionGuard requireAll={["SECTOR:CREATE"]}>
-              <button
-                type="button"
-                onClick={run(onAddChild)}
-                className="h-[30px] flex-[1.4] rounded-lg bg-golden-deep text-xs font-semibold text-white hover:bg-golden-deep/90"
-              >
-                + Department
-              </button>
-            </PermissionGuard>
+            {canHaveChildren && (
+              <PermissionGuard requireAll={["SECTOR:CREATE"]}>
+                <button
+                  type="button"
+                  onClick={run(onAddChild)}
+                  className="h-[30px] flex-[1.4] rounded-lg bg-golden-deep text-xs font-semibold text-white hover:bg-golden-deep/90"
+                >
+                  + Sector
+                </button>
+              </PermissionGuard>
+            )}
           </div>
         </div>
       </foreignObject>
