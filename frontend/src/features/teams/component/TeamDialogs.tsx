@@ -115,14 +115,14 @@ export function AddMemberDialog({
   onCreateNew?: () => void;
 }) {
   const [user, setUser] = useState<SelectOption | null>(null);
-  const [role, setRole] = useState<TeamRole>("member");
+  const [role, setRole] = useState<TeamRole>("leader");
   const { data: users = [], isLoading: usersLoading } = useGetAssignableUsersQuery(undefined, { skip: !open });
   const [addMember, { isLoading }] = useAddTeamMemberMutation();
 
   useEffect(() => {
     if (!open) return;
     setUser(null);
-    setRole("member");
+    setRole("leader");
   }, [open]);
 
   // A person can be in one team only: those already in a team are listed separately

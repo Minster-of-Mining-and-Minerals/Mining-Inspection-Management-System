@@ -10,7 +10,8 @@ import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TaskListParams, useGetTasksQuery } from "@/redux/api/inspectionApi";
+import { TaskListParams, TeamProgress, useGetTasksQuery, useGetTeamProgressQuery } from "@/redux/api/inspectionApi";
+import type { TaskListItem } from "@/redux/types/inspection";
 import { useGetSubmissionMapOptionsQuery } from "@/redux/api/dashboardApi";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge, dueText, scoreText, scoreTone } from "./taskUi";
@@ -19,6 +20,8 @@ import { SectorFilter } from "@/components/common/SectorFilter";
 const STATUSES: [NonNullable<TaskListParams["status"]> | "", string][] = [
   ["", "All"],
   ["open", "Not submitted"],
+  ["todo", "Not started"],
+  ["in_progress", "In progress"],
   ["overdue", "Overdue"],
   ["submitted", "Submitted"],
   ["on_time", "On time"],
@@ -56,6 +59,9 @@ export default function AllInspections() {
   }, [search]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const { data, isFetching, isError } = useGetTasksQuery({ ...(filters as TaskListParams), page, limit: 50 });
+  // Every team's progress under the same filters (not team or status)
+  const progressFilters = Object.fromEntries(Object.entries(filters).filter(([k]) => k !== "team_id" && k !== "status")) as Omit<TaskListParams, "team_id" | "status">;
+  const { data: teams } = useGetTeamProgressQuery(progressFilters);
   const meta = data?.meta;
   const filterCount = KEYS.filter((k) => k !== "status" && k !== "search" && k !== "date_field" && k !== "sort" && filters[k]).length;
 
@@ -137,8 +143,21 @@ export default function AllInspections() {
         )}
       </div>
 
+      {teams && teams.length > 0 && (
+        <TeamProgressStrip
+          teams={teams}
+          teamId={filters.team_id}
+          noTeam={filters.status === "no_team"}
+          onPick={(t) =>
+            !t.team_id
+              ? setParam({ team_id: undefined, status: filters.status === "no_team" ? undefined : "no_team" })
+              : setParam({ team_id: filters.team_id === t.team_id ? undefined : t.team_id, ...(filters.status === "no_team" ? { status: undefined } : {}) })
+          }
+        />
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[920px] text-sm">
+        <table className="w-full min-w-[1020px] text-sm">
           <thead className="bg-slate-50 text-left text-xs text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Company / license</th>
@@ -146,6 +165,7 @@ export default function AllInspections() {
               <th className="px-3 py-2 font-medium">Team</th>
               <th className="px-3 py-2 font-medium">Round · due</th>
               <th className="px-3 py-2 font-medium">Status</th>
+              <th className="px-3 py-2 font-medium">Progress</th>
               <th className="px-3 py-2 font-medium">Submitted</th>
               <th className="px-4 py-2 text-right font-medium">Score</th>
             </tr>
@@ -172,6 +192,9 @@ export default function AllInspections() {
                 </td>
                 <td className="px-3 py-2">
                   <TaskStatusBadge task={t} />
+                </td>
+                <td className="px-3 py-2">
+                  <TaskProgress task={t} />
                 </td>
                 <td className="px-3 py-2 text-xs text-slate-600">
                   {t.submitted_at ? (
@@ -208,5 +231,62 @@ export default function AllInspections() {
         </div>
       )}
     </div>
+  );
+}
+
+/** How much of a task is answered: a bar and "12 / 40" while open. */
+function TaskProgress({ task: t }: { task: TaskListItem }) {
+  if (t.status === "submitted") return <span className="text-xs font-medium text-green-700">Complete</span>;
+  if (t.status === "todo" || !t.progress) return <span className="text-xs text-slate-400">Not started</span>;
+  const { answered, total } = t.progress;
+  const pct = total ? Math.round((answered / total) * 100) : 0;
+  return (
+    <div className="w-28" title={`${answered} of ${total} questions answered`}>
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+        <div className="h-full rounded-full bg-amber-500" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="text-xs tabular-nums text-slate-600">
+        {answered} / {total} · {pct}%
+      </span>
+    </div>
+  );
+}
+
+/** One card per team: submitted of all its tasks, with in progress / not started / overdue. A tap filters the list to it. */
+function TeamProgressStrip({ teams, teamId, noTeam, onPick }: { teams: TeamProgress[]; teamId?: string; noTeam: boolean; onPick: (t: TeamProgress) => void }) {
+  return (
+    <section aria-label="Progress by team" className="space-y-1.5">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Progress by team</h2>
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {teams.map((t) => {
+          const on = t.team_id ? teamId === t.team_id : noTeam;
+          const pct = (n: number) => `${t.total ? (n / t.total) * 100 : 0}%`;
+          return (
+            <button
+              key={t.team_id ?? "none"}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onPick(t)}
+              className={`w-48 shrink-0 space-y-1.5 rounded-xl border bg-white p-3 text-left transition-colors ${on ? "border-primary ring-2 ring-primary/20" : "border-slate-200 hover:border-primary"}`}
+            >
+              <span className="flex items-baseline justify-between gap-2">
+                <span className={`truncate text-sm font-semibold ${t.team_id ? "text-slate-900" : "text-amber-700"}`}>{t.name}</span>
+                <span className="shrink-0 text-xs tabular-nums text-slate-500">
+                  {t.submitted}/{t.total}
+                </span>
+              </span>
+              <span className="flex h-1.5 overflow-hidden rounded-full bg-slate-200" aria-hidden="true">
+                <span className="h-full bg-primary" style={{ width: pct(t.submitted) }} />
+                <span className="h-full bg-amber-500" style={{ width: pct(t.in_progress) }} />
+              </span>
+              <span className="block text-[11px] leading-snug text-slate-500">
+                {t.submitted} submitted · {t.in_progress} in progress · {t.todo} not started
+                {t.overdue > 0 && <span className="font-semibold text-red-600"> · {t.overdue} overdue</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </section>
   );
 }

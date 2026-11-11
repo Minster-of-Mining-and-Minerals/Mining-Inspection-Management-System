@@ -195,7 +195,7 @@ const createUser = async (req, res) => {
       await addUserToTeam({
         teamId: req.body.team_id,
         userId: user.user_id,
-        role: req.body.team_role || "member",
+        role: req.body.team_role || "leader",
         createdBy: req.user?.user_id || null,
         transaction: t,
       });

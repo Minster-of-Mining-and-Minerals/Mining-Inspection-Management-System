@@ -17,6 +17,7 @@ import { useGetAdminAreasQuery } from "@/redux/api/adminAreaApi";
 import { useGetTeamsQuery } from "@/redux/api/teamApi";
 import type { LicenseMapParams, MapLicenseRow } from "@/redux/types/company";
 import { formatCalendarDate } from "@/utils/date";
+import { MapMaximizeButton, useMapMaximize } from "@/components/common/MapMaximize";
 
 const LicenseMap = dynamic(() => import("@/features/my-work/component/LicenseMap"), {
   ssr: false,
@@ -51,6 +52,7 @@ interface CompanyGroup {
 /** Filters shared with the table (owned by CompaniesList) */
 export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, "team_id" | "red_zone" | "overdue">; regionId: string | undefined }) {
   const [zoneId, setZoneId] = useState("");
+  const max = useMapMaximize();
   const [teamId, setTeamId] = useState("");
   const [redZone, setRedZone] = useState(false);
   const [overdue, setOverdue] = useState(false);
@@ -310,7 +312,7 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
           </aside>
 
           {/* Map */}
-          <div className="relative isolate h-[60vh] min-h-[420px] flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100 supports-[height:100dvh]:h-[60dvh] lg:h-auto lg:flex-1">
+          <div className={`relative isolate h-[60vh] min-h-[420px] flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100 supports-[height:100dvh]:h-[60dvh] lg:h-auto lg:flex-1 ${max.frameClass}`}>
             <LicenseMap
               className="absolute inset-0"
               ariaLabel={company && focused ? `Map zoomed to ${company.name}` : `Map of ${mapLicenses.length} license areas, coloured by ${colourBy === "team" ? "team" : "last inspection score"}`}
@@ -321,6 +323,7 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
               focusIds={focusIds}
               fit="all"
             />
+            <MapMaximizeButton {...max} className="absolute right-3 top-[86px] z-10" />
             <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
               <div className="flex items-center gap-2 rounded-lg bg-white/95 py-1.5 pl-3 pr-1.5 shadow-md">
                 <span className="text-xs font-semibold text-slate-500">Colour by</span>

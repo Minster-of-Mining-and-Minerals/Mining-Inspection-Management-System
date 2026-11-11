@@ -81,12 +81,14 @@ const uploadFile = async (req, res) => {
       : await FormVersion.findOne({ where: { form_id: task.form_id, status: "published" } });
     if (!version) return cleanup(file), fail(res, 409, "The checklist has no published version.");
     const field = findField(version.definition, String(req.body.field_key || ""));
-    if (!field || !["photo", "status", "signature"].includes(field.type) || (field.type === "status" && field.evidence === "none"))
+    // A table with a signature column takes signatures too
+    const signs = field?.type === "signature" || (field?.type === "table" && (field.columns || []).some((c) => c.type === "signature"));
+    if (!field || !(signs || ["photo", "status"].includes(field.type)) || (field.type === "status" && field.evidence === "none"))
       return cleanup(file), fail(res, 400, "This question doesn't take files.");
 
     const name = String(file.originalname || "file").slice(0, 255);
     let kind = kindOf(file.mimetype, name);
-    if (field.type === "signature") {
+    if (signs) {
       if (kind !== "image" || file.size > 2 * MB) return cleanup(file), fail(res, 400, "A signature must be an image under 2 MB.");
       kind = "signature";
     } else {
@@ -225,6 +227,18 @@ const sanitizeFileRefs = async (inspectionId, definition, answers, transaction) 
       else if (f.type === "signature") {
         const list = (Array.isArray(a) ? a : [a]).filter((x) => x && mine(f.key)(x.file_id)).map((x) => ({ file_id: x.file_id, name: String(x.name ?? "").slice(0, 200) }));
         out[f.key] = f.multiple ? list : list[0] ?? null;
+      } else if (f.type === "table" && Array.isArray(a?.rows)) {
+        // Signature cells: only this question's own files
+        const signCols = (f.columns || []).filter((c) => c.type === "signature").map((c) => c.key);
+        if (signCols.length)
+          out[f.key] = {
+            ...a,
+            rows: a.rows.map((r) => {
+              const cells = { ...(r?.cells || {}) };
+              for (const k of signCols) if (cells[k] && !mine(f.key)(cells[k])) delete cells[k];
+              return { ...r, cells };
+            }),
+          };
       }
     }
   return out;
@@ -238,6 +252,8 @@ const removeUnusedFiles = async (inspection) => {
     else if (a && typeof a === "object") {
       if (Array.isArray(a.files)) a.files.forEach((x) => used.add(x));
       if (a.file_id) used.add(a.file_id);
+      // Table cells (signature columns hold file ids)
+      if (Array.isArray(a.rows)) a.rows.forEach((r) => Object.values(r?.cells || {}).forEach((v) => typeof v === "string" && used.add(v)));
     }
   }
   const files = await InspectionFile.scope("withStorage").findAll({ where: { inspection_id: inspection.inspection_id } });

@@ -23,6 +23,17 @@ export interface TaskListParams {
   limit?: number;
 }
 
+/** Tasks of one team (or no team) matching the list's other filters */
+export interface TeamProgress {
+  team_id: string | null;
+  name: string;
+  total: number;
+  todo: number;
+  in_progress: number;
+  submitted: number;
+  overdue: number;
+}
+
 /** Inspection schedules (admin) and their tasks (teams fill them). */
 export const inspectionApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
@@ -58,6 +69,11 @@ export const inspectionApi = baseApi.injectEndpoints({
     getTasks: builder.query<{ data: TaskListItem[]; meta: PaginationMeta }, TaskListParams>({
       query: (params) => ({ url: "/inspections", params }),
       transformResponse: (response: any) => ({ data: response.data ?? [], meta: response.meta }),
+      providesTags: ["Inspection"],
+    }),
+    getTeamProgress: builder.query<TeamProgress[], Omit<TaskListParams, "team_id" | "status" | "page" | "limit">>({
+      query: (params) => ({ url: "/inspections/team-progress", params }),
+      transformResponse: (response: { data?: TeamProgress[] }): TeamProgress[] => response.data ?? [],
       providesTags: ["Inspection"],
     }),
     getMyTasks: builder.query<MyTasks, void>({
@@ -107,6 +123,7 @@ export const {
   useUpdateScheduleMutation,
   useDeleteScheduleMutation,
   useGetTasksQuery,
+  useGetTeamProgressQuery,
   useGetMyTasksQuery,
   useGetLicenseHistoryQuery,
   useGetTaskQuery,

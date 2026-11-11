@@ -15,14 +15,19 @@
  *     number is not used (reported).
  *   - Someone who answered more than once: the latest answer is used.
  *   - An email already used by another account is not used (reported).
+ *   - createMissing: someone in the sheet with no account gets one (inspector role, no team, temporary
+ *     password "password" to change at the first login). Several answers with the same email are one
+ *     person (the fullest name, the latest phone).
  *   - All or nothing: one transaction.
  */
 const path = require("path");
+const bcrypt = require("bcrypt");
+const { v4: uuidv4 } = require("uuid");
 const ExcelJS = require("exceljs");
 const { Op } = require("sequelize");
 const db = require("../models");
 const { sameStartOfName } = require("./personMatchService");
-const { writeReport } = require("./licenseImportService");
+const { writeReport, DEV_PASSWORD } = require("./licenseImportService");
 const { MOM_SECTOR_ID } = require("../utils/sectorConstants");
 
 const DEFAULT_REPORT_DIR = path.join(__dirname, "..", "reports");
@@ -69,14 +74,15 @@ async function readContacts(file) {
 /**
  * @param {{ file: string, sectorId?: string, dryRun?: boolean, onlyUserIds?: string[]|null,
  *           reportDir?: string|null, transaction?: object }} options
- *   onlyUserIds: change only these accounts (the seeder: the inspectors it just created)
+ *   onlyUserIds: change only these accounts (the seeder: accounts still on their temporary password)
+ *   createMissing: create an account for each person in the sheet who has none
  * @returns {Promise<{ stats: object, report: object[], reportFile: string|null }>}
  */
-async function applyTeamContacts({ file, sectorId = MOM_SECTOR_ID, dryRun = false, onlyUserIds = null, reportDir = DEFAULT_REPORT_DIR, transaction = null }) {
+async function applyTeamContacts({ file, sectorId = MOM_SECTOR_ID, dryRun = false, onlyUserIds = null, createMissing = false, reportDir = DEFAULT_REPORT_DIR, transaction = null }) {
   const responses = await readContacts(file);
   const report = [];
   const note = (row, name, issue, detail) => report.push({ row, company: name, license: "", issue, detail });
-  const stats = { responses: responses.length, matched: 0, emails: 0, phones: 0, unchanged: 0 };
+  const stats = { responses: responses.length, matched: 0, emails: 0, phones: 0, unchanged: 0, created: 0 };
 
   const t = transaction ?? (await db.sequelize.transaction());
   try {
@@ -84,9 +90,14 @@ async function applyTeamContacts({ file, sectorId = MOM_SECTOR_ID, dryRun = fals
 
     // Match every response; keep the latest answer per account
     const latest = new Map(); // user_id -> { user, response, others[] }
+    const unmatched = []; // responses with no account at all
     for (const res of responses) {
       const exact = users.filter((u) => u.full_name.toLowerCase().replace(/\s+/g, " ") === res.name.toLowerCase());
       const candidates = exact.length ? exact : users.filter((u) => sameStartOfName(res.name, u.full_name));
+      if (!candidates.length && createMissing) {
+        unmatched.push(res);
+        continue;
+      }
       if (candidates.length !== 1) {
         note(res.row, res.name, candidates.length ? "Several possible accounts" : "No matching account", candidates.length ? candidates.map((u) => u.full_name).join(", ") : "Create the account on the Users page, or correct the name.");
         continue;
@@ -131,6 +142,43 @@ async function applyTeamContacts({ file, sectorId = MOM_SECTOR_ID, dryRun = fals
         [changes.email && `email ${user.email} → ${changes.email}`, changes.phone_number && `phone ${user.phone_number ?? "—"} → ${changes.phone_number}`].filter(Boolean).join("; "),
       );
       await user.update(changes, { transaction: t });
+    }
+
+    // People in the sheet with no account: create one (one per email)
+    if (unmatched.length) {
+      const matchedEmails = new Set([...latest.values()].map((x) => x.response.email));
+      const byEmail = new Map();
+      for (const res of unmatched) {
+        if (matchedEmails.has(res.email)) continue; // the same person answered under a name that matched
+        if (!EMAIL.test(res.email)) {
+          note(res.row, res.name, "Email not valid", `"${res.email}" — no account created; create it on the Users page.`);
+          continue;
+        }
+        byEmail.set(res.email, [...(byEmail.get(res.email) ?? []), res]);
+      }
+      const role = byEmail.size ? await db.Role.findOne({ where: { name: "inspector", sector_node_id: null, is_active: true }, transaction: t }) : null;
+      const internal = byEmail.size ? await db.UserType.findOne({ where: { name: "internal" }, transaction: t }) : null;
+      const passwordHash = byEmail.size ? await bcrypt.hash(DEV_PASSWORD, 10) : null;
+      for (const [email, answers] of byEmail) {
+        const fullest = [...answers].sort((a, b) => b.name.split(" ").length - a.name.split(" ").length)[0];
+        const newest = [...answers].sort((a, b) => (a.when < b.when ? 1 : -1))[0];
+        const taken = await db.User.findOne({ where: { email: { [Op.iLike]: email } }, attributes: ["full_name", "sector_node_id"], transaction: t });
+        // Their account already exists under a name that doesn't match this answer ("Birtukan"): nothing to do
+        if (taken?.sector_node_id === sectorId) continue;
+        if (taken) {
+          note(fullest.row, fullest.name, "Email used by another account", `${email} belongs to ${taken.full_name}; no account created.`);
+          continue;
+        }
+        if (!role || !internal) throw new Error("The inspector role or internal user type is missing: run the seeders.");
+        const phone = ethiopianMobile(newest.phone);
+        const user = await db.User.create(
+          { user_id: uuidv4(), full_name: fullest.name, email, phone_number: phone, password: passwordHash, user_type_id: internal.user_type_id, sector_node_id: sectorId, is_first_logged_in: true, is_active: true },
+          { transaction: t },
+        );
+        await db.UserRoles.create({ user_role_id: uuidv4(), user_id: user.user_id, role_id: role.role_id, is_active: true, assigned_at: new Date() }, { transaction: t });
+        stats.created++;
+        note(fullest.row, fullest.name, "Account created", `${email}${phone ? `, ${phone}` : ""}; inspector, no team yet (choose it on the Users page); temporary password "${DEV_PASSWORD}", to change at the first login.`);
+      }
     }
 
     // Team members the sheet doesn't mention (not when limited to some accounts)
@@ -188,6 +236,7 @@ const summarizeContacts =({ stats, report, reportFile }, { dryRun = false } = {}
     `  Emails changed:      ${stats.emails}`,
     `  Phones changed:      ${stats.phones}`,
     `  Already up to date:  ${stats.unchanged}`,
+    ...(stats.created ? [`  Accounts created:    ${stats.created}  (inspector, no team; temporary password "${DEV_PASSWORD}")`] : []),
     ...(reportFile ? [`  Report: ${reportFile}  ${JSON.stringify(byIssue)}`] : []),
   ].join("\n");
 };

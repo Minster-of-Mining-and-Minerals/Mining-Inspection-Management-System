@@ -381,7 +381,7 @@ async function updateFromLicenseList({ listFile, coordsFile = null, contactsFile
           note("", "", "", "Joined a team", `${user.full_name} → ${team.name}`);
         }
         try {
-          await addUserToTeam({ teamId: team.team_id, userId: user.user_id, role: "member", transaction: t });
+          await addUserToTeam({ teamId: team.team_id, userId: user.user_id, role: "leader", transaction: t });
         } catch (error) {
           if (!error.status) throw error;
           note("", "", "", "Could not join the team", `${user.full_name} → ${team.name}: ${error.message}`);

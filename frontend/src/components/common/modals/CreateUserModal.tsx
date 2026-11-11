@@ -53,7 +53,7 @@ export const CreateUserModal: React.FC<CreateUserModalProps> = ({
   const { check } = usePermissions();
   const canAssignTeam = check({ allPermissions: ["TEAMS:MANAGE_MEMBERS"] });
   const [teamId, setTeamId] = useState(presetTeamId || NO_TEAM);
-  const [teamLeader, setTeamLeader] = useState(false);
+  const [teamLeader, setTeamLeader] = useState(true);
   const { data: teamsResponse } = useGetTeamsQuery({ is_active: true, limit: 100 }, { skip: !isOpen || !canAssignTeam });
   const allTeams = teamsResponse?.data ?? [];
   const hasTeam = teamId !== NO_TEAM;

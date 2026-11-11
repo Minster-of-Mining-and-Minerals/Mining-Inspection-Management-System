@@ -111,6 +111,7 @@ const readAny = authorizeAny([
   ["inspections", "read_own"],
 ]);
 inspectionRouter.get("/", readAny, inspections.getInspections);
+inspectionRouter.get("/team-progress", readAny, inspections.getTeamProgress);
 inspectionRouter.get("/my", authorizeAny([["inspections", "read_own"], ["inspections", "conduct"]]), inspections.getMyTasks);
 inspectionRouter.get("/my/stats", authenticateToken, getMyStats);
 inspectionRouter.get("/license/:licenseId", readAny, inspections.getLicenseHistory);

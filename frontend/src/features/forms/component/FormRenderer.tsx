@@ -4,8 +4,8 @@ import { Camera, PenLine, Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { FormDefinition, FormField, FormSection, LicenseTypeKey, StatusOption } from "@/redux/types/form";
-import { Answers, StatusAnswer, TableAnswer, maxScoreOf, statusOptionsFor, visibleStructure } from "./formLogic";
-import { FileAnswer, SignatureAnswerInput } from "./FormFiles";
+import { Answers, StatusAnswer, TableAnswer, defaultTableRows, maxScoreOf, newRowLabel, statusOptionsFor, visibleStructure } from "./formLogic";
+import { FileAnswer, SignatureAnswerInput, SignatureCell } from "./FormFiles";
 
 export type FormLanguage = "am" | "en";
 
@@ -208,7 +208,7 @@ function FieldInput({
       const extra = a.value ? (
         <div className="space-y-3">
           <div className="space-y-1">
-            <FieldLabel required am={am} htmlFor={`note-${f.key}`}>
+            <FieldLabel required={f.required} am={am} htmlFor={`note-${f.key}`}>
               {am ? "ማስረጃ / ምልከታ" : "Evidence / observation"}
             </FieldLabel>
             <textarea
@@ -222,7 +222,7 @@ function FieldInput({
           </div>
           {chosen?.action === "required" && (
             <div className="space-y-1">
-              <FieldLabel required am={am} htmlFor={`action-${f.key}`}>
+              <FieldLabel required={f.required} am={am} htmlFor={`action-${f.key}`}>
                 {am ? "የሚያስፈልግ እርምጃ" : "Action needed"}
               </FieldLabel>
               <textarea
@@ -339,19 +339,37 @@ function FieldInput({
 
 function TableInput({ field: f, value, onChange, language }: { field: FormField; value: any; onChange: (v: any) => void; language: FormLanguage }) {
   const columns = f.columns || [];
-  const fixed = f.rows || [];
+  // A first column with the row names (contract years, "Team member 1", "Company lead" …)
+  const hasLabels = (f.rows?.length ?? 0) > 0 || !!f.team_rows;
   const current = ((value || {}) as TableAnswer).rows;
-  const rows: TableAnswer["rows"] =
-    current && current.length ? current : fixed.map((r) => ({ label: language === "en" ? r.label : r.label_am || r.label, cells: {} as Record<string, string> }));
+  const rows: TableAnswer["rows"] = current && current.length ? current : defaultTableRows(f, language);
   const set = (next: TableAnswer["rows"]) => onChange({ rows: next });
   const setCell = (i: number, key: string, v: string) => set(rows.map((r, j) => (j === i ? { ...r, cells: { ...r.cells, [key]: v } } : r)));
+  // Signing a row fills in its date (today) when it has none
+  const dateCol = columns.find((c) => c.type === "date")?.key;
+  const today = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  };
+  const setSignature = (i: number, key: string, fileId: string | undefined) =>
+    set(
+      rows.map((r, j) => {
+        if (j !== i) return r;
+        const cells: Record<string, string> = { ...r.cells };
+        if (fileId) cells[key] = fileId;
+        else delete cells[key];
+        if (fileId && dateCol && !cells[dateCol]) cells[dateCol] = today();
+        return { ...r, cells };
+      }),
+    );
+  const header = f.row_header ? (language === "en" ? f.row_header : f.row_header_am || f.row_header) : "";
 
   return (
     <div className="space-y-2 overflow-x-auto">
       <table className="w-full min-w-[640px] border-collapse text-sm">
         <thead>
           <tr className="bg-slate-50 text-left text-xs text-slate-600">
-            {fixed.length > 0 && <th className="w-24 border px-2 py-1.5 font-medium" />}
+            {hasLabels && <th className={`border px-2 py-1.5 font-medium ${f.team_rows ? "w-56" : "w-24"}`}>{header}</th>}
             {columns.map((c) => (
               <th key={c.key} className="border px-2 py-1.5 font-medium">
                 <span lang="am">{language === "en" ? c.label : c.label_am || c.label}</span>
@@ -363,14 +381,16 @@ function TableInput({ field: f, value, onChange, language }: { field: FormField;
         <tbody>
           {rows.map((r, i) => (
             <tr key={i}>
-              {fixed.length > 0 && (
+              {hasLabels && (
                 <td className="border px-2 py-1 text-xs text-slate-600">
                   <Input className="h-8 border-0 px-1 shadow-none" value={r.label ?? ""} onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
                 </td>
               )}
               {columns.map((c) => (
                 <td key={c.key} className="border p-1">
-                  {c.type === "select" ? (
+                  {c.type === "signature" ? (
+                    <SignatureCell fieldKey={f.key} value={r.cells[c.key] || undefined} onChange={(id) => setSignature(i, c.key, id)} signer={r.cells.full_name || r.label} />
+                  ) : c.type === "select" ? (
                     <select className="h-8 w-full rounded border-0 bg-transparent text-sm" value={r.cells[c.key] ?? ""} onChange={(e) => setCell(i, c.key, e.target.value)}>
                       <option value="" />
                       {(c.options || []).map((o) => (
@@ -401,8 +421,8 @@ function TableInput({ field: f, value, onChange, language }: { field: FormField;
         </tbody>
       </table>
       {f.allow_add_rows && (
-        <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => set([...rows, { label: "", cells: {} }])}>
-          <Plus className="h-3.5 w-3.5" /> Add row
+        <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => set([...rows, { label: newRowLabel(f, rows, language), cells: {} }])}>
+          <Plus className="h-3.5 w-3.5" /> {f.new_row_label ? `Add ${language === "en" ? f.new_row_label.toLowerCase() : f.new_row_label_am || f.new_row_label.toLowerCase()}` : "Add row"}
         </Button>
       )}
     </div>

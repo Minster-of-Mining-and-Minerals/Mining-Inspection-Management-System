@@ -38,7 +38,11 @@ const uploadWithProgress = async (url: string, form: FormData, onProgress?: (f: 
 
 /** Files of one inspection, for FormFilesContext. */
 export function useInspectionFiles(inspectionId: string, initial: InspectionFile[], readOnly: boolean): FormFilesApi {
-  const [files, setFiles] = useState<Record<string, FormFileMeta>>(() => Object.fromEntries(initial.map((f) => [f.file_id, f])));
+  const [own, setFiles] = useState<Record<string, FormFileMeta>>(() => Object.fromEntries(initial.map((f) => [f.file_id, f])));
+  // Watching (read-only): the files the server lists now, so the team's new uploads appear live
+  const listed = useMemo(() => Object.fromEntries(initial.map((f) => [f.file_id, f as FormFileMeta])), [initial]);
+  const files = readOnly ? listed : own;
+  const fileIds = Object.keys(files).sort().join(",");
   const [links, setLinks] = useState<Record<string, string>>({});
   const api = resolveApiBaseUrl();
 
@@ -54,11 +58,11 @@ export function useInspectionFiles(inspectionId: string, initial: InspectionFile
   }, [api, inspectionId]);
 
   useEffect(() => {
-    if (!Object.keys(files).length) return;
+    if (!fileIds) return;
     refreshLinks();
     const t = setInterval(refreshLinks, LINK_REFRESH_MS);
     return () => clearInterval(t);
-  }, [refreshLinks]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refreshLinks, readOnly ? fileIds : ""]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return useMemo<FormFilesApi>(
     () => ({

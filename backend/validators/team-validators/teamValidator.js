@@ -27,7 +27,7 @@ const updateTeamSchema = Joi.object({ ...teamFields, is_active: Joi.boolean() })
 // Members are always user accounts
 const addMemberSchema = Joi.object({
   user_id: Joi.string().guid().required().messages({ "any.required": "Choose a person.", "string.guid": "Choose a person." }),
-  role: Joi.string().valid("leader", "member").default("member"),
+  role: Joi.string().valid("leader", "member").default("leader"),
   joined_on: date,
 });
 

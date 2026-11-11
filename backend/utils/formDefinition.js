@@ -28,9 +28,13 @@
  *   date
  *   select      options: [{ value, label, label_am? }]
  *   checkboxes  options: [{ value, label, label_am? }]
- *   table       columns: [{ key, label, label_am?, type: "text" | "number" | "date" | "select", options? }],
+ *   table       columns: [{ key, label, label_am?, type: "text" | "number" | "date" | "select" | "signature", options? }],
  *               rows?: [{ label, label_am? }]  (fixed first column, e.g. contract years),
- *               allow_add_rows?: boolean
+ *               allow_add_rows?: boolean, row_header?/row_header_am? (title of the first column),
+ *               new_row_label?/new_row_label_am? (first column of an added row, numbered: "Interviewed person 2"),
+ *               team_rows?: { label, label_am?, min?, max? }  rows first, one per member of the inspection's
+ *                 team (numbered, their name in a "full_name" column), at least min, at most max
+ *               A signature cell holds the file id of the signature image.
  *   photo       accept?: ["image" | "document" | "video"] (default image), max_files?, max_size_mb? (per file, 1–MAX_FILE_MB)
  *   signature   multiple?: boolean, with_name?: boolean
  */
@@ -101,7 +105,7 @@ const fieldSchema = Joi.object({
           key: KEY,
           label: text(300).required(),
           label_am: text(300).allow("", null),
-          type: Joi.string().valid("text", "number", "date", "select").default("text"),
+          type: Joi.string().valid("text", "number", "date", "select", "signature").default("text"),
           options: Joi.when("type", { is: "select", then: optionList.required(), otherwise: Joi.forbidden() }),
         }),
       )
@@ -115,6 +119,15 @@ const fieldSchema = Joi.object({
     otherwise: Joi.forbidden(),
   }),
   allow_add_rows: Joi.when("type", { is: "table", then: Joi.boolean().default(true), otherwise: Joi.forbidden() }),
+  row_header: Joi.when("type", { is: "table", then: text(100).allow("", null), otherwise: Joi.forbidden() }),
+  row_header_am: Joi.when("type", { is: "table", then: text(100).allow("", null), otherwise: Joi.forbidden() }),
+  new_row_label: Joi.when("type", { is: "table", then: text(100).allow("", null), otherwise: Joi.forbidden() }),
+  new_row_label_am: Joi.when("type", { is: "table", then: text(100).allow("", null), otherwise: Joi.forbidden() }),
+  team_rows: Joi.when("type", {
+    is: "table",
+    then: Joi.object({ label: text(100).required(), label_am: text(100).allow("", null), min: Joi.number().integer().min(0).max(20).default(0), max: Joi.number().integer().min(1).max(20) }),
+    otherwise: Joi.forbidden(),
+  }),
   // Files: a photo / file question, or the evidence of a status question
   accept: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.array().items(Joi.string().valid(...FILE_KINDS)).min(1).unique().default(["image"]), otherwise: Joi.forbidden() }),
   max_files: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.number().integer().min(1).max(30).default(10), otherwise: Joi.forbidden() }),

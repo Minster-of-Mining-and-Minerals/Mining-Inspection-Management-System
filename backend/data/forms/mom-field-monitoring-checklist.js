@@ -9,10 +9,13 @@
  *   - Section 4.1 (contract work plan) only appears for exploration licenses, as the paper says.
  *   - Section 3, row 3 asks for a description, so it is a long-text question, not a status.
  *   - Company and site details are pre-filled from the license and can be corrected.
+ *   - No question is required: the inspector is shown what is not filled in before submitting.
+ *   - Section 16 (signatures) is one table: Role type | Full name | Signature | Date, with a row per
+ *     team member, the company lead, and the people interviewed (rows can be added).
  */
 const { DEFAULT_STATUS_OPTIONS } = require("../../utils/formDefinition");
 
-const status = (key, label, label_am, extra = {}) => ({ key, type: "status", label, label_am, required: true, evidence: "optional", ...extra });
+const status = (key, label, label_am, extra = {}) => ({ key, type: "status", label, label_am, evidence: "optional", ...extra });
 const PRODUCING = { show_if: { field: "production_started", in: ["yes"] } };
 
 module.exports = {
@@ -31,15 +34,15 @@ module.exports = {
         title: "Company and site information",
         title_am: "የኩባንያና የሥራ ቦታ መረጃ",
         fields: [
-          { key: "company_name", type: "text", label: "Company name", label_am: "የኩባንያ ስም", required: true, prefill: "company.name" },
-          { key: "license_number", type: "text", label: "License number", label_am: "የፈቃድ ቁጥር", required: true, prefill: "license.license_number" },
+          { key: "company_name", type: "text", label: "Company name", label_am: "የኩባንያ ስም", prefill: "company.name" },
+          { key: "license_number", type: "text", label: "License number", label_am: "የፈቃድ ቁጥር", prefill: "license.license_number" },
           { key: "region", type: "text", label: "Region", label_am: "ክልል", prefill: "license.region" },
           { key: "zone_woreda", type: "text", label: "Zone / Woreda", label_am: "ዞን / ወረዳ", prefill: "license.zone_woreda" },
           { key: "site_name", type: "text", label: "Mine site / project", label_am: "የማዕድን ቦታ / ፕሮጀክት", prefill: "license.site_name" },
           { key: "main_mineral", type: "text", label: "Main mineral", label_am: "ዋና ማዕድን", prefill: "license.minerals" },
           { key: "mining_method", type: "text", label: "Mining method", label_am: "የማዕድን ዘዴ" },
           { key: "unit_of_measure", type: "text", label: "Unit of measure", label_am: "የመለኪያ አይነት (Unit)" },
-          { key: "observation_date", type: "date", label: "Date of the field observation", label_am: "የመስክ ምልካታው ቀን፣ ወር እና ዓ.ም", required: true },
+          { key: "observation_date", type: "date", label: "Date of the field observation", label_am: "የመስክ ምልካታው ቀን፣ ወር እና ዓ.ም" },
           { key: "mom_representative", type: "text", label: "Ministry of Mines representative(s)", label_am: "የማዕድን ሚኒስቴር ተወካይ", prefill: "inspection.team" },
           { key: "company_focal_person", type: "text", label: "Company representative (focal person)", label_am: "የኩባንያ ተውካይ ሰው (focal person)", prefill: "company.contact_person" },
           { key: "site_manager", type: "text", label: "Site manager", label_am: "የሳይት ኃላፊ" },
@@ -50,7 +53,6 @@ module.exports = {
             label_am: "ኩባንያው ማዕድን ማምረት ጀምሯል?",
             help: "Production questions in section 3 and section 8 appear only when the answer is yes.",
             help_am: "በክፍል 3 ያሉት የምርት ጥያቄዎችና ክፍል 8 የሚታዩት መልሱ አዎ ሲሆን ብቻ ነው።",
-            required: true,
             options: [
               { value: "yes", label: "Yes", label_am: "አዎ" },
               { value: "no", label: "No", label_am: "አይደለም" },
@@ -66,7 +68,7 @@ module.exports = {
         fields: [
           status("obs_work_at_site", "Work is taking place at the licensed site at the time of the visit", "በምልከታው ወቅት ፈቃድ በወጣበት ስፍራ ሰር ስለመኖሩ"),
           status("obs_work_recent", "Work has taken place at the licensed site in the days or months before the visit", "ከምልከታው ቀን ቀደም ባሉት ተከታታይ ቀናት/ወራት ፈቃድ በወጣበት ቦታ ስራ ስለመኖሩ"),
-          { key: "obs_activities", type: "long_text", label: "Activities currently being carried out, in detail", label_am: "እየተሰራ ያለው ተግባር አይነት በዝርዝር", required: true },
+          { key: "obs_activities", type: "long_text", label: "Activities currently being carried out, in detail", label_am: "እየተሰራ ያለው ተግባር አይነት በዝርዝር" },
           status("obs_within_license_scope", "The company works only in the activity its license was issued for", "ፈቃድ ባወጡበት ዘርፍ ብቻ ላይ ተሰማሩ ስለመሆኑ"),
           status("obs_production_recorded", "Planned and actual production for the day are recorded", "ማዕድን ምርት ላይ የደረሱ ከሆነ የታቀደና ትክክለኛ የማዕድን ምርት መጠን ለዕለቱ ተመዝግቧል?", PRODUCING),
           status("obs_production_evidence", "Production figures are supported by mine records, survey measurements, weighbridge tickets or other evidence", "የምርት መረጃው በማዕድን መዝገብ፣ በSurvey መለኪያ፣ በWeighbridge ደረሰኝ ወይም በሌላ ማስረጃ የተደገፈ ስለመሆኑ", PRODUCING),
@@ -234,7 +236,7 @@ module.exports = {
           status("find_critical_reported", "Critical hazards and serious non-compliance are reported to the Ministry immediately", "ወሳኝ አደጋዎችና ከባድ ግድፈቶች ወዲያውኑ ለሚኒስቴሩ ሪፖርት ስለመደረጋቸው"),
           status("find_documented", "Each finding is recorded with its date, location, evidence and responsible party", "እያንዳንዱ ግኝት ቀን፣ ቦታ፣ ማስረጃና ተጠያቂ አካል ተጠቅሶ ስለመመዝገቡ"),
           status("find_risk_rated", "Each finding has a risk level and a corrective action has been set", "የአደጋ ደረጃ ተመድቦ የማስተካከያ እርምጃ ስለመወደሱ"),
-          { key: "overall_summary", type: "long_text", label: "Overall situation of the company, in brief", label_am: "አጠቃላይ ኩባንያው ያለበት ሁኔታ በአጭሩ", required: true },
+          { key: "overall_summary", type: "long_text", label: "Overall situation of the company, in brief", label_am: "አጠቃላይ ኩባንያው ያለበት ሁኔታ በአጭሩ" },
           { key: "company_actions", type: "long_text", label: "Actions expected from the company to improve performance", label_am: "አፈጻጸም እንዲሻሻል ከኩባንያው የሚጠበቅ እርምጃ" },
           { key: "regional_actions", type: "long_text", label: "Actions needed from the regional and local administration", label_am: "ከክልል እና አካባቢ አስተዳዳር የሚፈለግ እርምጃ" },
           { key: "ministry_issues", type: "long_text", label: "Issues that need the Ministry's intervention", label_am: "የሚኒስቴሩ ጣልቃ ገብነት የሚፈልጉ ጉዳዮች" },
@@ -259,9 +261,32 @@ module.exports = {
         number: "16",
         title: "Verification signatures",
         title_am: "የማረጋገጫ ፊርማ",
+        description:
+          "The team members (their names are filled in from the team), the company lead and each person interviewed sign with their full name and the date. Add a row for every other person interviewed.",
+        description_am: "የቲም አባላት (ስማቸው ከቲሙ ይሞላል)፣ የኩባንያው ኃላፊና ቃለ መጠይቅ የተደረገላቸው ሰዎች በሙሉ ስማቸውና በቀኑ ይፈርማሉ። ለሌላ ቃለ መጠይቅ ለተደረገለት ሰው ረድፍ ይጨምሩ።",
         fields: [
-          { key: "team_signatures", type: "signature", label: "Field observation team members", label_am: "የመስክ ምልከታ ቲም አባላት", required: true, multiple: true, with_name: true },
-          { key: "company_signature", type: "signature", label: "Company representative", label_am: "የኩባንያ ሃላፊ", with_name: true },
+          {
+            key: "verification_signatures",
+            type: "table",
+            label: "Signatures of the team, the company lead and the people interviewed",
+            label_am: "የቲም አባላት፣ የኩባንያ ኃላፊና ቃለ መጠይቅ የተደረገላቸው ሰዎች ፊርማ",
+            row_header: "Role type",
+            row_header_am: "የሚና ዓይነት",
+            // One row per team member (2 to 4), then the company lead, then the people interviewed
+            team_rows: { label: "Team member", label_am: "የቲም አባል", min: 2, max: 4 },
+            rows: [
+              { label: "Company lead", label_am: "የኩባንያ ኃላፊ" },
+              { label: "Interviewed person 1", label_am: "ቃለ መጠይቅ የተደረገለት ሰው 1" },
+            ],
+            allow_add_rows: true,
+            new_row_label: "Interviewed person",
+            new_row_label_am: "ቃለ መጠይቅ የተደረገለት ሰው",
+            columns: [
+              { key: "full_name", label: "Full name", label_am: "ሙሉ ስም", type: "text" },
+              { key: "signature", label: "Signature", label_am: "ፊርማ", type: "signature" },
+              { key: "signed_on", label: "Date", label_am: "ቀን", type: "date" },
+            ],
+          },
         ],
       },
     ],

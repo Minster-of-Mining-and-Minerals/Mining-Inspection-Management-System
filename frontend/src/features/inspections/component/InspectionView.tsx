@@ -23,13 +23,15 @@ import { distanceText } from "@/utils/licenseArea";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel } from "@/utils/device";
-import { Answers, scoreOf, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
+import { Answers, defaultTableRows, scoreOf, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
 import { useGetTaskQuery, useReturnTaskMutation, useSaveAnswersMutation, useSubmitTaskMutation } from "@/redux/api/inspectionApi";
 import type { AnswerProblem, TaskDetail } from "@/redux/types/inspection";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge, dueText, scoreText, scoreTone } from "./taskUi";
 
 const AUTOSAVE_MS = 3000;
+/** Someone watching an inspection another team is filling (supervisor, admin) sees its saved answers this often */
+const LIVE_MS = 5000;
 const LANG_KEY = "mims.inspection.language";
 const DEVICE_KEY = "mims.deviceId";
 
@@ -60,18 +62,26 @@ const deviceInfo = () => {
 const initialAnswers = (task: TaskDetail): Answers => {
   const a: Answers = { ...(task.answers || {}) };
   for (const s of task.version?.definition.sections ?? [])
-    for (const f of s.fields) if (f.type === "text" && f.prefill && (a[f.key] == null || a[f.key] === "") && task.prefill[f.prefill]) a[f.key] = task.prefill[f.prefill];
+    for (const f of s.fields) {
+      if (f.type === "text" && f.prefill && (a[f.key] == null || a[f.key] === "") && task.prefill[f.prefill]) a[f.key] = task.prefill[f.prefill];
+      // A table with a row per team member (the signatures): the team's names filled in
+      if (f.type === "table" && f.team_rows && !a[f.key]?.rows?.length && task.status !== "submitted") a[f.key] = { rows: defaultTableRows(f, "am", task.team_member_names ?? []) };
+    }
   return a;
 };
 
 export default function InspectionView() {
   const { inspectionId } = useParams<{ inspectionId: string }>();
   const { data: task, isLoading, isError, error, refetch } = useGetTaskQuery(inspectionId, { skip: !inspectionId, refetchOnMountOrArgChange: true });
+  // Watching (not filling) an inspection that isn't submitted: follow the team's saves live
+  const watching = !!task && !task.can.fill && task.status !== "submitted";
+  useGetTaskQuery(inspectionId, { skip: !inspectionId || !watching, pollingInterval: LIVE_MS, skipPollingIfUnfocused: true });
   if (isLoading) return <Loading01 />;
   if (isError || !task) return <p className="p-8 text-center text-red-600">{(error as any)?.data?.message || "Inspection not found."}</p>;
   if (!task.version) return <p className="p-8 text-center text-red-600">The checklist of this inspection has no published version.</p>;
-  // Remount when the server copy changes underneath (reload after a conflict, return for correction)
-  return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.last_saved_at}`} task={task} reload={refetch} />;
+  // Remount when the server copy changes underneath (reload after a conflict, return for correction).
+  // Someone watching isn't remounted by each save (they keep their place); the answers just update.
+  return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.can.fill ? task.last_saved_at : ""}`} task={task} reload={refetch} />;
 }
 
 function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void }) {
@@ -91,7 +101,10 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
     );
   }, [editable]);
 
-  const [answers, setAnswers] = useState<Answers>(() => initialAnswers(task));
+  const [own, setAnswers] = useState<Answers>(() => initialAnswers(task));
+  // The team's latest saved answers when only watching
+  const saved = useMemo(() => initialAnswers(task), [task]);
+  const answers = editable ? own : saved;
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "unsaved" | "error" | "conflict">("saved");
   const [conflict, setConflict] = useState<string | null>(null);
@@ -257,8 +270,14 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       )}
       {!editable && task.status !== "submitted" && (
         <p className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-          <Lock className="h-4 w-4" /> Only members of {task.team?.name ?? "the assigned team"} can fill this inspection.
-          {task.last_saved_at && ` Last saved ${formatDateTime(task.last_saved_at)}${task.lastSaver ? ` by ${task.lastSaver.full_name}` : ""}.`}
+          <Lock className="h-4 w-4 shrink-0" />
+          <span>
+            Only members of {task.team?.name ?? "the assigned team"} can fill this inspection. You see their answers as they are saved (live, every few seconds).
+            {task.last_saved_at ? ` Last saved ${formatDateTime(task.last_saved_at)}${task.lastSaver ? ` by ${task.lastSaver.full_name}` : ""}.` : " Nothing saved yet."}
+          </span>
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 text-xs font-semibold text-green-700">
+            <span className="h-2 w-2 animate-pulse rounded-full bg-green-600" aria-hidden="true" /> Live
+          </span>
         </p>
       )}
       {task.status === "submitted" && <SubmittedSummary task={task} onReturn={task.can.return ? () => setReturning(true) : undefined} />}

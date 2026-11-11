@@ -303,7 +303,7 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
         }
         continue;
       }
-      await addUserToTeam({ teamId: team.team_id, userId: user.user_id, role: "member", transaction: t });
+      await addUserToTeam({ teamId: team.team_id, userId: user.user_id, role: "leader", transaction: t });
       stats.membersAdded++;
     }
 

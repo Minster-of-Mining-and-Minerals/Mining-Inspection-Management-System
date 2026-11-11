@@ -7,9 +7,10 @@
  */
 import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Camera, Eraser, FileText, Film, Loader2, PenLine, Plus, Trash2, X } from "lucide-react";
+import { Camera, Eraser, FileText, Film, ImageUp, Loader2, PenLine, Plus, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { FileKind, FormField } from "@/redux/types/form";
 import type { SignatureAnswer } from "./formLogic";
 
@@ -261,10 +262,34 @@ function FileTile({ meta, url, onRemove }: { meta?: FormFileMeta; url?: string; 
 }
 
 /* =================== signatures =================== */
+
+const SIGNATURE_MAX_BYTES = 2 * MB; // the server's limit for a signature
+
+/** A photo of a signature on paper, made small enough for a signature: longest side 1600 px, JPEG. */
+const signaturePhoto = async (file: File): Promise<{ blob: Blob; name: string }> => {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#fff"; // transparent PNGs on white
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((res) => canvas.toBlob(res, "image/jpeg", 0.85));
+    if (blob) return { blob, name: "signature-photo.jpg" };
+  } catch {
+    /* a format the browser can't open (e.g. HEIC): send it as it is */
+  }
+  return { blob: file, name: file.name };
+};
 export function SignatureAnswerInput({ field: f, value, onChange }: { field: FormField; value: SignatureAnswer | SignatureAnswer[] | null | undefined; onChange: (v: SignatureAnswer | SignatureAnswer[] | null) => void }) {
   const api = useContext(FormFilesContext);
   const list: SignatureAnswer[] = Array.isArray(value) ? value : value ? [value] : [];
   const [drawing, setDrawing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
   const withName = f.with_name !== false;
 
   if (!api)
@@ -276,9 +301,9 @@ export function SignatureAnswerInput({ field: f, value, onChange }: { field: For
     );
 
   const commit = (next: SignatureAnswer[]) => onChange(f.multiple ? next : next[0] ?? null);
-  const save = async (blob: Blob) => {
+  const save = async (blob: Blob, name = "signature.png") => {
     try {
-      const meta = await api.upload(f.key, blob, "signature.png");
+      const meta = await api.upload(f.key, blob, name);
       commit(f.multiple ? [...list, { file_id: meta.file_id, name: "" }] : [{ file_id: meta.file_id, name: list[0]?.name ?? "" }]);
       if (!f.multiple && list[0]) api.remove(list[0].file_id).catch(() => {});
       setDrawing(false);
@@ -286,6 +311,28 @@ export function SignatureAnswerInput({ field: f, value, onChange }: { field: For
       toast.error(e?.message || "Could not save the signature.");
     }
   };
+  // Instead of drawing: a photo of the signature (e.g. signed on paper)
+  const savePhoto = async (file: File | undefined) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/") && !/.(jpe?g|png|webp|heic|heif)$/i.test(file.name)) {
+      toast.error("Choose a photo (JPEG or PNG) of the signature.");
+      return;
+    }
+    setUploading(true);
+    const { blob, name } = await signaturePhoto(file);
+    if (blob.size > SIGNATURE_MAX_BYTES) {
+      setUploading(false);
+      toast.error(`The photo is ${formatBytes(blob.size)}; a signature photo can be at most 2 MB. Take it again as JPEG.`);
+      return;
+    }
+    await save(blob, name);
+    setUploading(false);
+  };
+  const photoButton = (label: string) => (
+    <Button type="button" variant="outline" size="sm" className="gap-1.5" disabled={uploading} onClick={() => photoInput.current?.click()}>
+      {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />} {uploading ? "Uploading…" : label}
+    </Button>
+  );
 
   return (
     <div className="space-y-2">
@@ -320,16 +367,122 @@ export function SignatureAnswerInput({ field: f, value, onChange }: { field: For
         <SignaturePad onSave={save} onCancel={() => setDrawing(false)} />
       ) : (
         (f.multiple || !list.length) && (
-          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setDrawing(true)}>
-            {list.length ? <Plus className="h-4 w-4" /> : <PenLine className="h-4 w-4" />} {list.length ? "Add another signature" : "Sign"}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => setDrawing(true)}>
+              {list.length ? <Plus className="h-4 w-4" /> : <PenLine className="h-4 w-4" />} {list.length ? "Add another signature" : "Sign"}
+            </Button>
+            <span className="text-xs text-slate-500">or</span>
+            {photoButton(list.length ? "Add a signature photo" : "Upload a signature photo")}
+          </div>
         )
       )}
       {!api.readOnly && !f.multiple && list.length > 0 && !drawing && (
-        <button type="button" className="text-xs text-primary hover:underline" onClick={() => setDrawing(true)}>
-          Sign again
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" className="text-xs text-primary hover:underline" onClick={() => setDrawing(true)}>
+            Sign again
+          </button>
+          <button type="button" className="text-xs text-primary hover:underline" disabled={uploading} onClick={() => photoInput.current?.click()}>
+            {uploading ? "Uploading…" : "Use a photo instead"}
+          </button>
+        </div>
       )}
+      {!api.readOnly && (
+        <input
+          ref={photoInput}
+          type="file"
+          className="hidden"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+          aria-label="Photo of the signature"
+          onChange={(e) => {
+            void savePhoto(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * A signature in a table cell (value = the file id): drawn in a pop-up, or a photo of it.
+ */
+export function SignatureCell({ fieldKey, value, onChange, signer }: { fieldKey: string; value: string | undefined; onChange: (fileId: string | undefined) => void; signer?: string }) {
+  const api = useContext(FormFilesContext);
+  const [drawing, setDrawing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const photoInput = useRef<HTMLInputElement>(null);
+
+  if (!api) return <span className="flex items-center gap-1 text-xs text-slate-400"><PenLine className="h-3.5 w-3.5" /> Signature</span>;
+
+  const url = value ? api.urlFor(value) : undefined;
+  const replace = async (blob: Blob, name: string) => {
+    try {
+      const meta = await api.upload(fieldKey, blob, name);
+      if (value) api.remove(value).catch(() => {});
+      onChange(meta.file_id);
+      setDrawing(false);
+    } catch (e) {
+      toast.error((e instanceof Error && e.message) || "Could not save the signature.");
+    }
+  };
+  const fromPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true);
+    const { blob, name } = await signaturePhoto(file);
+    if (blob.size > SIGNATURE_MAX_BYTES) toast.error(`The photo is ${formatBytes(blob.size)}; a signature photo can be at most 2 MB.`);
+    else await replace(blob, name);
+    setUploading(false);
+  };
+
+  if (value)
+    return (
+      <div className="flex items-center gap-1">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {url ? <img src={url} alt={`Signature${signer ? ` of ${signer}` : ""}`} className="h-10 w-28 rounded border border-slate-200 bg-white object-contain" /> : <span className="h-10 w-28 rounded border border-slate-200 bg-slate-50" />}
+        {!api.readOnly && (
+          <button
+            type="button"
+            aria-label="Remove signature"
+            className="rounded p-1 text-slate-400 hover:text-red-600"
+            onClick={() => {
+              api.remove(value).catch(() => {});
+              onChange(undefined);
+            }}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    );
+  if (api.readOnly) return <span className="text-xs text-slate-400">Not signed</span>;
+  return (
+    <div className="flex items-center gap-1">
+      <Button type="button" variant="outline" size="sm" className="h-8 gap-1 px-2 text-xs" onClick={() => setDrawing(true)} aria-label={`Sign${signer ? ` for ${signer}` : ""}`}>
+        <PenLine className="h-3.5 w-3.5" /> Sign
+      </Button>
+      <Button type="button" variant="outline" size="sm" className="h-8 px-2" disabled={uploading} onClick={() => photoInput.current?.click()} aria-label="Upload a photo of the signature" title="Upload a photo of the signature">
+        {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageUp className="h-3.5 w-3.5" />}
+      </Button>
+      <input
+        ref={photoInput}
+        type="file"
+        className="hidden"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+        aria-label="Photo of the signature"
+        onChange={(e) => {
+          void fromPhoto(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <Dialog open={drawing} onOpenChange={setDrawing}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Signature{signer ? ` of ${signer}` : ""}</DialogTitle>
+            <DialogDescription>Draw the signature with a finger or the mouse.</DialogDescription>
+          </DialogHeader>
+          <SignaturePad onSave={(png) => replace(png, "signature.png")} onCancel={() => setDrawing(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

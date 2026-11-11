@@ -30,7 +30,8 @@ export interface TableColumn {
   key: string;
   label: string;
   label_am?: string | null;
-  type: "text" | "number" | "date" | "select";
+  /** signature: the cell holds the file id of the signature image */
+  type: "text" | "number" | "date" | "select" | "signature";
   options?: ChoiceOption[];
 }
 
@@ -55,6 +56,14 @@ export interface FormField {
   columns?: TableColumn[];
   rows?: { label: string; label_am?: string | null }[];
   allow_add_rows?: boolean;
+  /** Title of a table's first column (e.g. "Role type") */
+  row_header?: string | null;
+  row_header_am?: string | null;
+  /** First column of a row added with "Add row", numbered ("Interviewed person 2") */
+  new_row_label?: string | null;
+  new_row_label_am?: string | null;
+  /** Rows first, one per member of the inspection's team (their name in a "full_name" column) */
+  team_rows?: { label: string; label_am?: string | null; min?: number; max?: number };
   /** photo / status evidence: which kinds, how many, how big (MB per file) */
   accept?: FileKind[];
   max_files?: number;

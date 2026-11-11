@@ -12,6 +12,7 @@ import { usePosition } from "@/hooks/usePosition";
 import type { TaskDetail } from "@/redux/types/inspection";
 import { distanceText, positionInArea } from "@/utils/licenseArea";
 import { dueText } from "./taskUi";
+import { MapMaximizeButton, useMapMaximize } from "@/components/common/MapMaximize";
 
 const LicenseMap = dynamic(() => import("@/features/my-work/component/LicenseMap"), {
   ssr: false,
@@ -30,6 +31,7 @@ export function SiteView({ task, onStart }: { task: TaskDetail; onStart?: () => 
   const submitted = task.status === "submitted";
   const live = usePosition(!submitted);
   const [recenter, setRecenter] = useState(0);
+  const max = useMapMaximize();
 
   // Submitted: where it was submitted; otherwise the phone's position now
   const sub = task.submit_location;
@@ -59,7 +61,7 @@ export function SiteView({ task, onStart }: { task: TaskDetail; onStart?: () => 
         : `Head ${where.direction}. You can still fill in the checklist; where you submit is recorded.`;
 
   return (
-    <div className="relative isolate h-[calc(100vh-15rem)] min-h-[540px] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 supports-[height:100dvh]:h-[calc(100dvh-15rem)]">
+    <div className={`relative isolate h-[calc(100vh-15rem)] min-h-[540px] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 supports-[height:100dvh]:h-[calc(100dvh-15rem)] ${max.frameClass}`}>
       {boundary ? (
         <LicenseMap
           className="absolute inset-0"
@@ -97,6 +99,7 @@ export function SiteView({ task, onStart }: { task: TaskDetail; onStart?: () => 
           <Crosshair className="h-5 w-5" />
         </button>
       )}
+      {boundary && <MapMaximizeButton {...max} className={`absolute right-3 z-10 ${submitted ? "top-[86px]" : "top-[140px]"}`} />}
 
       {/* Bottom panel */}
       <div className="absolute inset-x-0 bottom-0 z-10 space-y-3 rounded-t-2xl bg-white px-4 pb-4 pt-2 shadow-[0_-8px_24px_rgba(0,0,0,0.12)]">

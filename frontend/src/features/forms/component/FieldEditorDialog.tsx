@@ -276,6 +276,7 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
                         <option value="number">Number</option>
                         <option value="date">Date</option>
                         <option value="select">Choice</option>
+                        <option value="signature">Signature</option>
                       </select>
                       <Button type="button" variant="ghost" size="icon" onClick={() => setColumns((f.columns || []).filter((_, j) => j !== i))} aria-label="Remove column">
                         <Trash2 className="h-4 w-4 text-red-500" />

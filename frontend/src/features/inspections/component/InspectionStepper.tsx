@@ -6,11 +6,11 @@
  * Previous / Next buttons. The answers live in the parent (saved as they change).
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, ListChecks, Menu, Send, Square } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ListChecks, Menu, Send, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { QuestionBlock, SectionHeader, FormLanguage, pickText } from "@/features/forms/component/FormRenderer";
-import { Answers, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
+import { Answers, unfilledAnswers, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
 import type { FormDefinition, FormField, LicenseTypeKey } from "@/redux/types/form";
 
 export type StepMode = "question" | "section";
@@ -45,7 +45,7 @@ interface Props {
   /** Go to this question (e.g. the first problem after pressing Submit) */
   jumpKey: string | null;
   onJumped: () => void;
-  /** Submit (the last step's button, and in the sections menu) */
+  /** Submit — after the check of what isn't filled in (the last step's button, and in the sections menu) */
   onFinish?: () => void;
   finishing?: boolean;
   /** Moved to another question / section (the parent saves then) */
@@ -77,6 +77,8 @@ export function InspectionStepper({
   const [mode, setMode] = useState<StepMode>("section");
   const [cursor, setCursor] = useState<{ section?: string; field?: string }>({});
   const [menuOpen, setMenuOpen] = useState(false);
+  // The check before submitting: what isn't filled in (not mandatory, but the inspector is told)
+  const [checking, setChecking] = useState(false);
   const top = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -112,6 +114,7 @@ export function InspectionStepper({
   const sections = useMemo(() => visibleStructure(definition, licenseType, answers).filter((s) => s.fields.length), [definition, licenseType, answers]);
   const flat = useMemo(() => sections.flatMap(({ section, fields }) => fields.map((field, i) => ({ section, field, n: i + 1 }))), [sections]);
   const open = useMemo(() => validateAnswers(definition, licenseType, answers), [definition, licenseType, answers]);
+  const unfilled = useMemo(() => unfilledAnswers(definition, licenseType, answers), [definition, licenseType, answers]);
 
   // Where we are, kept by key so it survives questions appearing / disappearing
   let qIndex = flat.findIndex((x) => x.field.key === cursor.field);
@@ -157,13 +160,20 @@ export function InspectionStepper({
   const sectionStats = sections.map(({ fields }) => ({
     answered: fields.filter((f) => filled(f, answers[f.key])).length,
     total: fields.length,
-    missing: fields.filter((f) => open[f.key]).length,
+    // Not filled in (or a problem): the "left" count of the sections menu
+    missing: fields.filter((f) => open[f.key] || unfilled.some((u) => u.key === f.key)).length,
     flagged: fields.some((f) => problems[f.key]),
   }));
   const answeredAll = sectionStats.reduce((n, s) => n + s.answered, 0);
   const isLast = mode === "question" ? qIndex >= flat.length - 1 : sIndex >= sections.length - 1;
   const isFirst = mode === "question" ? qIndex <= 0 : sIndex <= 0;
-  const next = () => (isLast ? onFinish?.() : mode === "question" ? goQuestion(qIndex + 1) : goSection(sIndex + 1));
+  const next = () => (isLast ? setChecking(true) : mode === "question" ? goQuestion(qIndex + 1) : goSection(sIndex + 1));
+  const goTo = (key: string) => {
+    const x = flat.find((y) => y.field.key === key);
+    if (x) setCursor({ section: x.section.key, field: x.field.key });
+    setChecking(false);
+    setTimeout(() => document.getElementById(`answer-${key}`)?.scrollIntoView({ behavior: "smooth", block: "center" }), 80);
+  };
   const prev = () => (mode === "question" ? goQuestion(qIndex - 1) : goSection(sIndex - 1));
 
   // Segments: questions of this section (one-question view) or all sections (section view)
@@ -242,7 +252,7 @@ export function InspectionStepper({
         </Button>
         {isLast ? (
           <Button size="lg" className="gap-1.5" onClick={next} disabled={!onFinish || readOnly || finishing}>
-            <Send className="h-4 w-4" /> {am ? "ምልከታውን ላክ" : "Submit inspection"}
+            <ClipboardCheck className="h-4 w-4" /> {am ? "አረጋግጥና ላክ" : "Check and submit"}
           </Button>
         ) : (
           <Button size="lg" className="gap-1" onClick={next}>
@@ -320,13 +330,88 @@ export function InspectionStepper({
               className="w-full gap-1.5"
               onClick={() => {
                 setMenuOpen(false);
-                onFinish();
+                setChecking(true);
               }}
               disabled={finishing}
             >
-              <Send className="h-4 w-4" /> {am ? "ምልከታውን ላክ" : "Submit inspection"}
+              <ClipboardCheck className="h-4 w-4" /> {am ? "አረጋግጥና ላክ" : "Check and submit"}
             </Button>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* The check before submitting */}
+      <Dialog open={checking} onOpenChange={setChecking}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Check before submitting</DialogTitle>
+            <DialogDescription>
+              {flat.length - new Set(unfilled.map((u) => u.key)).size} of {flat.length} questions filled in.
+            </DialogDescription>
+          </DialogHeader>
+          {unfilled.length ? (
+            <>
+              <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900" role="status">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  <strong>
+                    {unfilled.length} {unfilled.length === 1 ? "question is" : "questions are"} not filled in.
+                  </strong>{" "}
+                  They are not mandatory: you can submit now, or go back and fill them.
+                </span>
+              </p>
+              <div className="space-y-3">
+                {sections
+                  .map(({ section, fields }) => ({ section, items: unfilled.filter((u) => u.sectionKey === section.key).map((u) => ({ u, f: fields.find((f) => f.key === u.key)!, n: fields.findIndex((f) => f.key === u.key) + 1 })) }))
+                  .filter((g) => g.items.length)
+                  .map(({ section, items }) => (
+                    <div key={section.key}>
+                      <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {section.number ? `${section.number}. ` : ""}
+                        {pickText(section.title, section.title_am, language)} · {items.length}
+                      </p>
+                      <ul className="space-y-1">
+                        {items.map(({ u, f, n }) => (
+                          <li key={u.key}>
+                            <button type="button" onClick={() => goTo(u.key)} className="flex w-full items-start gap-2 rounded-lg border border-slate-200 px-3 py-2 text-left text-sm hover:border-primary">
+                              <span className="w-6 shrink-0 text-right text-slate-400">{n}.</span>
+                              <span className="min-w-0 flex-1">
+                                <span className="line-clamp-2 text-slate-900" lang={language}>
+                                  {pickText(f.label, f.label_am, language)}
+                                </span>
+                                <span className="text-xs text-amber-700">{u.what}</span>
+                              </span>
+                              <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+              </div>
+            </>
+          ) : (
+            <p className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 text-sm font-medium text-green-800" role="status">
+              <CheckCircle2 className="h-4 w-4" /> Every question is filled in.
+            </p>
+          )}
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            {unfilled.length > 0 && (
+              <Button variant="outline" onClick={() => goTo(unfilled[0].key)}>
+                Fill them in
+              </Button>
+            )}
+            <Button
+              className="gap-1.5"
+              disabled={!onFinish || readOnly || finishing}
+              onClick={() => {
+                setChecking(false);
+                onFinish?.();
+              }}
+            >
+              <Send className="h-4 w-4" /> {unfilled.length ? "Submit anyway" : "Submit inspection"}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

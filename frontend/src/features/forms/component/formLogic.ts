@@ -21,6 +21,33 @@ export interface TableAnswer {
 
 export type Answers = Record<string, any>;
 
+const pickLabel = (en: string, am: string | null | undefined, language: "am" | "en") => (language === "en" ? en : am || en);
+
+/**
+ * A table's rows before anything is entered: one per team member when the table has team_rows
+ * ("Team member 1", their name in the full_name column; at least min, at most max rows), then its
+ * fixed rows. Without the team's names (form preview, no team) the minimum number of team rows.
+ */
+export const defaultTableRows = (f: FormField, language: "am" | "en", teamNames: string[] = []): TableAnswer["rows"] => {
+  const team: TableAnswer["rows"] = [];
+  if (f.team_rows) {
+    const { label, label_am, min = 0, max } = f.team_rows;
+    const names = max ? teamNames.slice(0, max) : teamNames;
+    const count = Math.max(min, names.length);
+    const nameCol = (f.columns || []).find((c) => c.key === "full_name") ? "full_name" : null;
+    for (let i = 0; i < count; i++) team.push({ label: `${pickLabel(label, label_am, language)} ${i + 1}`, cells: nameCol && names[i] ? { [nameCol]: names[i] } : {} });
+  }
+  return [...team, ...(f.rows || []).map((r) => ({ label: pickLabel(r.label, r.label_am, language), cells: {} as Record<string, string> }))];
+};
+
+/** First column of a row added with "Add row": "Interviewed person 3" (numbered after the ones there), or empty. */
+export const newRowLabel = (f: FormField, rows: TableAnswer["rows"], language: "am" | "en") => {
+  if (!f.new_row_label) return "";
+  const base = pickLabel(f.new_row_label, f.new_row_label_am, language);
+  const n = rows.filter((r) => (r.label ?? "").startsWith(base)).length + 1;
+  return `${base} ${n}`;
+};
+
 /** The choices a status question offers: its own list, or the form's default choices. */
 export const statusOptionsFor = (def: FormDefinition, f: FormField): StatusOption[] => (f.status_options?.length ? f.status_options : def.status_options);
 
@@ -53,6 +80,49 @@ export const visibleStructure = (def: FormDefinition, licenseType: LicenseTypeKe
 
 const isEmpty = (v: any) => v == null || v === "" || (Array.isArray(v) && v.length === 0);
 
+export interface Unfilled {
+  key: string;
+  sectionKey: string;
+  /** What is missing: "Not answered", "No description" … */
+  what: string;
+}
+
+/**
+ * The check before submitting: every question that applies and isn't filled in (or is only
+ * partly: a status without its description / action, a signature without the name). None of
+ * these stop submitting unless the question is required; the inspector is only told.
+ */
+export const unfilledAnswers = (def: FormDefinition, licenseType: LicenseTypeKey | null, answers: Answers): Unfilled[] => {
+  const out: Unfilled[] = [];
+  for (const { section, fields } of visibleStructure(def, licenseType, answers)) {
+    for (const f of fields) {
+      const a = answers[f.key];
+      const add = (what: string) => out.push({ key: f.key, sectionKey: section.key, what });
+      if (f.type === "status") {
+        const s = (a || {}) as StatusAnswer;
+        if (!s.value) add("Not answered");
+        else if (!s.note?.trim()) add("No description of what was found");
+        else if (statusOptionsFor(def, f).find((o) => o.value === s.value)?.action === "required" && !s.action?.trim()) add("No action needed written");
+      } else if (f.type === "signature") {
+        const list = ((Array.isArray(a) ? a : a ? [a] : []) as SignatureAnswer[]).filter((x) => x?.file_id);
+        if (!list.length) add("Not signed");
+        else if (f.with_name !== false && list.some((x) => !x.name?.trim())) add("Name of a signer missing");
+      } else if (f.type === "table") {
+        const rows = ((a || {}) as TableAnswer).rows || [];
+        const signCols = (f.columns || []).filter((c) => c.type === "signature").map((c) => c.key);
+        if (signCols.length) {
+          // A signature table: every row should be signed
+          const unsigned = (rows.length ? rows : defaultTableRows(f, "en")).filter((r) => signCols.some((k) => isEmpty(r.cells?.[k]))).length;
+          if (unsigned) add(`${unsigned} row${unsigned === 1 ? "" : "s"} not signed`);
+        } else if (!rows.some((r) => Object.values(r.cells || {}).some((v) => !isEmpty(v)))) add("No row filled in");
+      } else if (f.type === "photo") {
+        if (!(Array.isArray(a) && a.length)) add("No file added");
+      } else if (isEmpty(typeof a === "string" ? a.trim() : a)) add("Not answered");
+    }
+  }
+  return out;
+};
+
 /** Problems that stop submitting, keyed by question key. */
 export const validateAnswers = (def: FormDefinition, licenseType: LicenseTypeKey | null, answers: Answers) => {
   const problems: Record<string, string> = {};
@@ -68,7 +138,7 @@ export const validateAnswers = (def: FormDefinition, licenseType: LicenseTypeKey
       if (f.type === "signature") {
         const list = ((Array.isArray(a) ? a : a ? [a] : []) as SignatureAnswer[]).filter((x) => x?.file_id);
         if (f.required && !list.length) problems[f.key] = "A signature is required.";
-        else if (f.with_name !== false && list.some((x) => !x.name?.trim())) problems[f.key] = "Write the name of each person who signed.";
+        else if (f.required && f.with_name !== false && list.some((x) => !x.name?.trim())) problems[f.key] = "Write the name of each person who signed.";
         continue;
       }
       if (f.type === "status") {
@@ -78,8 +148,9 @@ export const validateAnswers = (def: FormDefinition, licenseType: LicenseTypeKey
           continue;
         }
         const o = statusOptionsFor(def, f).find((x) => x.value === s.value);
-        if (!s.note?.trim()) problems[f.key] = "Write a description of what you found.";
-        else if (o?.action === "required" && !s.action?.trim()) problems[f.key] = "Describe the action needed.";
+        // Description and action stop submitting only on a required question (otherwise: the check before submitting)
+        if (f.required && !s.note?.trim()) problems[f.key] = "Write a description of what you found.";
+        else if (f.required && o?.action === "required" && !s.action?.trim()) problems[f.key] = "Describe the action needed.";
         else if (f.evidence === "required" && !s.files?.length) problems[f.key] = "Add at least one photo or file as evidence.";
         else if ((s.files?.length ?? 0) > (f.max_files ?? 10)) problems[f.key] = `At most ${f.max_files ?? 10} files.`;
         continue;

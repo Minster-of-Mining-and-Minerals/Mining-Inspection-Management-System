@@ -14,6 +14,7 @@ const {
   User,
   Mineral,
   AdminArea,
+  SectorNode,
 } = require("../../models");
 const { currentMembership } = require("../../services/teamMembershipService");
 const { validateAnswers, scoreOf, visibleStructure } = require("../../utils/formAnswers");
@@ -58,21 +59,22 @@ const localDay = (col) => `("Inspection"."${col}" AT TIME ZONE 'Africa/Addis_Aba
 
 /* =================== lists =================== */
 
-/** All tasks (inspections:read_all), or the user's team's tasks (read_own). */
-const getInspections = async (req, res) => {
-  try {
+/**
+ * The list filters as a where clause (null: the user sees no tasks).
+ * `ignore`: filters left out (the team progress summary counts every team and status).
+ */
+const listWhere = async (req, q, ignore = []) => {
     const where = { ...scopeWhere(req) };
-    const q = req.query;
     if (!can(req, "read_all")) {
       const team = await myTeamId(req);
-      if (!team) return res.status(200).json({ success: true, data: [], meta: { totalItems: 0, totalPages: 0, currentPage: 1, itemsPerPage: 50 } });
+      if (!team) return null;
       where.team_id = team;
-    } else if (q.team_id && isUuid(q.team_id)) where.team_id = q.team_id;
+    } else if (!ignore.includes("team_id") && q.team_id && isUuid(q.team_id)) where.team_id = q.team_id;
     if (q.schedule_id && isUuid(q.schedule_id)) where.schedule_id = q.schedule_id;
     if (q.license_id && isUuid(q.license_id)) where.license_id = q.license_id;
     if (q.company_id && isUuid(q.company_id)) where.company_id = q.company_id;
     if (q.occurrence_date && /^\d{4}-\d{2}-\d{2}$/.test(q.occurrence_date)) where.occurrence_date = q.occurrence_date;
-    const f = STATUS_FILTERS[q.status];
+    const f = ignore.includes("status") ? null : STATUS_FILTERS[q.status];
     if (f) Object.assign(where, typeof f === "function" ? f() : f);
     // Dashboard drill-down: form, inspector, license type, region, and a date range
     // on the submission day (date_field=submitted, the default) or the round day (date_field=assigned)
@@ -100,6 +102,15 @@ const getInspections = async (req, res) => {
       const term = likeContains(q.search);
       where[Op.or] = [{ "$company.name$": { [Op.iLike]: term } }, { "$license.license_number$": { [Op.iLike]: term } }];
     }
+    return where;
+};
+
+/** All tasks (inspections:read_all), or the user's team's tasks (read_own). Open ones carry how much is answered. */
+const getInspections = async (req, res) => {
+  try {
+    const q = req.query;
+    const where = await listWhere(req, q);
+    if (!where) return res.status(200).json({ success: true, data: [], meta: { totalItems: 0, totalPages: 0, currentPage: 1, itemsPerPage: 50 } });
     const limit = Math.min(200, Math.max(1, parseInt(q.limit, 10) || 50));
     const page = Math.max(1, parseInt(q.page, 10) || 1);
     const { rows, count } = await Inspection.findAndCountAll({
@@ -119,10 +130,56 @@ const getInspections = async (req, res) => {
       offset: (page - 1) * limit,
       distinct: true,
     });
-    return res.status(200).json({ success: true, data: rows.map(summary), meta: { totalItems: count, totalPages: Math.ceil(count / limit), currentPage: page, itemsPerPage: limit } });
+    const progress = await progressOf(rows);
+    return res.status(200).json({
+      success: true,
+      data: rows.map((r) => ({ ...summary(r), progress: progress.get(r.inspection_id) ?? null })),
+      meta: { totalItems: count, totalPages: Math.ceil(count / limit), currentPage: page, itemsPerPage: limit },
+    });
   } catch (error) {
     console.error("getInspections", error);
     return fail(res, 500, "Failed to fetch inspections.");
+  }
+};
+
+/**
+ * GET /api/inspections/team-progress — per team, the tasks matching the list's other filters
+ * (search, region, round dates …; not team or status): total, not started, in progress, submitted,
+ * overdue. "No team" is one row (team_id null). Sorted by team name.
+ */
+const getTeamProgress = async (req, res) => {
+  try {
+    const where = await listWhere(req, req.query, ["team_id", "status"]);
+    if (!where) return res.status(200).json({ success: true, data: [] });
+    const rows = await Inspection.findAll({
+      where,
+      attributes: ["inspection_id", "team_id", "status", "due_at"],
+      include: [
+        { model: Company, as: "company", attributes: [] },
+        { model: CompanyLicense, as: "license", attributes: [] },
+        { model: Team, as: "team", attributes: ["team_id", "name"], include: [{ model: SectorNode, as: "sector", attributes: ["name"] }] },
+      ],
+    });
+    const now = new Date();
+    const byTeam = new Map();
+    for (const r of rows) {
+      const key = r.team_id ?? "none";
+      if (!byTeam.has(key))
+        byTeam.set(key, { team_id: r.team_id ?? null, name: r.team?.name ?? "No team", sector_name: r.team?.sector?.name ?? null, total: 0, todo: 0, in_progress: 0, submitted: 0, overdue: 0 });
+      const t = byTeam.get(key);
+      t.total++;
+      t[r.status] = (t[r.status] ?? 0) + 1;
+      if (r.status !== "submitted" && new Date(r.due_at) < now) t.overdue++;
+    }
+    // Same team name in several sectors (central view): say which sector
+    const list = [...byTeam.values()];
+    const uses = list.reduce((m, t) => m.set(t.name, (m.get(t.name) ?? 0) + 1), new Map());
+    for (const t of list) if (t.team_id && uses.get(t.name) > 1 && t.sector_name) t.name = `${t.name} · ${t.sector_name}`;
+    const data = list.sort((a, b) => (!a.team_id ? 1 : !b.team_id ? -1 : a.name.localeCompare(b.name, undefined, { numeric: true })));
+    return res.status(200).json({ success: true, data });
+  } catch (error) {
+    console.error("getTeamProgress", error);
+    return fail(res, 500, "Failed to fetch team progress.");
   }
 };
 
@@ -224,6 +281,17 @@ const getLicenseHistory = async (req, res) => {
 /* =================== one task =================== */
 
 /** Values that "prefill" questions start with (company name, license number …). */
+/** Names of the inspection team's current members (leaders first, then by name). */
+const teamMemberNames = async (inspection) => {
+  if (!inspection.team_id) return [];
+  const members = await TeamMember.findAll({
+    where: { team_id: inspection.team_id, left_on: null },
+    include: [{ model: User, as: "user", attributes: ["full_name"] }],
+    order: [["role", "ASC"], [{ model: User, as: "user" }, "full_name", "ASC"]],
+  });
+  return members.map((m) => m.user?.full_name).filter(Boolean);
+};
+
 const prefillValues = async (inspection) => {
   const license = await CompanyLicense.findByPk(inspection.license_id, {
     include: [
@@ -287,6 +355,8 @@ const getInspectionById = async (req, res) => {
         ...data,
         version: version ? { version_id: version.version_id, version_number: version.version_number, definition: version.definition } : null,
         prefill: task.status === "submitted" ? {} : await prefillValues(task),
+        // For tables with a row per team member (e.g. the signatures)
+        team_member_names: task.status === "submitted" ? [] : await teamMemberNames(task),
         files: await listFiles(task.inspection_id),
         can: rights,
       },
@@ -474,6 +544,7 @@ const updateAssignment = async (req, res) => {
 
 module.exports = {
   getInspections,
+  getTeamProgress,
   getMyTasks,
   getLicenseHistory,
   getInspectionById,

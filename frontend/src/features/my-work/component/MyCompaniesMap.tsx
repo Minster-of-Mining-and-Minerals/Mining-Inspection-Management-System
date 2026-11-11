@@ -15,6 +15,7 @@ import { usePosition } from "@/hooks/usePosition";
 import type { MyLicense } from "@/redux/types/myWork";
 import { distanceText, positionInArea, type SitePosition } from "@/utils/licenseArea";
 import { dueText } from "@/features/inspections/component/taskUi";
+import { MapMaximizeButton, useMapMaximize } from "@/components/common/MapMaximize";
 
 const LicenseMap = dynamic(() => import("./LicenseMap"), {
   ssr: false,
@@ -30,6 +31,7 @@ const distanceLabel = (where: SitePosition | null) => (!where ? "" : where.insid
 
 export function MyCompaniesMap({ licenses }: { licenses: MyLicense[] }) {
   const { position, error } = usePosition(true);
+  const max = useMapMaximize();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [zoomed, setZoomed] = useState(false);
   const [search, setSearch] = useState("");
@@ -159,7 +161,7 @@ export function MyCompaniesMap({ licenses }: { licenses: MyLicense[] }) {
         </div>
 
         {/* The map */}
-        <div className="relative isolate h-[calc(100vh-17rem)] min-h-[420px] flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100 supports-[height:100dvh]:h-[calc(100dvh-17rem)] lg:h-auto lg:flex-1">
+        <div className={`relative isolate h-[calc(100vh-17rem)] min-h-[420px] flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100 supports-[height:100dvh]:h-[calc(100dvh-17rem)] lg:h-auto lg:flex-1 ${max.frameClass}`}>
           <LicenseMap
             className="absolute inset-0"
             ariaLabel={selected && zoomed ? `Map zoomed to ${selected.company_name}, ${selected.license_number}` : `Map of your team's ${mapLicenses.length} license areas`}
@@ -190,6 +192,7 @@ export function MyCompaniesMap({ licenses }: { licenses: MyLicense[] }) {
           >
             <Crosshair className="h-5 w-5" />
           </button>
+          <MapMaximizeButton {...max} className="absolute right-3 top-[140px] z-10" />
 
           {/* PC: the chosen license on the map */}
           {selected && <div className="absolute right-16 top-3 z-10 hidden w-[330px] space-y-3 rounded-xl bg-white p-4 shadow-xl lg:block">{details}</div>}

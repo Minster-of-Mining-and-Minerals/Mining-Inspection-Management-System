@@ -99,10 +99,15 @@ Check: open **https://inspection.mom.gov.et** · on the server, `curl http://127
 - The license list creates companies, licenses and teams, and an account for each inspector it names
   who is in `backend/data/license-list/team-contacts.xlsx`: their real email (the login) and phone, the
   inspector role, their team, and the temporary password **password**, which they must change at first
-  login. Tell the inspectors to log in and change it soon. Anyone not in that sheet (now Seid
-  Wehawrebe and Dr. Eyob Bekele) gets a generated email, `seid.wehawrebe@gmail.com` and
-  `eyob.bekele@gmail.com`, with no phone. Set their real email and phone under **Users** soon:
-  a generated address may belong to someone else, who would receive password-reset emails.
+  login. Tell the inspectors to log in and change it soon. Every team member is a team leader (all
+  can submit for their team). Anyone in the list but not in the sheet (now Seid Wehawrebe) gets a
+  generated email (`seid.wehawrebe@gmail.com`) and no phone: set the real ones under **Users** soon,
+  as a generated address may belong to someone else, who would receive password-reset emails.
+  Someone in the sheet but not in the list (now Birtukan Yenealem) gets an inspector account with
+  no team: choose their team under **Users**.
+- Every start applies the contact sheet again to accounts nobody has used yet (still on the
+  temporary password), so a corrected sheet fixes them with the next `docker compose up --build -d`.
+  Accounts in use change only with `npm run import:team-contacts`.
 - Create the inspection **Schedules**; tasks appear for the teams.
 
 ### Sectors

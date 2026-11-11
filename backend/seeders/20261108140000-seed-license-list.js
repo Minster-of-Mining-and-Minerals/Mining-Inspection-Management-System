@@ -7,7 +7,9 @@
  * and creates the inspectors' accounts with their real email and phone from
  * data/license-list/team-contacts.xlsx — on a server too (temporary password "password", to
  * change at the first login). People not in that sheet get a generated email
- * (firstname.lastname@gmail.com), on a server too; the report lists them.
+ * (firstname.lastname@gmail.com), on a server too; the report lists them. Then the sheet is applied
+ * to accounts nobody has used yet (still on the temporary password), and people in the sheet who
+ * have no account get one (inspector, no team).
  *
  * Runs with every `npm run seed` and is safe to repeat: licenses already in the
  * database are skipped, so only rows that are new in the sheet are added, and
@@ -53,12 +55,19 @@ module.exports = {
       }
     }
 
-    // The inspector accounts just created get their real email and phone (never existing accounts)
-    const newUserIds = (result.createdUsers ?? []).map((u) => u.user_id).filter(Boolean);
-    if (newUserIds.length && fs.existsSync(CONTACTS)) {
+    // The team contact sheet, on every start:
+    //   - accounts nobody has used yet (still on the temporary password) get the email and phone
+    //     from the sheet, e.g. a generated email replaced by the real one. Accounts in use are never
+    //     changed here (npm run import:team-contacts does that).
+    //   - people in the sheet with no account get one (inspector, no team yet).
+    if (fs.existsSync(CONTACTS)) {
+      const db = require("../models");
+      const { MOM_SECTOR_ID } = require("../utils/sectorConstants");
       const { applyTeamContacts } = require("../services/teamContactsService");
-      const { stats } = await applyTeamContacts({ file: CONTACTS, onlyUserIds: newUserIds });
-      if (stats.emails || stats.phones) console.log(`  Contacts filled in:     ${stats.emails} email(s), ${stats.phones} phone(s) of ${newUserIds.length} new inspector account(s)`);
+      const unused = await db.User.findAll({ where: { sector_node_id: MOM_SECTOR_ID, is_first_logged_in: true }, attributes: ["user_id"] });
+      const { stats } = await applyTeamContacts({ file: CONTACTS, onlyUserIds: unused.map((u) => u.user_id), createMissing: true });
+      if (stats.emails || stats.phones) console.log(`  Contacts filled in:     ${stats.emails} email(s), ${stats.phones} phone(s) of accounts not used yet`);
+      if (stats.created) console.log(`  Accounts created:       ${stats.created} (in the contact sheet, not in the license list: inspector, no team)`);
     }
   },
 

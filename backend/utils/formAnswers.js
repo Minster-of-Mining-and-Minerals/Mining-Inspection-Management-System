@@ -3,7 +3,7 @@
  * Same rules as the frontend (features/forms/component/formLogic.ts), checked again on submit.
  *
  * Answers are keyed by question key:
- *   status      { value, note, action? }   note (description) always required once a choice is made
+ *   status      { value, note, action? }   note (description) and action: required only when the question is
  *   table       { rows: [{ label?, cells: { colKey: value } }] }
  *   status      … files?: [file_id]          evidence (photos / documents / videos)
  *   photo       [file_id]
@@ -46,7 +46,7 @@ const validateAnswers = (def, licenseType, answers = {}) => {
       if (f.type === "signature") {
         const list = (Array.isArray(a) ? a : a ? [a] : []).filter((x) => x && x.file_id);
         if (f.required && !list.length) add(f, "A signature is required.");
-        else if (f.with_name !== false && list.some((x) => isEmpty(x.name))) add(f, "Write the name of each person who signed.");
+        else if (f.required && f.with_name !== false && list.some((x) => isEmpty(x.name))) add(f, "Write the name of each person who signed.");
         continue;
       }
       if (f.type === "status") {
@@ -57,8 +57,8 @@ const validateAnswers = (def, licenseType, answers = {}) => {
         }
         const o = statusOptionsFor(def, f).find((x) => x.value === s.value);
         if (!o) add(f, "Choose one of the listed statuses.");
-        else if (isEmpty(s.note)) add(f, "Write a description of what you found.");
-        else if (o.action === "required" && isEmpty(s.action)) add(f, "Describe the action needed.");
+        else if (f.required && isEmpty(s.note)) add(f, "Write a description of what you found.");
+        else if (f.required && o.action === "required" && isEmpty(s.action)) add(f, "Describe the action needed.");
         else if (f.evidence === "required" && !(Array.isArray(s.files) && s.files.length)) add(f, "Add at least one photo or file as evidence.");
         else if (Array.isArray(s.files) && s.files.length > (f.max_files ?? 10)) add(f, "At most " + (f.max_files ?? 10) + " files.");
         continue;

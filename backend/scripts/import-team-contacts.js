@@ -7,7 +7,9 @@
  *   npm run import:team-contacts                                apply it
  *   npm run import:team-contacts -- "<file.xlsx>" [--dry-run]   another sheet
  *   … --sector=<sector_node_id>                                  another sector (default Ministry of Mines)
+ *   … --no-create                                                only update existing accounts
  *
+ * People in the sheet with no account get one (inspector, no team, temporary password "password").
  * Rules: services/teamContactsService.js. A report is written to backend/reports/.
  */
 const path = require("path");
@@ -28,7 +30,7 @@ async function main() {
     console.error(`File not found: ${file}\nUsage: npm run import:team-contacts -- ["<file.xlsx>"] [--dry-run] [--sector=<id>]`);
     process.exit(1);
   }
-  const result = await applyTeamContacts({ file, sectorId, dryRun });
+  const result = await applyTeamContacts({ file, sectorId, dryRun, createMissing: !args.includes("--no-create") });
   console.log(summarizeContacts(result, { dryRun }));
 }
 

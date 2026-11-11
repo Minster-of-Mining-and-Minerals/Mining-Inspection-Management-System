@@ -142,6 +142,8 @@ export interface TaskDetail extends TaskListItem {
   events: TaskEvent[];
   version: { version_id: string; version_number: number; definition: FormDefinition } | null;
   prefill: Record<string, string>;
+  /** Current members of the team (not when submitted): rows of tables with team_rows */
+  team_member_names?: string[];
   can: { fill: boolean; return: boolean; reassign: boolean };
   /** The license area for the site map */
   site: {
