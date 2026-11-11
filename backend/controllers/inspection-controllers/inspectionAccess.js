@@ -28,6 +28,8 @@ const loadTask = async (req, id) => {
     task,
     rights: {
       fill: inTeam && can(req, "conduct") && task.status !== "submitted",
+      // Sections marked after_submit (e.g. 4.1, filled in at the office) stay open to the team once submitted
+      fill_after_submit: inTeam && can(req, "conduct") && task.status === "submitted",
       return: can(req, "review") && task.status === "submitted",
       reassign: can(req, "assign") && task.status !== "submitted",
     },

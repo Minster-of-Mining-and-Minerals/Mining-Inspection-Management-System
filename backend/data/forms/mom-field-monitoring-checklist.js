@@ -4,10 +4,14 @@
  *
  * Amharic is as written in the Ministry's checklist; English labels are translations.
  * Changes from the paper form, so it works as a digital form:
- *   - "Has production started?" was a note on section 8 ("ማእድን ውጣት ለጀመሩት ብቻ"); it is now
- *     a question, and the production questions and section 8 only appear when the answer is yes.
- *   - Section 4.1 (contract work plan) only appears for exploration licenses, as the paper says.
- *   - Section 3, row 3 asks for a description, so it is a long-text question, not a status.
+ *   - Which license each question is for: all of them apply to exploration and mining licenses,
+ *     except those marked MINING (mining licenses only): 3.5–3.11, 4.1 (license at the site),
+ *     6 rehabilitation and mine closure.
+ *   - Section 3: yes / no questions, text areas (3, 11, 12) and attachments for 12. Sections 4–10:
+ *     text areas; 10.9 takes any file. No question is scored, so this checklist gives no score.
+ *   - Section 4.1 (contract work plan) is filled in at the office after the visit: optional, and the
+ *     team can still fill it in after submitting (after_submit). For both license types.
+ *   - Section 6 has no separate dust / noise question (it repeats 5.9).
  *   - Company and site details are pre-filled from the license and can be corrected.
  *   - No question is required: the inspector is shown what is not filled in before submitting.
  *   - Section 16 (signatures) is one table: Role type | Full name | Signature | Date, with a row per
@@ -15,8 +19,16 @@
  */
 const { DEFAULT_STATUS_OPTIONS } = require("../../utils/formDefinition");
 
-const status = (key, label, label_am, extra = {}) => ({ key, type: "status", label, label_am, evidence: "optional", ...extra });
-const PRODUCING = { show_if: { field: "production_started", in: ["yes"] } };
+const YES_NO = [
+  { value: "yes", label: "Yes", label_am: "አዎ" },
+  { value: "no", label: "No", label_am: "አይደለም" },
+];
+const yesNo = (key, label, label_am, extra = {}) => ({ key, type: "select", label, label_am, options: YES_NO.map((o) => ({ ...o })), ...extra });
+const textArea = (key, label, label_am, extra = {}) => ({ key, type: "long_text", label, label_am, ...extra });
+// Questions for mining licenses only (the others are for exploration and mining licenses)
+const MINING = { applies_to: { license_types: ["mining"] } };
+// Any kind of file: photos, documents, videos
+const ANY_FILE = { accept: ["image", "document", "video"], max_files: 20 };
 
 module.exports = {
   code: "MOM-FMC",
@@ -46,18 +58,6 @@ module.exports = {
           { key: "mom_representative", type: "text", label: "Ministry of Mines representative(s)", label_am: "የማዕድን ሚኒስቴር ተወካይ", prefill: "inspection.team" },
           { key: "company_focal_person", type: "text", label: "Company representative (focal person)", label_am: "የኩባንያ ተውካይ ሰው (focal person)", prefill: "company.contact_person" },
           { key: "site_manager", type: "text", label: "Site manager", label_am: "የሳይት ኃላፊ" },
-          {
-            key: "production_started",
-            type: "select",
-            label: "Has the company started producing minerals?",
-            label_am: "ኩባንያው ማዕድን ማምረት ጀምሯል?",
-            help: "Production questions in section 3 and section 8 appear only when the answer is yes.",
-            help_am: "በክፍል 3 ያሉት የምርት ጥያቄዎችና ክፍል 8 የሚታዩት መልሱ አዎ ሲሆን ብቻ ነው።",
-            options: [
-              { value: "yes", label: "Yes", label_am: "አዎ" },
-              { value: "no", label: "No", label_am: "አይደለም" },
-            ],
-          },
         ],
       },
       {
@@ -66,18 +66,20 @@ module.exports = {
         title: "Observation points",
         title_am: "የምልከታ ነጥቦች",
         fields: [
-          status("obs_work_at_site", "Work is taking place at the licensed site at the time of the visit", "በምልከታው ወቅት ፈቃድ በወጣበት ስፍራ ሰር ስለመኖሩ"),
-          status("obs_work_recent", "Work has taken place at the licensed site in the days or months before the visit", "ከምልከታው ቀን ቀደም ባሉት ተከታታይ ቀናት/ወራት ፈቃድ በወጣበት ቦታ ስራ ስለመኖሩ"),
-          { key: "obs_activities", type: "long_text", label: "Activities currently being carried out, in detail", label_am: "እየተሰራ ያለው ተግባር አይነት በዝርዝር" },
-          status("obs_within_license_scope", "The company works only in the activity its license was issued for", "ፈቃድ ባወጡበት ዘርፍ ብቻ ላይ ተሰማሩ ስለመሆኑ"),
-          status("obs_production_recorded", "Planned and actual production for the day are recorded", "ማዕድን ምርት ላይ የደረሱ ከሆነ የታቀደና ትክክለኛ የማዕድን ምርት መጠን ለዕለቱ ተመዝግቧል?", PRODUCING),
-          status("obs_production_evidence", "Production figures are supported by mine records, survey measurements, weighbridge tickets or other evidence", "የምርት መረጃው በማዕድን መዝገብ፣ በSurvey መለኪያ፣ በWeighbridge ደረሰኝ ወይም በሌላ ማስረጃ የተደገፈ ስለመሆኑ", PRODUCING),
-          status("obs_materials_recorded", "Mined ore, processed ore, removed waste rock / overburden and finished product / concentrate are recorded separately", "የተቆፈረ ማዕድን፣ የተቀነባበረ ማዕድን፣ የተወገደ ቆሻሻ አፈር/ድንጋይ እና የተዘጋጀ ምርት/Concentrate በተለያዩ የተመዘገበ ሰልመሆኑ", PRODUCING),
-          status("obs_stockpile", "Stockpiles are identified, measured, reconciled and secured", "የማዕድን ክምችት (Stockpile) ተለይቶ፣ ተለክቶ፣ ተነጻጽሮና ተጠብቆ ስለመገኘቱ", PRODUCING),
-          status("obs_dispatch_records", "Transport, dispatch and sales records are available", "የማጓጓዣ፣ የDispatch እና የሽያጭ መዝገቦች ስለመኖራቸው", PRODUCING),
-          status("obs_hours_downtime", "Working hours, shifts, machine availability and downtime are recorded", "የሥራ ሰዓት፣ ፈረቃ፣ የማሽን መገኘትና Downtime ስለመመዝገቡ"),
-          status("obs_variance", "Production shortfalls against the plan, work stoppages or unexplained losses are explained, with reasons", "ከዕቅድ እነጻር የተፈጠረ የምርት ልዩነት፣ የሥራ መቋረጥ ወይም ያልተገለጸ ኪሳራ ካለ ከነ ምክንያቱ"),
-          status("obs_unauthorized", "Where unauthorized digging, stockpile movement or mineral transport is suspected, further supporting information was collected from the area", "ያልተፈቀደ ቁፋሮ፣ የክምችት እንቅስቃሴ ወይም የማዕድን ማጓጓዝ ወይም ጥርጣሬ ካለ ተጨማሪ አመካላች መረጃዎች ከአካባቢው በመውሰድ"),
+          // 1–4 and 12: exploration and mining licenses; 5–11: mining licenses only
+          yesNo("obs_work_at_site", "Are people at the licensed site at the time of the visit?", "በምልከታው ወቅት ፈቃድ በወጣበት ስፍራ ሰው ስለመኖሩ"),
+          yesNo("obs_work_recent", "Has work taken place at the licensed site in the days or months before the visit?", "ከምልከታው ቀን ቀደም ባሉት ተከታታይ ቀናት/ወራት ፈቃድ በወጣበት ቦታ ስራ ስለመኖሩ"),
+          textArea("obs_activities", "Activities currently being carried out, in detail", "እየተሰራ ያለው ተግባር አይነት በዝርዝር"),
+          yesNo("obs_within_license_scope", "Does the company work only in the activity its license was issued for?", "ፈቃድ ባወጡበት ዘርፍ ብቻ ላይ የተሰማሩ ስለመሆኑ"),
+          yesNo("obs_production_recorded", "Are planned and actual production for the day recorded?", "ማዕድን ምርት ላይ የደረሱ ከሆነ የታቀደና ትክክለኛ የማዕድን ምርት መጠን ለዕለቱ ተመዝግቧል?", MINING),
+          yesNo("obs_production_evidence", "Are production figures supported by mine records, survey measurements, weighbridge tickets or other evidence?", "የምርት መረጃው በማዕድን መዝገብ፣ በSurvey መለኪያ፣ በWeighbridge ደረሰኝ ወይም በሌላ ማስረጃ የተደገፈ ስለመሆኑ", MINING),
+          yesNo("obs_materials_recorded", "Are mined ore, processed ore, removed waste rock / overburden and finished product / concentrate recorded separately?", "የተቆፈረ ማዕድን፣ የተቀነባበረ ማዕድን፣ የተወገደ ቆሻሻ አፈር/ድንጋይ እና የተዘጋጀ ምርት/Concentrate በተለያዩ የተመዘገበ ሰልመሆኑ", MINING),
+          yesNo("obs_stockpile", "Are stockpiles identified, measured, reconciled and secured?", "የማዕድን ክምችት (Stockpile) ተለይቶ፣ ተለክቶ፣ ተነጻጽሮና ተጠብቆ ስለመገኘቱ", MINING),
+          yesNo("obs_dispatch_records", "Are transport, dispatch and sales records available?", "የማጓጓዣ፣ የDispatch እና የሽያጭ መዝገቦች ስለመኖራቸው", MINING),
+          yesNo("obs_hours_downtime", "Are working hours, shifts, machine availability and downtime recorded?", "የሥራ ሰዓት፣ ፈረቃ፣ የማሽን መገኘትና Downtime ስለመመዝገቡ", MINING),
+          textArea("obs_variance", "Production shortfalls against the plan, work stoppages or unexplained losses, with their reasons", "ከዕቅድ እነጻር የተፈጠረ የምርት ልዩነት፣ የሥራ መቋረጥ ወይም ያልተገለጸ ኪሳራ ካለ ከነ ምክንያቱ", MINING),
+          textArea("obs_unauthorized", "Where unauthorized digging, stockpile movement or mineral transport is suspected, further supporting information collected from the area", "ያልተፈቀደ ቁፋሮ፣ የማዕድን ምርት ክምችት እንቅስቃሴ ወይም የማዕድን ማጓጓዝ ጥርጣሬ ካለ ተጨማሪ አመካኝ መረጃዎች ከአካባቢው መውሰድ"),
+          { key: "obs_unauthorized_files", type: "photo", label: "Attachments for question 12 (photos, documents, videos)", label_am: "ለጥያቄ 12 የተያያዙ ማስረጃዎች (ፎቶ፣ ሰነድ፣ ቪዲዮ)", ...ANY_FILE },
         ],
       },
       {
@@ -86,25 +88,26 @@ module.exports = {
         title: "Mining license and legal compliance",
         title_am: "የማዕድን ፈቃድና የሕግ ተገዢነት",
         fields: [
-          status("legal_license_on_site", "A valid mining license or permit document is available at the site", "ተገቢው የማዕድን ፈቃድ ወይም ፈቃድ ሰጪ ሰነድ ትክክለኛ ሆኖ በሳይት ስለመገኘቱ"),
-          status("legal_conditions", "License conditions and reporting obligations are being met", "የፈቃድ ቅድመ ሁኔታዎችና የሪፖርት ግዴታዎች እየተፈጸሙ ስለመሆኑ"),
-          status("legal_within_boundary", "Work is carried out within the licensed boundary and coordinates", "ሥራዎች በተፈቀደው የፈቃድ ወሰንና መጋጠሚያዎች ውስጥ ስለመካሄዳቸው"),
-          status("legal_plans", "Approved mining, environmental and mine-closure plans are available as required", "የተፈቀዱ የማዕድን፣ የአካባቢና የማዕድን ቦታ መዝጊያ ዕቅዶች እንደአስፈላጊነቱ ስለመሀኘታቸው"),
-          status("legal_records", "Required technical, production and other legal records are kept", "አስፈላጊ የቴክኒክ፣ የምርትና ሌሎች የሕግ መዝገቦች ስለመያዛቸው"),
-          status("legal_previous_findings", "Findings and directives from previous inspections are being implemented (check any feedback kept at the site)", "የቀድሞ ተቆጣጣሪ አካል ግኝቶችና መመሪያዎች እየተፈጸሙ ስለመሆኑ/ ሳይት ያለ ገብረመልስ ካለ ይታይ/"),
-          status("legal_violations", "Suspected legal violations, unauthorized changes or unmet obligations are recorded and reported", "ጥርጣሬ ያለባቸው የሕግ ጥሰቶች፣ ያልተፈቀዱ ለውጦች ወይም ያልተፈጸሙ ግዴታዎች ተመዝግበው ስለመተላላፋቸው"),
+          textArea("legal_license_on_site", "A valid mining license or permit document is available at the site", "ተገቢው የማዕድን ፈቃድ ወይም ፈቃድ ሰጪ ሰነድ ትክክለኛ ሆኖ በሳይት ስለመገኘቱ", MINING),
+          textArea("legal_conditions", "License conditions and reporting obligations are being met", "የፈቃድ ቅድመ ሁኔታዎችና የሪፖርት ግዴታዎች እየተፈጸሙ ስለመሆኑ"),
+          textArea("legal_within_boundary", "Work is carried out within the licensed boundary and coordinates", "ሥራዎች በተፈቀደው የፈቃድ ወሰንና መጋጠሚያዎች ውስጥ ስለመካሄዳቸው"),
+          textArea("legal_plans", "Approved mining, environmental and mine-closure plans are available as required", "የተፈቀዱ የማዕድን፣ የአካባቢና የማዕድን ቦታ መዝጊያ ዕቅዶች እንደአስፈላጊነቱ ስለመገኘታቸው"),
+          textArea("legal_records", "Required technical, production and other legal records are kept", "አስፈላጊ የቴክኒክ፣ የምርትና ሌሎች የሕግ መዝገቦች ስለመያዛቸው"),
+          textArea("legal_previous_findings", "Findings and directives from previous inspections are being implemented (check any feedback kept at the site)", "የቀድሞ ተቆጣጣሪ አካል ግኝቶችና መመሪያዎች እየተፈጸሙ ስለመሆኑ/ ሳይት ያለ ገብረመልስ ካለ ይታይ/"),
+          textArea("legal_violations", "Suspected legal violations, unauthorized changes or unmet obligations are recorded and reported", "ጥርጣሬ ያለባቸው የሕግ ጥሰቶች፣ ያልተፈቀዱ ለውጦች ወይም ያልተፈጸሙ ግዴታዎች ተመዝግበው ስለመተላላፋቸው"),
         ],
       },
       {
         key: "exploration_workplan",
         number: "4.1",
-        title: "Exploration contract: annual work plan performance and evidence (exploration licenses only)",
-        title_am: "የፍለጋ ውል ዓመታዊ የሥራ ዕቅድ አፈጻጸምና ማስረጃ ማረጋገጫ (የፍለጋ ፈቃድ ላላቸው ኩባንያዎች ብቻ)",
+        title: "License contract: annual work plan performance and evidence (filled in at the office)",
+        title_am: "የፈቃድ ውል ዓመታዊ የሥራ ዕቅድ አፈጻጸምና ማስረጃ ማረጋገጫ (በቢሮ የሚሞላ)",
         description:
-          "Record each task planned for each year under the signed exploration contract and approved amendments. Check in the field whether each task was done, choose its status, and record the name, number, date or other reference of the evidence. If a task was partly done or not done, explain why and the corrective action. If a contract year has more than one task, record each on its own row. Check that the evidence is attached or can be found by its reference number.",
+          "Filled in at the office after the field visit; it can still be completed after the inspection is submitted. Record each task planned for each year under the signed license contract and approved amendments. Check in the field whether each task was done, choose its status, and record the name, number, date or other reference of the evidence. If a task was partly done or not done, explain why and the corrective action. If a contract year has more than one task, record each on its own row. Check that the evidence is attached or can be found by its reference number.",
         description_am:
-          "በተፈረመው የፍለጋ ውልና በጸደቁ ማሻሻያዎች መሠረት ለየዓመቱ የተያዙትን ተግባራት በተናጥል ይመዝግቡ። እያንዳንዱ ተግባር ተፈጽሞ እንደሆነ በመስክ ያረጋግጡ፤ የአፈጻጸም ሁኔታውን ይምረጡ፣ እና የተግባሩን መፈጸም የሚያረጋግጥ የማስረጃ ሰነድ ስም፣ ቁጥር፣ ቀን ወይም ሌላ ማጣቀሻ ይመዝግቡ። በከፊል የተፈጸመ ወይም ያልተፈጸመ ተግባር ካለ፣ ምክንያቱንና የማስተካከያ እርምጃውን በማስታወሻ ይግለጹ። በአንድ የውል ዓመት ከአንድ በላይ ተግባር ካለ እያንዳንዱን በተለየ ረድፍ ይመዝግቡ። የቀረበው ማስረጃ ከዋናው ሰነድ ጋር ተያይዞ ወይም በማጣቀሻ ቁጥሩ ሊገኝ የሚችል መሆኑን ያረጋግጡ።",
-        applies_to: { license_types: ["exploration"] },
+          "ከመስክ ምልከታው በኋላ በቢሮ ይሞላል፤ ምልከታው ከተላከ በኋላም መሙላት ይቻላል። በተፈረመው የፈቃድ ውልና በጸደቁ ማሻሻያዎች መሠረት ለየዓመቱ የተያዙትን ተግባራት በተናጥል ይመዝግቡ። እያንዳንዱ ተግባር ተፈጽሞ እንደሆነ በመስክ ያረጋግጡ፤ የአፈጻጸም ሁኔታውን ይምረጡ፣ እና የተግባሩን መፈጸም የሚያረጋግጥ የማስረጃ ሰነድ ስም፣ ቁጥር፣ ቀን ወይም ሌላ ማጣቀሻ ይመዝግቡ። በከፊል የተፈጸመ ወይም ያልተፈጸመ ተግባር ካለ፣ ምክንያቱንና የማስተካከያ እርምጃውን በማስታወሻ ይግለጹ። በአንድ የውል ዓመት ከአንድ በላይ ተግባር ካለ እያንዳንዱን በተለየ ረድፍ ይመዝግቡ። የቀረበው ማስረጃ ከዋናው ሰነድ ጋር ተያይዞ ወይም በማጣቀሻ ቁጥሩ ሊገኝ የሚችል መሆኑን ያረጋግጡ።",
+        // Filled in at the office after the field visit: optional, and the team can still fill it in once submitted
+        after_submit: true,
         fields: [
           { key: "contract_signed_on", type: "date", label: "Date the contract was signed", label_am: "ውል የተፈረመበት ቀን" },
           { key: "contract_term_years", type: "number", label: "License / contract term", label_am: "የፈቃድ/ውል ጊዜ ወሰን", unit: "years / ዓመት", min: 0, max: 50 },
@@ -153,17 +156,17 @@ module.exports = {
         title: "Occupational safety and health (OSH)",
         title_am: "የሥራ ደህንነትና ጤና (OSH)",
         fields: [
-          status("osh_officer", "An OSH officer or responsible contact person has been assigned", "የOSH ኃላፊ ወይም ተጠያቂ አገናኝ ሰው ስለመመደቡ"),
-          status("osh_risk_assessment", "A risk assessment and safe work procedures exist and are followed up in practice", "የሥራ አደጋ ግምገማ (Risk Assessment) እና የደህንነት የሥራ ሂደቶች ስለመኖራቸው እና በተግባር ክትትል ስለመደረጉ"),
-          status("osh_ppe", "Suitable personal protective equipment (PPE) is provided to workers and used", "ተገቢ የግል መከላከያ መሣሪያዎች (PPE) ለሠራተኞች ስለመቅረባቸው እና ጥቅም ላይ ስለመዋላቸው"),
-          status("osh_training", "Toolbox talks, induction and safety training take place", "የToolbox Talk፣ የሥራ መግቢያ ግንዛቤና የደህንነት ስልጠና ስለመኖ"),
-          status("osh_ground_control", "Open-pit benches, pit walls and slopes, or underground support and access systems, are inspected as required", "የOpen-pit ቤንች፣ የጉድጓድ ግድግዳና ቁልቁለት፣ ወይም የUnderground የድጋፍና የመግቢያ ሥርዓቶች እንደአስፈላጊነቱ ስለመመርመራቸው"),
-          status("osh_traffic", "Haul roads, vehicle movement, traffic control and machine inspection are adequate", "የHaul Road፣ የተሽከርካሪ እንቅስቃሴ፣ የትራፊክ ቁጥጥርና የማሽን ምርመራ በበቂ ሁኔታ ስለመኖሩ"),
-          status("osh_hazardous_materials", "Explosives, fuel and hazardous chemicals are controlled by authorized, competent people as required", "ፈንጂዎች፣ ነዳጅና አደገኛ ኬሚካሎች እንደአስፈላጊነቱ በተፈቀደ ብቃት ባላቸው ሰዎች ቁጥጥር ስለመደረጉ"),
-          status("osh_emergency", "First aid, emergency response, fire protection and evacuation arrangements are in place", "የመጀመሪያ ዕርዳታ፣ የአደጋ ጊዜ ምላሽ፣ የእሳት መከላከያና የማስወጫ ዝግጅት ስለመኖሩ"),
-          status("osh_exposure", "Dust, noise, vibration, chemicals and other workplace exposures are under control", "አቧራ፣ ድምፅ፣ ንዝረት፣ ኬሚካልና ሌሎች የሥራ ቦታ ተጋላጭነቶች ቁጥጥር ሥር ስለመሆናቸው"),
-          status("osh_incidents", "Accidents, injuries, near misses and corrective actions are recorded and reported", "አደጋዎች፣ ጉዳቶች፣ Near Miss እና የማስተካከያ እርምጃዎች ተመዝግበው ሪፖርት ስለመደረጋቸው"),
-          status("osh_welfare", "Drinking water, toilets and worker welfare facilities are adequate", "የመጠጥ ውሃ፣ መጸዳጃና የሠራተኛ ደህንነት መገልገያዎች በቂ ስለመሆናቸው"),
+          textArea("osh_officer", "An OSH officer or responsible contact person has been assigned", "የOSH ኃላፊ ወይም ተጠያቂ አገናኝ ሰው ስለመመደቡ"),
+          textArea("osh_risk_assessment", "A risk assessment and safe work procedures exist and are followed up in practice", "የሥራ አደጋ ግምገማ (Risk Assessment) እና የደህንነት የሥራ ሂደቶች ስለመኖራቸው እና በተግባር ክትትል ስለመደረጉ"),
+          textArea("osh_ppe", "Suitable personal protective equipment (PPE) is provided to workers and used", "ተገቢ የግል መከላከያ መሣሪያዎች (PPE) ለሠራተኞች ስለመቅረባቸው እና ጥቅም ላይ ስለመዋላቸው"),
+          textArea("osh_training", "Toolbox talks, induction and safety training take place", "የToolbox Talk፣ የሥራ መግቢያ ግንዛቤና የደህንነት ስልጠና ስለመኖሩ"),
+          textArea("osh_ground_control", "Open-pit benches, pit walls and slopes, or underground support and access systems, are inspected as required", "የOpen-pit ቤንች፣ የጉድጓድ ግድግዳና ቁልቁለት፣ ወይም የUnderground የድጋፍና የመግቢያ ሥርዓቶች እንደአስፈላጊነቱ ስለመመርመራቸው"),
+          textArea("osh_traffic", "Haul roads, vehicle movement, traffic control and machine inspection are adequate", "የHaul Road፣ የተሽከርካሪ እንቅስቃሴ፣ የትራፊክ ቁጥጥርና የማሽን ምርመራ በበቂ ሁኔታ ስለመኖሩ"),
+          textArea("osh_hazardous_materials", "Explosives, fuel and hazardous chemicals are controlled by authorized, competent people as required", "ፈንጂዎች፣ ነዳጅና አደገኛ ኬሚካሎች እንደአስፈላጊነቱ በተፈቀደ ብቃት ባላቸው ሰዎች ቁጥጥር ስለመደረጉ"),
+          textArea("osh_emergency", "First aid, emergency response, fire protection and evacuation arrangements are in place", "የመጀመሪያ ዕርዳታ፣ የአደጋ ጊዜ ምላሽ፣ የእሳት መከላከያና የማስወጫ ዝግጅት ስለመኖሩ"),
+          textArea("osh_exposure", "Dust, noise, vibration, chemicals and other workplace exposures are under control", "አቧራ፣ ድምፅ፣ ንዝረት፣ ኬሚካልና ሌሎች የሥራ ቦታ ተጋላጭነቶች ቁጥጥር ሥር ስለመሆናቸው"),
+          textArea("osh_incidents", "Accidents, injuries, near misses and corrective actions are recorded and reported", "አደጋዎች፣ ጉዳቶች፣ Near Miss እና የማስተካከያ እርምጃዎች ተመዝግበው ሪፖርት ስለመደረጋቸው"),
+          textArea("osh_welfare", "Drinking water, toilets and worker welfare facilities are adequate", "የመጠጥ ውሃ፣ መጸዳጃና የሠራተኛ ደህንነት መገልገያዎች በቂ ስለመሆናቸው"),
         ],
       },
       {
@@ -172,17 +175,16 @@ module.exports = {
         title: "Environmental management and protection",
         title_am: "የአካባቢ አስተዳደርና ጥበቃ",
         fields: [
-          status("env_permits", "Applicable environmental permits, ESIA/ESMP documents and monitoring commitments are available", "ተፈጻሚ የሆኑ የአካባቢ ፈቃዶች፣ ESIA/ESMP ሰነዶችና የክትትል ቃል ኪዳኖች ስለመገኘታቸው"),
-          status("env_dust_noise", "Dust, noise and vibration impacts are monitored and controlled", "የአቧራ፣ ድምፅና ንዝረት ተፅዕኖዎች ክትትል እነ ቁጥጥር ስለመኖሩ"),
-          status("env_water", "Surface and groundwater, drainage and wastewater are controlled so they do not cause pollution", "የወለልና የከርሰ ምድር ውሃ፣ ፍሳሽና ቆሻሻ ውሃ ብክለት እንዳያስከትሉ ስለሚደረግ ቁጥጥር"),
-          status("env_tailings_waste_rock", "Tailings, waste rock and processing residues are managed properly", "Tailings፣ Waste Rock እና የማቀነባበሪያ ተረፈ ምርቶች በትክክል የሚስተዳዳሩበት አሰራር ስለመኖሩ"),
-          status("env_tsf", "The tailings storage facility is inspected and monitored as required", "የTailings Storage Facility እንደአስፈላጊነቱ ምርመራን ክትትል የሚደረግለት ስለመሆኑ"),
-          status("env_fuel_chemicals", "Fuel, oil and chemicals are stored in proper containment with spill response in place", "ነዳጅ፣ ዘይትና ኬሚካሎች በተገቢ መያዣና Spill Response ዝግጅት ስለመቀመጣቸው"),
-          status("env_waste", "Hazardous and non-hazardous waste is separated, stored and disposed of properly", "አደገኛና አደገኛ ያልሆኑ ቆሻሻዎች ተለይተው፣ ተቀምጠውና በተገቢው ሁኔታ ስለመወገዳቸው"),
-          status("env_erosion", "Soil erosion, sedimentation and land disturbance are under control", "የአፈር መሸርሸር፣ ደለል መከማቸትና የመሬት መረበሽ ቁጥጥር ሥር ስለመሆኑ"),
-          status("env_rehabilitation", "Progressive rehabilitation is being carried out", "ቀጣይ የመሬት መልሶ ማልማት (Progressive Rehabilitation) እየተከናወነ ስለመሆኑ"),
-          status("env_reporting", "Environmental incidents, complaints and monitoring results are recorded and reported to the relevant body", "የአካባቢ አደጋዎች፣ ቅሬታዎችና የክትትል ውጤቶች ተመዝግበው ለሚመለከተው አካል ስለመቅረቡ"),
-          status("env_closure", "Mine closure and land rehabilitation obligations are planned and being met", "የማዕድን ቦታ መዝጊያና የመሬት መልሶ ማልማት ግዴታዎች ታቅደው እየተፈጸሙ ስለመሆኑ"),
+          textArea("env_permits", "Applicable environmental permits, ESIA/ESMP documents and monitoring commitments are available", "ተፈጻሚ የሆኑ የአካባቢ ፈቃዶች፣ ESIA/ESMP ሰነዶችና የክትትል ቃል ኪዳኖች ስለመገኘታቸው"),
+          textArea("env_water", "Surface and groundwater, drainage and wastewater are controlled so they do not cause pollution", "የወለልና የከርሰ ምድር ውሃ፣ ፍሳሽና ቆሻሻ ውሃ ብክለት እንዳያስከትሉ ስለሚደረግ ቁጥጥር"),
+          textArea("env_tailings_waste_rock", "Tailings, waste rock and processing residues are managed properly", "Tailings፣ Waste Rock እና የማቀነባበሪያ ተረፈ ምርቶች በትክክል የሚስተዳዳሩበት አሰራር ስለመኖሩ"),
+          textArea("env_tsf", "The tailings storage facility is inspected and monitored as required", "የTailings Storage Facility እንደአስፈላጊነቱ ምርመራን ክትትል የሚደረግለት ስለመሆኑ"),
+          textArea("env_fuel_chemicals", "Fuel, oil and chemicals are stored in proper containment with spill response in place", "ነዳጅ፣ ዘይትና ኬሚካሎች በተገቢ መያዣና Spill Response ዝግጅት ስለመቀመጣቸው"),
+          textArea("env_waste", "Hazardous and non-hazardous waste is separated, stored and disposed of properly", "አደገኛና አደገኛ ያልሆኑ ቆሻሻዎች ተለይተው፣ ተቀምጠውና በተገቢው ሁኔታ ስለመወገዳቸው"),
+          textArea("env_erosion", "Soil erosion, sedimentation and land disturbance are under control", "የአፈር መሸርሸር፣ ደለል መከማቸትና የመሬት መረበሽ ቁጥጥር ሥር ስለመሆኑ"),
+          textArea("env_rehabilitation", "Progressive rehabilitation is being carried out", "ቀጣይ የመሬት መልሶ ማልማት (Progressive Rehabilitation) እየተከናወነ ስለመሆኑ", MINING),
+          textArea("env_reporting", "Environmental incidents, complaints and monitoring results are recorded and reported to the relevant body", "የአካባቢ አደጋዎች፣ ቅሬታዎችና የክትትል ውጤቶች ተመዝግበው ለሚመለከተው አካል ስለመቅረቡ"),
+          textArea("env_closure", "Mine closure and land rehabilitation obligations are planned and being met", "የማዕድን ቦታ መዝጊያና የመሬት መልሶ ማልማት ግዴታዎች ታቅደው እየተፈጸሙ ስለመሆኑ", MINING),
         ],
       },
       {
@@ -191,27 +193,26 @@ module.exports = {
         title: "Labour, employment and community relations",
         title_am: "የሠራተኛ፣ የቅጥርና የማኅበረሰብ ግንኙነት",
         fields: [
-          status("lab_register", "An up-to-date register of workers is kept", "የዘመነ የሠራተኞች መዝገብ ስለመያዙ"),
-          status("lab_local_hiring", "Local hiring and skills development commitments are being met", "የአካባቢ ሠራተኛ ቅጥርና የክህሎት ማሳደግ ቃል ኪዳኖች እየተፈጸሙ ስለመሆኑ"),
-          status("lab_contracts", "Employment contracts, wages, working hours and benefits are documented", "የቅጥር ውሎች፣ ደመወዝ፣ የሥራ ሰዓትና ተገቢ ጥቅማጥቅሞች በሰነድ ስለመያዛቸው"),
-          status("lab_grievances", "Worker complaints and labour disputes are recorded and resolved", "የሠራተኛ ቅሬታዎችና የሥራ ክርክሮች ተመዝግበው መፍትሔ ስለማግኘታቸው"),
-          status("com_grievances", "Community complaints, compensation and land-use issues are recorded and followed up", "የማኅበረሰብ ቅሬታዎች፣ ካሳና የመሬት መጠቀም ጉዳዮች ተመዝግበው ክትትል ስለመደረጉ"),
-          status("com_commitments", "Local procurement and community development commitments are being met, with evidence", "የአካባቢ ግዢና የማኅበረሰብ ልማት ቃል ኪዳኖች እየተፈጸሙ ሰለመሆኑ በማሳያ"),
+          textArea("lab_register", "An up-to-date register of workers is kept", "የዘመነ የሠራተኞች መዝገብ ስለመያዙ"),
+          textArea("lab_local_hiring", "Local hiring and skills development commitments are being met", "የአካባቢ ሠራተኛ ቅጥርና የክህሎት ማሳደግ ቃል ኪዳኖች እየተፈጸሙ ስለመሆኑ"),
+          textArea("lab_contracts", "Employment contracts, wages, working hours and benefits are documented", "የቅጥር ውሎች፣ ደመወዝ፣ የሥራ ሰዓትና ተገቢ ጥቅማጥቅሞች በሰነድ ስለመያዛቸው"),
+          textArea("lab_grievances", "Worker complaints and labour disputes are recorded and resolved", "የሠራተኛ ቅሬታዎችና የሥራ ክርክሮች ተመዝግበው መፍትሔ ስለማግኘታቸው"),
+          textArea("com_grievances", "Community complaints, compensation and land-use issues are recorded and followed up", "የማኅበረሰብ ቅሬታዎች፣ ካሳና የመሬት መጠቀም ጉዳዮች ተመዝግበው ክትትል ስለመደረጉ"),
+          textArea("com_commitments", "Local procurement and community development commitments are being met, with evidence", "የአካባቢ ግዢና የማኅበረሰብ ልማት ቃል ኪዳኖች እየተፈጸሙ ሰለመሆኑ በማሳያ"),
         ],
       },
       {
         key: "processing",
         number: "8",
-        title: "Processing, mineral handling and marketing (producing mines only)",
-        title_am: "ማቀነባበር፣ የማዕድን አያያዝና ገበያ/ ማእድን ውጣት ለጀመሩት ብቻ",
-        ...PRODUCING,
+        title: "Processing, mineral handling and marketing",
+        title_am: "ማቀነባበር፣ የማዕድን አያያዝና ገበያ",
         fields: [
-          status("proc_capacity", "The processing plant operates within its approved scope and capacity", "የማቀነባበሪያ ፋብሪካው በተፈቀደው ወሰንና አቅም እየሠራ ስለመሆኑ"),
-          status("proc_records", "Feed, throughput, recovery, product grade and process residues are recorded as required", "Feed፣ Throughput፣ Recovery፣ የምርት ደረጃና የሂደት ተረፈ ምርት እንደአስፈላጊነቱ ስለመመመዝገቡ"),
-          status("proc_qc", "Sampling, assay, laboratory and quality control records are available", "የናሙና፣ Assay፣ ላቦራቶሪና Quality Control መዝገቦች ስለመገኘታቸው"),
-          status("proc_reconciliation", "Opening stock, additions, dispatched quantity and closing stock are reconciled", "የመጀመሪያ ክምችት፣ ጭማሪ፣ የተላከ መጠንና የመጨረሻ ክምችት ስለመነጻጸሩ"),
-          status("proc_sales", "Mineral sales, buyers, destinations and transport documents are tracked", "የማዕድን ሽያጭ፣ ገዢዎች፣ መዳረሻዎችና የማጓጓዣ ሰነዶች ክትትል ስለመደረጉ"),
-          status("proc_discrepancies", "Differences between production, processing, stockpile and transport records are identified and reported", "በማዕድን ምርት፣ ማቀነባበር፣ ክምችትና ማጓጓዣ መዝገቦች መካከል ያለ ልዩነት ካለ ይለይና ይቅረብ"),
+          textArea("proc_capacity", "The processing plant operates within its approved scope and capacity", "የማቀነባበሪያ ፋብሪካው በተፈቀደው ወሰንና አቅም እየሠራ ስለመሆኑ"),
+          textArea("proc_records", "Feed, throughput, recovery, product grade and process residues are recorded as required", "Feed፣ Throughput፣ Recovery፣ የምርት ደረጃና የሂደት ተረፈ ምርት እንደአስፈላጊነቱ ስለመመመዝገቡ"),
+          textArea("proc_qc", "Sampling, assay, laboratory and quality control records are available", "የናሙና፣ Assay፣ ላቦራቶሪና Quality Control መዝገቦች ስለመገኘታቸው"),
+          textArea("proc_reconciliation", "Opening stock, additions, dispatched quantity and closing stock are reconciled", "የመጀመሪያ ክምችት፣ ጭማሪ፣ የተላከ መጠንና የመጨረሻ ክምችት ስለመነጻጸሩ"),
+          textArea("proc_sales", "Mineral sales, buyers, destinations and transport documents are tracked", "የማዕድን ሽያጭ፣ ገዢዎች፣ መዳረሻዎችና የማጓጓዣ ሰነዶች ክትትል ስለመደረጉ"),
+          textArea("proc_discrepancies", "Differences between production, processing, stockpile and transport records are identified and reported", "በማዕድን ምርት፣ ማቀነባበር፣ ክምችትና ማጓጓዣ መዝገቦች መካከል ያለ ልዩነት ካለ ይለይና ይቅረብ"),
         ],
       },
       {
@@ -220,11 +221,11 @@ module.exports = {
         title: "Equipment and infrastructure",
         title_am: "የመስሪያ ግብዓት",
         fields: [
-          status("inp_equipment", "Machines and equipment are adequate for the planned work and in good working order", "ማሽኖችና መሣሪያዎች ለታቀደው ሥራ በቂና በጥሩ ሁኔታ ስለመስራታቸው"),
-          status("inp_utilities", "Electricity, water, fuel, roads, workshop and communication services are adequate", "የኤሌክትሪክ፣ ውሃ፣ ነዳጅ፣ መንገድ፣ ዎርክሾፕና የግንኙነት አገልግሎቶች በቂ ስለመሆናቸው"),
-          status("inp_maintenance", "Machine breakdowns, maintenance delays and critical spare parts are followed up", "የማሽን ብልሽት፣ የጥገና መዘግየትና ወሳኝ ተተኪ ዕቃዎች ክትትል ስለመደረጉ"),
-          status("inp_instruments", "Weighbridge, laboratory, survey and monitoring equipment is installed as required and working", "Weighbridge፣ ላቦራቶሪ፣ Survey እና የክትትል መሣሪያዎች ይሠራሉ? እንደአስፈላጊነቱ ስለመተከላቸው"),
-          status("inp_investment", "Infrastructure and investment commitments are being met on schedule", "የመሠረተ ልማትና የኢንቨስትመንት ቃል ኪዳኖች በታቀደው ጊዜ እየተፈጸሙ ስለመሆናቸው"),
+          textArea("inp_equipment", "Machines and equipment are adequate for the planned work and in good working order", "ማሽኖችና መሣሪያዎች ለታቀደው ሥራ በቂና በጥሩ ሁኔታ ስለመስራታቸው"),
+          textArea("inp_utilities", "Electricity, water, fuel, roads, workshop and communication services are adequate", "የኤሌክትሪክ፣ ውሃ፣ ነዳጅ፣ መንገድ፣ ዎርክሾፕና የግንኙነት አገልግሎቶች በቂ ስለመሆናቸው"),
+          textArea("inp_maintenance", "Machine breakdowns, maintenance delays and critical spare parts are followed up", "የማሽን ብልሽት፣ የጥገና መዘግየትና ወሳኝ ተተኪ ዕቃዎች ክትትል ስለመደረጉ"),
+          textArea("inp_instruments", "Weighbridge, laboratory, survey and monitoring equipment is installed as required and working", "Weighbridge፣ ላቦራቶሪ፣ Survey እና የክትትል መሣሪያዎች ይሠራሉ? እንደአስፈላጊነቱ ስለመተከላቸው"),
+          textArea("inp_investment", "Infrastructure and investment commitments are being met on schedule", "የመሠረተ ልማትና የኢንቨስትመንት ቃል ኪዳኖች በታቀደው ጊዜ እየተፈጸሙ ስለመሆናቸው"),
         ],
       },
       {
@@ -233,27 +234,14 @@ module.exports = {
         title: "Findings, risks and corrective actions",
         title_am: "ግኝቶች፣ አደጋዎችና የማስተካከያ እርምጃዎች",
         fields: [
-          status("find_critical_reported", "Critical hazards and serious non-compliance are reported to the Ministry immediately", "ወሳኝ አደጋዎችና ከባድ ግድፈቶች ወዲያውኑ ለሚኒስቴሩ ሪፖርት ስለመደረጋቸው"),
-          status("find_documented", "Each finding is recorded with its date, location, evidence and responsible party", "እያንዳንዱ ግኝት ቀን፣ ቦታ፣ ማስረጃና ተጠያቂ አካል ተጠቅሶ ስለመመዝገቡ"),
-          status("find_risk_rated", "Each finding has a risk level and a corrective action has been set", "የአደጋ ደረጃ ተመድቦ የማስተካከያ እርምጃ ስለመወደሱ"),
+          textArea("find_critical_reported", "Critical hazards and serious non-compliance are reported to the Ministry immediately", "ወሳኝ አደጋዎችና ከባድ ግድፈቶች ወዲያውኑ ለሚኒስቴሩ ሪፖርት ስለመደረጋቸው"),
+          textArea("find_documented", "Each finding is recorded with its date, location, evidence and responsible party", "እያንዳንዱ ግኝት ቀን፣ ቦታ፣ ማስረጃና ተጠያቂ አካል ተጠቅሶ ስለመመዝገቡ"),
+          textArea("find_risk_rated", "Each finding has a risk level and a corrective action has been set", "የአደጋ ደረጃ ተመድቦ የማስተካከያ እርምጃ ስለመወደሱ"),
           { key: "overall_summary", type: "long_text", label: "Overall situation of the company, in brief", label_am: "አጠቃላይ ኩባንያው ያለበት ሁኔታ በአጭሩ" },
           { key: "company_actions", type: "long_text", label: "Actions expected from the company to improve performance", label_am: "አፈጻጸም እንዲሻሻል ከኩባንያው የሚጠበቅ እርምጃ" },
           { key: "regional_actions", type: "long_text", label: "Actions needed from the regional and local administration", label_am: "ከክልል እና አካባቢ አስተዳዳር የሚፈለግ እርምጃ" },
           { key: "ministry_issues", type: "long_text", label: "Issues that need the Ministry's intervention", label_am: "የሚኒስቴሩ ጣልቃ ገብነት የሚፈልጉ ጉዳዮች" },
-          {
-            key: "attached_evidence",
-            type: "checkboxes",
-            label: "Evidence attached",
-            label_am: "የተያያዙ ማስረጃዎች",
-            options: [
-              { value: "photo", label: "Photos", label_am: "ፎቶ" },
-              { value: "production_record", label: "Production record", label_am: "የምርት መዝገብ" },
-              { value: "weighbridge_ticket", label: "Weighbridge ticket", label_am: "Weighbridge Ticket" },
-              { value: "incident_report", label: "Incident report", label_am: "የአደጋ ሪፖርት" },
-              { value: "other", label: "Other", label_am: "ሌላ" },
-            ],
-          },
-          { key: "evidence_files", type: "photo", label: "Photos and documents", label_am: "ፎቶዎችና ሰነዶች", max_files: 20 },
+          { key: "evidence_files", type: "photo", label: "Evidence attached (photos, production records, weighbridge tickets, incident reports or any other file)", label_am: "የተያያዙ ማስረጃዎች (ፎቶ፣ የምርት መዝገብ፣ Weighbridge Ticket፣ የአደጋ ሪፖርት ወይም ሌላ ፋይል)", ...ANY_FILE },
         ],
       },
       {

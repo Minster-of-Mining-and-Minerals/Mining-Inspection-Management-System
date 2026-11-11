@@ -96,6 +96,11 @@ export const inspectionApi = baseApi.injectEndpoints({
       query: ({ id, ...body }) => ({ url: `/inspections/${id}/answers`, method: "PUT", body }),
       transformResponse: (response: any) => response.data,
     }),
+    /** After submitting: the sections filled in at the office (after_submit) only */
+    saveOfficeAnswers: builder.mutation<{ last_saved_at: string; status: string }, { id: string; answers: Record<string, unknown>; base_saved_at: string | null }>({
+      query: ({ id, ...body }) => ({ url: `/inspections/${id}/office-answers`, method: "PUT", body }),
+      transformResponse: (response: { data: { last_saved_at: string; status: string } }) => response.data,
+    }),
     submitTask: builder.mutation<
       { status: string; is_late: boolean; score: number | null },
       { id: string; answers: Record<string, any>; base_saved_at: string | null; location: Record<string, any> | null; device: Record<string, any> | null }
@@ -128,6 +133,7 @@ export const {
   useGetLicenseHistoryQuery,
   useGetTaskQuery,
   useSaveAnswersMutation,
+  useSaveOfficeAnswersMutation,
   useSubmitTaskMutation,
   useReturnTaskMutation,
   useUpdateTaskAssignmentMutation,

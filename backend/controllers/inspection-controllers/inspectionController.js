@@ -421,6 +421,47 @@ const saveAnswers = async (req, res) => {
   }
 };
 
+/**
+ * PUT /:id/office-answers — after submitting, the team fills in the sections marked after_submit
+ * (e.g. 4.1, done at the office). Only those sections' answers change; the rest stays as submitted.
+ * Recorded in the history as "office_update", once per person and day.
+ */
+const saveOfficeAnswers = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { task, rights } = await loadTask(req, req.params.id);
+    await task.reload({ transaction, lock: transaction.LOCK.UPDATE });
+    if (!rights.fill_after_submit) throw Object.assign(new Error("Only members of the assigned team can complete this after submitting."), { status: 403 });
+    const version = await versionFor(task, transaction);
+    const open = (version?.definition.sections || []).filter((s) => s.after_submit);
+    if (!open.length) throw Object.assign(new Error("Nothing in this checklist can be changed after submitting."), { status: 409 });
+    const base = req.body.base_saved_at ? new Date(req.body.base_saved_at) : null;
+    if (task.last_saved_at && task.last_saved_by !== req.user.user_id && (!base || task.last_saved_at > base)) {
+      const who = await User.findByPk(task.last_saved_by, { attributes: ["full_name"] });
+      throw Object.assign(new Error(`${who?.full_name ?? "A teammate"} saved changes to this inspection. Reload it to see their answers before you continue.`), { status: 409, extra: { conflict: true } });
+    }
+    const keys = new Set(open.flatMap((s) => (s.fields || []).map((f) => f.key)));
+    const picked = Object.fromEntries(Object.entries(req.body.answers || {}).filter(([k]) => keys.has(k)));
+    const merged = { ...(task.answers || {}), ...picked };
+    const now = new Date();
+    await task.update(
+      { answers: await sanitizeFileRefs(task.inspection_id, version.definition, cleanAnswers(version.definition, merged), transaction), last_saved_at: now, last_saved_by: req.user.user_id },
+      { transaction },
+    );
+    // One history line per person and day
+    const today = new Date(now.toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa" })).toDateString();
+    const last = await InspectionEvent.findOne({ where: { inspection_id: task.inspection_id, type: "office_update", user_id: req.user.user_id }, order: [["created_at", "DESC"]], transaction });
+    const lastDay = last && new Date(new Date(last.created_at).toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa" })).toDateString();
+    if (lastDay !== today)
+      await InspectionEvent.create({ inspection_id: task.inspection_id, type: "office_update", user_id: req.user.user_id, details: { sections: open.map((s) => s.number || s.title) } }, { transaction });
+    await transaction.commit();
+    return res.status(200).json({ success: true, data: { last_saved_at: task.last_saved_at, status: task.status } });
+  } catch (error) {
+    if (!transaction.finished) await transaction.rollback();
+    return sendError(res, error, "Failed to save the answers.");
+  }
+};
+
 const LOCATION_KEYS = ["lat", "lng", "accuracy", "altitude", "captured_at", "error"];
 const DEVICE_KEYS = ["user_agent", "platform", "language", "screen", "timezone", "device_id"];
 const pick = (o, keys) => (o && typeof o === "object" ? Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, typeof o[k] === "string" ? o[k].slice(0, 500) : o[k]])) : null);
@@ -543,6 +584,7 @@ const updateAssignment = async (req, res) => {
 };
 
 module.exports = {
+  saveOfficeAnswers,
   getInspections,
   getTeamProgress,
   getMyTasks,

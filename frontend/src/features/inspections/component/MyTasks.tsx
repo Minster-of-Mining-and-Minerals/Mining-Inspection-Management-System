@@ -21,10 +21,11 @@ type GroupBy = "due" | "form" | "company" | "region";
 type Sort = "due" | "company" | "saved";
 type Lang = "am" | "en";
 
-const PREF_KEY = "mims.myTasks.prefs";
+// Renamed so everyone starts once on the default view (all open, by checklist); their own choice is kept from then on
+const PREF_KEY = "mims.myTasks.prefs.v2";
 const LANG_KEY = "mims.inspection.language"; // same as the inspection page
-/** Teams work company by company, so tasks are grouped by company unless the inspector picks otherwise */
-const DEFAULT_GROUP_BY: GroupBy = "company";
+/** Tasks are grouped by checklist unless the inspector picks otherwise */
+const DEFAULT_GROUP_BY: GroupBy = "form";
 
 const T = {
   title: { am: "የእኔ ምደባዎች", en: "My tasks" },
@@ -287,12 +288,28 @@ export default function MyTasks() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <Input aria-label={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("search")} className="h-10 bg-white pl-9" />
         </div>
+        {/* Checklist: always at hand (not in Filters) */}
+        {formOptions.length > 0 && (
+          <select
+            aria-label={t("form")}
+            className={`h-10 max-w-60 rounded-md border bg-white px-2 text-sm ${formFilter ? "border-primary text-primary" : "border-input text-slate-700"}`}
+            value={formFilter}
+            onChange={(e) => setFormFilter(e.target.value)}
+          >
+            <option value="">{am ? "ሁሉም ቼክሊስቶች" : "All checklists"}</option>
+            {formOptions.map(([v, l]) => (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            ))}
+          </select>
+        )}
         <div className="flex rounded-lg bg-slate-200/70 p-1" role="group" aria-label={t("groupBy")}>
           {(
             [
+              ["form", ClipboardList],
               ["company", Building2],
               ["due", CalendarDays],
-              ["form", ClipboardList],
               ["region", MapPin],
             ] as const
           ).map(([key, Icon]) => (
@@ -312,13 +329,12 @@ export default function MyTasks() {
             </button>
           ))}
         </div>
-        <Button variant={showFilters || filtersOn ? "secondary" : "outline"} size="sm" className="h-10 gap-1" onClick={() => setShowFilters((v) => !v)} aria-expanded={showFilters}>
+        <Button variant={showFilters || typeFilter || regionFilter ? "secondary" : "outline"} size="sm" className="h-10 gap-1" onClick={() => setShowFilters((v) => !v)} aria-expanded={showFilters}>
           <SlidersHorizontal className="h-4 w-4" /> <span className="hidden sm:inline">{t("filters")}</span>
         </Button>
       </div>
       {showFilters && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs">
-          <FilterSelect label={t("form")} value={formFilter} onChange={setFormFilter} options={formOptions.map(([v, l]) => [v, l])} />
           <FilterSelect
             label={am ? "የፈቃድ ዓይነት" : "License type"}
             value={typeFilter}
@@ -417,29 +433,40 @@ function TaskCard({ task: t, groupBy, lang, onOpen }: { task: TaskListItem; grou
   const done = t.status === "submitted";
   const name = groupBy === "company" ? t.license?.license_number : t.company?.name;
   const area = [t.area?.region, t.area?.zone].filter(Boolean).join(" · ");
+  const licenseNo = groupBy === "company" ? null : t.license?.license_number;
   const details = [
-    groupBy === "company" ? null : t.license?.license_number,
     t.license?.license_type === "mining" ? (lang === "am" ? "ማምረት" : "Mining") : lang === "am" ? "ፍለጋ" : "Exploration",
     groupBy === "form" ? null : t.form?.name,
     groupBy === "region" ? t.area?.zone : area || null,
-  ].filter(Boolean);
+  ].filter(Boolean) as string[];
   return (
     <li>
       <button
         type="button"
         onClick={onOpen}
-        className={`grid w-full gap-1 rounded-xl border bg-white px-3.5 py-3 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary ${
+        title={t.company?.name}
+        className={`flex w-full min-w-0 flex-col gap-1.5 rounded-xl border bg-white px-3.5 py-3 text-left transition-shadow hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary ${
           t.group === "returned" || t.group === "overdue" ? "border-red-200" : "border-slate-200"
         }`}
       >
-        <span className="flex items-center justify-between gap-2">
-          <span className="min-w-0 truncate font-semibold text-slate-900">{name}</span>
+        {/* Name: wraps, at most two lines; the status stays at the top right */}
+        <span className="flex items-start gap-2.5">
+          <span className="line-clamp-2 min-w-0 flex-1 font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{name}</span>
           <span className="flex shrink-0 items-center gap-1.5">
             {done && <span className="text-sm font-bold text-slate-700">{scoreText(t.score)}</span>}
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${chip.tone}`}>{chip.text}</span>
+            <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${chip.tone}`}>{chip.text}</span>
           </span>
         </span>
-        <span className="truncate text-xs text-slate-500">{details.join(" · ")}</span>
+        {/* License number · type · checklist · area: wraps instead of overflowing */}
+        <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-slate-600">
+          {licenseNo && <span className="font-mono text-[11.5px] [overflow-wrap:anywhere]">{licenseNo}</span>}
+          {details.map((d, i) => (
+            <span key={i} className="flex min-w-0 items-center gap-1.5 [overflow-wrap:anywhere]">
+              {(licenseNo || i > 0) && <span aria-hidden="true" className="text-slate-400">·</span>}
+              {d}
+            </span>
+          ))}
+        </span>
         <span className={`text-xs ${due.urgent ? "font-semibold text-red-700" : "text-slate-500"}`}>
           {due.text}
           {t.schedule && <span className="font-normal text-slate-400"> · {FREQUENCY_LABEL[t.schedule.frequency]}</span>}

@@ -24,7 +24,7 @@ import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel } from "@/utils/device";
 import { Answers, defaultTableRows, scoreOf, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
-import { useGetTaskQuery, useReturnTaskMutation, useSaveAnswersMutation, useSubmitTaskMutation } from "@/redux/api/inspectionApi";
+import { useGetTaskQuery, useReturnTaskMutation, useSaveAnswersMutation, useSaveOfficeAnswersMutation, useSubmitTaskMutation } from "@/redux/api/inspectionApi";
 import type { AnswerProblem, TaskDetail } from "@/redux/types/inspection";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge, dueText, scoreText, scoreTone } from "./taskUi";
@@ -81,7 +81,7 @@ export default function InspectionView() {
   if (!task.version) return <p className="p-8 text-center text-red-600">The checklist of this inspection has no published version.</p>;
   // Remount when the server copy changes underneath (reload after a conflict, return for correction).
   // Someone watching isn't remounted by each save (they keep their place); the answers just update.
-  return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.can.fill ? task.last_saved_at : ""}`} task={task} reload={refetch} />;
+  return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.can.fill || task.can.fill_after_submit ? task.last_saved_at : ""}`} task={task} reload={refetch} />;
 }
 
 function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void }) {
@@ -89,6 +89,10 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
   const def = task.version!.definition;
   const licenseType = task.license?.license_type ?? null;
   const editable = task.can.fill;
+  // Submitted: the team can still fill the sections done at the office (after_submit, e.g. 4.1)
+  const officeKeys = useMemo(() => new Set(def.sections.filter((s) => s.after_submit).map((s) => s.key)), [def]);
+  const office = !editable && !!task.can.fill_after_submit && officeKeys.size > 0;
+  const canEdit = editable || office;
   const filesApi = useInspectionFiles(task.inspection_id, task.files ?? [], !editable);
 
   // Ask for location permission when filling starts; nothing is shown here. Submitting asks again and records it.
@@ -104,7 +108,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
   const [own, setAnswers] = useState<Answers>(() => initialAnswers(task));
   // The team's latest saved answers when only watching
   const saved = useMemo(() => initialAnswers(task), [task]);
-  const answers = editable ? own : saved;
+  const answers = canEdit ? own : saved;
   const [dirty, setDirty] = useState(false);
   const [saveState, setSaveState] = useState<"saved" | "saving" | "unsaved" | "error" | "conflict">("saved");
   const [conflict, setConflict] = useState<string | null>(null);
@@ -121,14 +125,16 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 
 
   const [saveAnswers] = useSaveAnswersMutation();
+  const [saveOfficeAnswers] = useSaveOfficeAnswersMutation();
   const [submitTask, { isLoading: submitting }] = useSubmitTaskMutation();
 
   // ---------- autosave ----------
   const saveNow = useCallback(async () => {
-    if (!editable || conflict) return false;
+    if (!canEdit || conflict) return false;
     setSaveState("saving");
     try {
-      const r = await saveAnswers({ id: task.inspection_id, answers, base_saved_at: baseSavedAt.current }).unwrap();
+      const save = office ? saveOfficeAnswers : saveAnswers;
+      const r = await save({ id: task.inspection_id, answers, base_saved_at: baseSavedAt.current }).unwrap();
       baseSavedAt.current = r.last_saved_at;
       setDirty(false);
       setSaveState("saved");
@@ -140,7 +146,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       } else setSaveState("error");
       return false;
     }
-  }, [editable, conflict, saveAnswers, task.inspection_id, answers]);
+  }, [canEdit, office, conflict, saveAnswers, saveOfficeAnswers, task.inspection_id, answers]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -174,7 +180,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
   }, [def, licenseType, answers]);
 
   const goBack = async () => {
-    if (dirty && editable) await saveNow();
+    if (dirty && canEdit) await saveNow();
     router.back();
   };
 
@@ -281,6 +287,29 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
         </p>
       )}
       {task.status === "submitted" && <SubmittedSummary task={task} onReturn={task.can.return ? () => setReturning(true) : undefined} />}
+      {office && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+          <span className="min-w-0 flex-1">
+            <strong>Filled in at the office:</strong>{" "}
+            {def.sections
+              .filter((s) => s.after_submit)
+              .map((s) => `${s.number ? `${s.number}. ` : ""}${s.title}`)
+              .join(", ")}{" "}
+            can still be completed. Changes are saved as you type.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setView("questions");
+              const first = def.sections.find((s) => s.after_submit)?.fields[0]?.key;
+              if (first) setJumpKey(first);
+            }}
+          >
+            Open it
+          </Button>
+        </div>
+      )}
 
       {/* Tabs: the questions, and the task's history */}
       <div className="flex gap-1 border-b" role="tablist" aria-label="Inspection">
@@ -318,12 +347,13 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
             jumpKey={jumpKey}
             onJumped={() => setJumpKey(null)}
             onFinish={editable ? startSubmit : undefined}
-            onStepChange={() => dirty && editable && saveNow()}
+            onStepChange={() => dirty && canEdit && saveNow()}
+            openSections={office ? officeKeys : undefined}
             resumeKey={task.inspection_id}
             title={task.company?.name ?? ""}
             finishing={submitting || locating}
             status={
-              editable ? (
+              canEdit ? (
                 <div className="flex shrink-0 items-center gap-2">
                   <span className={`hidden text-right text-[11px] leading-tight sm:block ${saveState === "error" || saveState === "conflict" ? "font-medium text-red-600" : "text-slate-500"}`}>
                     {saveLabel}
@@ -451,6 +481,7 @@ const EVENT_LABEL: Record<string, string> = {
   returned: "Returned for correction",
   reassigned: "Given to another team",
   due_changed: "Due date changed",
+  office_update: "Completed at the office",
 };
 
 function EventHistory({ task }: { task: TaskDetail }) {

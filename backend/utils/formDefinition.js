@@ -12,8 +12,11 @@
  *     { key, number?, title, title_am?, description?, description_am?,
  *       applies_to?: { license_types: ["exploration" | "mining"] },   // only for these licenses
  *       show_if?: { field: "<field key>", in: ["<value>", …] },        // only when an earlier answer is one of these
+ *       after_submit?: true,   // filled in later at the office: the team can still change this section once submitted
  *       fields: [
- *         { key, type, label, label_am?, help?, help_am?, required?, show_if?, ...type options }
+ *         { key, type, label, label_am?, help?, help_am?, required?, show_if?,
+ *           applies_to?: { license_types: [...] },   // this question only for these licenses
+ *           ...type options }
  *       ] }
  *   ]
  * }
@@ -89,6 +92,7 @@ const fieldSchema = Joi.object({
   help_am: text(2000).allow("", null),
   required: Joi.boolean().default(false),
   show_if: showIf,
+  applies_to: Joi.object({ license_types: Joi.array().items(Joi.string().valid("exploration", "mining")).min(1).unique() }),
   // type options
   status_options: Joi.when("type", { is: "status", then: statusOptionList, otherwise: Joi.forbidden() }),
   evidence: Joi.when("type", { is: "status", then: Joi.string().valid("none", "optional", "required").default("optional"), otherwise: Joi.forbidden() }),
@@ -145,6 +149,7 @@ const sectionSchema = Joi.object({
   description_am: text(4000).allow("", null),
   applies_to: Joi.object({ license_types: Joi.array().items(Joi.string().valid("exploration", "mining")).min(1).unique() }),
   show_if: showIf,
+  after_submit: Joi.boolean(),
   fields: Joi.array().items(fieldSchema).default([]),
 });
 

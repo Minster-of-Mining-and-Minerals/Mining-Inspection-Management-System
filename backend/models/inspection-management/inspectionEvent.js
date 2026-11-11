@@ -10,7 +10,7 @@ module.exports = (sequelize, DataTypes) => {
     }
   }
 
-  InspectionEvent.TYPES = ["started", "submitted", "returned", "reassigned", "due_changed"];
+  InspectionEvent.TYPES = ["started", "submitted", "returned", "reassigned", "due_changed", "office_update"];
 
   InspectionEvent.init(
     {

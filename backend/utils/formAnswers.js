@@ -26,7 +26,7 @@ const conditionMet = (cond, answers) => !cond || cond.in.includes(answerValue(an
 const visibleStructure = (def, licenseType, answers) =>
   (def.sections || [])
     .filter((s) => (!s.applies_to || !licenseType || s.applies_to.license_types.includes(licenseType)) && conditionMet(s.show_if, answers))
-    .map((s) => ({ section: s, fields: (s.fields || []).filter((f) => conditionMet(f.show_if, answers)) }));
+    .map((s) => ({ section: s, fields: (s.fields || []).filter((f) => (!f.applies_to || !licenseType || f.applies_to.license_types.includes(licenseType)) && conditionMet(f.show_if, answers)) }));
 
 const isEmpty = (v) => v == null || (typeof v === "string" && !v.trim()) || (Array.isArray(v) && v.length === 0);
 

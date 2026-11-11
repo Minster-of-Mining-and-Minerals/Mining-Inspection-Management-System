@@ -117,6 +117,8 @@ inspectionRouter.get("/my/stats", authenticateToken, getMyStats);
 inspectionRouter.get("/license/:licenseId", readAny, inspections.getLicenseHistory);
 inspectionRouter.get("/:id", readAny, inspections.getInspectionById);
 inspectionRouter.put("/:id/answers", authorize("inspections", "conduct"), validate(answersSchema), inspections.saveAnswers);
+// After submitting: only the sections filled in at the office (after_submit, e.g. 4.1)
+inspectionRouter.put("/:id/office-answers", authorize("inspections", "conduct"), validate(answersSchema), inspections.saveOfficeAnswers);
 // Files of answers (photos / documents / videos / signatures)
 inspectionRouter.post("/:id/files", authorize("inspections", "conduct"), receiveFile, files.uploadFile);
 inspectionRouter.get("/:id/files/links", readAny, files.getFileLinks);

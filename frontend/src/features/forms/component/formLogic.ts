@@ -70,13 +70,14 @@ export const conditionMet = (cond: ShowIf | undefined, answers: Answers) => !con
 export const sectionApplies = (s: FormSection, licenseType: LicenseTypeKey | null, answers: Answers) =>
   (!s.applies_to || !licenseType || s.applies_to.license_types.includes(licenseType)) && conditionMet(s.show_if, answers);
 
-export const fieldVisible = (f: FormField, answers: Answers) => conditionMet(f.show_if, answers);
+export const fieldVisible = (f: FormField, answers: Answers, licenseType: LicenseTypeKey | null = null) =>
+  (!f.applies_to || !licenseType || f.applies_to.license_types.includes(licenseType)) && conditionMet(f.show_if, answers);
 
 /** Sections and questions the inspector sees for this license and these answers. */
 export const visibleStructure = (def: FormDefinition, licenseType: LicenseTypeKey | null, answers: Answers) =>
   def.sections
     .filter((s) => sectionApplies(s, licenseType, answers))
-    .map((s) => ({ section: s, fields: s.fields.filter((f) => fieldVisible(f, answers)) }));
+    .map((s) => ({ section: s, fields: s.fields.filter((f) => fieldVisible(f, answers, licenseType)) }));
 
 const isEmpty = (v: any) => v == null || v === "" || (Array.isArray(v) && v.length === 0);
 
@@ -95,6 +96,8 @@ export interface Unfilled {
 export const unfilledAnswers = (def: FormDefinition, licenseType: LicenseTypeKey | null, answers: Answers): Unfilled[] => {
   const out: Unfilled[] = [];
   for (const { section, fields } of visibleStructure(def, licenseType, answers)) {
+    // Filled in later, at the office (can still be done after submitting): not part of the check
+    if (section.after_submit) continue;
     for (const f of fields) {
       const a = answers[f.key];
       const add = (what: string) => out.push({ key: f.key, sectionKey: section.key, what });

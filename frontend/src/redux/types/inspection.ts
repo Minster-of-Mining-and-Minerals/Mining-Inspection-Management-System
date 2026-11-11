@@ -144,7 +144,8 @@ export interface TaskDetail extends TaskListItem {
   prefill: Record<string, string>;
   /** Current members of the team (not when submitted): rows of tables with team_rows */
   team_member_names?: string[];
-  can: { fill: boolean; return: boolean; reassign: boolean };
+  /** fill_after_submit: the team can still fill the sections marked after_submit (e.g. 4.1) once submitted */
+  can: { fill: boolean; return: boolean; reassign: boolean; fill_after_submit?: boolean };
   /** The license area for the site map */
   site: {
     boundary: LicenseBoundary | null;

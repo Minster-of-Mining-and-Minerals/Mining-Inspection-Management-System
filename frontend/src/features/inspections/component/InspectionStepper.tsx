@@ -52,6 +52,8 @@ interface Props {
   onStepChange?: () => void;
   /** Remember where the user was (per inspection), to continue there next time */
   resumeKey?: string;
+  /** Sections that can still be filled although readOnly (after submitting: the ones done at the office) */
+  openSections?: Set<string>;
 }
 
 export function InspectionStepper({
@@ -71,6 +73,7 @@ export function InspectionStepper({
   finishing,
   onStepChange,
   resumeKey,
+  openSections,
 }: Props) {
   // Navigation and menus in English; the questions, answers and section titles use `language` (Amharic)
   const am = false;
@@ -218,7 +221,7 @@ export function InspectionStepper({
       </div>
 
       {/* The step */}
-      <fieldset disabled={readOnly} className="m-0 min-w-0 border-0 p-0">
+      <fieldset disabled={readOnly && !openSections?.has((mode === "question" ? here.section : current.section).key)} className="m-0 min-w-0 border-0 p-0">
         {mode === "question" ? (
           <QuestionBlock
             definition={definition}

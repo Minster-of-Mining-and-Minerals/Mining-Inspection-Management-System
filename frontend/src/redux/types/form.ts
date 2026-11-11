@@ -44,6 +44,8 @@ export interface FormField {
   help_am?: string | null;
   required?: boolean;
   show_if?: ShowIf;
+  /** This question only for these licenses */
+  applies_to?: { license_types: LicenseTypeKey[] };
   // type options
   /** Status questions: this question's own choices (none = the form's default choices) */
   status_options?: StatusOption[];
@@ -81,6 +83,8 @@ export interface FormSection {
   description_am?: string | null;
   applies_to?: { license_types: LicenseTypeKey[] };
   show_if?: ShowIf;
+  /** Filled in later at the office: the team can still change it after submitting */
+  after_submit?: boolean;
   fields: FormField[];
 }
 
