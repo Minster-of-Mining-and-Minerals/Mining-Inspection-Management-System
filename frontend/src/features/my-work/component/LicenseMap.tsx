@@ -55,22 +55,52 @@ const styleOf = (selected: boolean, color?: string): Leaflet.PathOptions => {
 
 const asFeature = (boundary: LicenseBoundary) => ({ type: "Feature" as const, properties: {}, geometry: boundary as unknown as GeoJSON.Geometry });
 
-/** Draw the license areas into a fresh layer. */
-function drawAreas(L: LeafletModule, map: Leaflet.Map, old: Leaflet.LayerGroup | null, licenses: MapLicense[], highlighted: Set<string>, onSelect: (id: string) => void) {
-  if (old) map.removeLayer(old);
-  const group = L.layerGroup();
-  const front: Leaflet.GeoJSON[] = [];
+/**
+ * Zoomed out further than this, license areas (a few km across) are smaller than a pixel, so each
+ * license is also shown as a dot. From this zoom on the areas themselves are visible.
+ */
+const DOT_MAX_ZOOM = 10;
+
+const dotStyle = (selected: boolean, color?: string): Leaflet.CircleMarkerOptions => ({
+  radius: selected ? 8 : 6,
+  color: selected ? (color ? "#14212B" : "#6E5208") : "#FFFFFF",
+  weight: selected ? 2.5 : 1.5,
+  fillColor: selected && !color ? GOLD : color ?? NAVY,
+  fillOpacity: 0.95,
+});
+
+/** Draw the license areas (and their dots) into fresh layers. */
+function drawAreas(
+  L: LeafletModule,
+  map: Leaflet.Map,
+  old: { areas: Leaflet.LayerGroup; dots: Leaflet.LayerGroup } | null,
+  licenses: MapLicense[],
+  highlighted: Set<string>,
+  onSelect: (id: string) => void,
+) {
+  if (old) {
+    map.removeLayer(old.areas);
+    map.removeLayer(old.dots);
+  }
+  const areas = L.layerGroup();
+  const dots = L.layerGroup();
+  const front: Leaflet.Layer[] = [];
   for (const lic of licenses) {
     const on = highlighted.has(lic.id);
     const shape = L.geoJSON(asFeature(lic.boundary), { style: () => styleOf(on, lic.color) });
     shape.bindTooltip(lic.label, { permanent: licenses.length <= 25 || on, direction: "center", className: "license-area-label" });
     shape.on("click", () => onSelect(lic.id));
-    shape.addTo(group);
-    if (on) front.push(shape);
+    shape.addTo(areas);
+    const dot = L.circleMarker(shape.getBounds().getCenter(), dotStyle(on, lic.color));
+    dot.bindTooltip(lic.label, { direction: "top", offset: [0, -6] });
+    dot.on("click", () => onSelect(lic.id));
+    dot.addTo(dots);
+    if (on) front.push(shape, dot);
   }
-  group.addTo(map);
-  for (const shape of front) shape.bringToFront();
-  return group;
+  areas.addTo(map);
+  if (map.getZoom() < DOT_MAX_ZOOM) dots.addTo(map);
+  for (const layer of front) (layer as Leaflet.Path | Leaflet.GeoJSON).bringToFront();
+  return { areas, dots };
 }
 
 /** Draw the blue dot and its accuracy circle. */
@@ -87,7 +117,7 @@ export default function LicenseMap({ licenses, selectedId, highlightIds, onSelec
   const el = useRef<HTMLDivElement>(null);
   const lib = useRef<LeafletModule | null>(null);
   const map = useRef<Leaflet.Map | null>(null);
-  const areas = useRef<Leaflet.LayerGroup | null>(null);
+  const areas = useRef<{ areas: Leaflet.LayerGroup; dots: Leaflet.LayerGroup } | null>(null);
   const meLayer = useRef<Leaflet.LayerGroup | null>(null);
   const fitted = useRef("");
   const onSelectRef = useRef(onSelect);
@@ -114,6 +144,14 @@ export default function LicenseMap({ licenses, selectedId, highlightIds, onSelec
       }).addTo(m);
       map.current = m;
       void showOnlyEthiopia(L, m);
+      // Dots while zoomed out, the areas themselves when zoomed in
+      m.on("zoomend", () => {
+        const dots = areas.current?.dots;
+        if (!dots) return;
+        if (m.getZoom() < DOT_MAX_ZOOM) {
+          if (!m.hasLayer(dots)) dots.addTo(m);
+        } else if (m.hasLayer(dots)) m.removeLayer(dots);
+      });
       setReady(true);
     })();
     const resize = new ResizeObserver(() => map.current?.invalidateSize());

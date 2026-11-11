@@ -244,7 +244,7 @@ async function importLicenseList(file, { dryRun = false, reportDir = DEFAULT_REP
         { transaction: t },
       );
       stats.usersCreated++;
-      createdUsers.push({ name, email });
+      createdUsers.push({ name, email, user_id: user.user_id });
       if (inspectorRole) {
         await db.UserRoles.create(
           {

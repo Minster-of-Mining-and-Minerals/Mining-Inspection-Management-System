@@ -19,7 +19,8 @@
     "test": "node --test tests/*.test.js",
     "db:fresh": "sequelize-cli db:drop && sequelize-cli db:create && sequelize-cli db:migrate && sequelize-cli db:seed:all",
     "db:seed:all": "sequelize-cli db:seed:all",
-    "db:seed:undo:all": "sequelize-cli db:seed:undo:all"
+    "db:seed:undo:all": "sequelize-cli db:seed:undo:all",
+    "import:team-contacts": "node scripts/import-team-contacts.js"
   },
   "keywords": [],
   "author": "",

@@ -6,7 +6,8 @@
  * ("Ashenef Kahsye" / "Ashenafi Kahsye"). A name matches:
  *   1. a user of the sector with exactly that name (case and spaces ignored), else
  *   2. the only user of the sector whose name differs by a small spelling difference in each
- *      word (1 letter for words of 4–5 letters, 2 for longer words; same number of words).
+ *      word (1 letter for words of 4–5 letters, 2 for longer words; two swapped letters count as
+ *      one; same number of words).
  * Several possible matches: none is chosen, so nobody is put in the wrong team.
  */
 const { User } = require("../models");
@@ -22,18 +23,18 @@ const words = (name) =>
     .split(/\s+/)
     .filter((w) => w && !TITLES.has(w));
 
+/** Edit distance where two neighbouring letters swapped count as one change ("andrei" / "andrie"). */
 const levenshtein = (a, b) => {
-  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+  for (let j = 0; j <= b.length; j++) d[0][j] = j;
   for (let i = 1; i <= a.length; i++) {
-    let diag = prev[0];
-    prev[0] = i;
     for (let j = 1; j <= b.length; j++) {
-      const tmp = prev[j];
-      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
-      diag = tmp;
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) d[i][j] = Math.min(d[i][j], d[i - 2][j - 2] + 1);
     }
   }
-  return prev[b.length];
+  return d[a.length][b.length];
 };
 
 const allowed = (word) => (word.length >= 6 ? 2 : word.length >= 4 ? 1 : 0);
@@ -63,4 +64,15 @@ async function findUserForName(name, sectorId, transaction) {
   return { user: null, how: null, candidates: close };
 }
 
-module.exports = { findUserForName, similarNames };
+/**
+ * Whether a full name ("Fitsume Kucha Dewelle") is the person of an account name ("Fitsum Kucha"):
+ * the account's words compared with the first words of the full name (at least two words).
+ */
+const sameStartOfName = (fullName, accountName) => {
+  const full = words(fullName);
+  const account = words(accountName);
+  if (account.length < 2 || full.length < account.length) return false;
+  return similarNames(full.slice(0, account.length).join(" "), account.join(" "));
+};
+
+module.exports = { findUserForName, similarNames, sameStartOfName };

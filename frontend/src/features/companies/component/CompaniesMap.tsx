@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Search, ShieldAlert } from "lucide-react";
+import { Search, ShieldAlert, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useGetLicenseMapQuery } from "@/redux/api/companyApi";
 import { useGetAdminAreasQuery } from "@/redux/api/adminAreaApi";
@@ -38,6 +38,7 @@ const pct = (s: number | null) => (s == null ? "—" : `${Math.round(s * 100)}%`
 const short = (name: string) => (name.length > 22 ? `${name.slice(0, 20).trim()}…` : name);
 const selectClass = (on: boolean) => `h-9 rounded-md border px-2 text-sm ${on ? "border-primary bg-sky-50 font-semibold text-primary" : "border-slate-300 bg-white"}`;
 const isRedZone = (l: MapLicenseRow) => !!l.notes && /red\s*zone/i.test(l.notes);
+const HINT = "Choose a company in the list, or click a license on the map, to see its team, last score and open tasks.";
 
 interface CompanyGroup {
   company_id: string;
@@ -140,11 +141,82 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
   );
   const legend =
     colourBy === "team"
-      ? [...new Map(rows.map((l) => [l.team_id ?? "none", l.team_name ?? "No team"])).entries()]
-          .map(([id, name]) => ({ label: name, colour: id === "none" ? NO_TEAM : teamColour.get(id) ?? NO_TEAM }))
-          .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
-      : [...SCORE_BANDS.map((b) => ({ label: b.label, colour: b.colour })), { label: "Not inspected yet", colour: NO_TEAM }];
+      ? (() => {
+          const teamsShown = [...new Map(rows.map((l) => [l.team_id ?? "none", { name: l.team_name ?? "No team", sector: l.sector_name }])).entries()];
+          const repeated = (name: string) => teamsShown.filter(([, t]) => t.name === name).length > 1;
+          return teamsShown
+            .map(([id, t]) => ({ key: id, label: id !== "none" && t.sector && repeated(t.name) ? `${t.name} · ${t.sector}` : t.name, colour: id === "none" ? NO_TEAM : teamColour.get(id) ?? NO_TEAM }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+        })()
+      : [...SCORE_BANDS.map((b) => ({ key: b.label, label: b.label, colour: b.colour })), { key: "none", label: "Not inspected yet", colour: NO_TEAM }];
   const filtersOn = !!(zoneId || teamId || redZone || overdue);
+
+  // The chosen company and license (a card on the map on a PC, below the map on a phone)
+  const details =
+    company && license ? (
+      <>
+        <div>
+          <p className="text-xs font-semibold text-slate-500">COMPANY</p>
+          <p className="text-lg font-bold text-slate-900">{company.name}</p>
+          <p className="text-sm text-slate-600">{company.regions.join(", ") || "Location not recorded"}</p>
+        </div>
+        {company.licenses.length > 1 && (
+          <div role="group" aria-label="Licenses of this company" className="flex flex-wrap gap-1.5">
+            {company.licenses.map((l) => (
+              <button
+                key={l.license_id}
+                type="button"
+                aria-pressed={l.license_id === license.license_id}
+                onClick={() => setLicenseId(l.license_id)}
+                className={`min-h-8 rounded-md border px-2 text-xs font-semibold ${l.license_id === license.license_id ? "border-golden-dark bg-amber-50 text-slate-900" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
+              >
+                {l.license_number}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
+          <p className="font-semibold">{license.license_number}</p>
+          <p className="text-slate-600">
+            {license.license_type} · {license.minerals || license.mineral_text || "—"} · {license.status}
+          </p>
+          <p className="text-slate-600">{license.woreda || license.region || "Location not recorded"}</p>
+          <p className="text-slate-600">
+            {license.team_name ?? "No team"}
+            {license.travel_mode ? ` · by ${license.travel_mode}${license.airport ? ` via ${license.airport}` : ""}` : ""}
+          </p>
+          {!license.boundary && <p className="text-slate-500">No surveyed area: not on the map.</p>}
+          {isRedZone(license) && (
+            <p className="flex items-center gap-1.5 font-semibold text-red-700">
+              <ShieldAlert className="h-4 w-4" /> {license.notes}
+            </p>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-slate-200 p-2.5">
+            <p className="text-xs text-slate-500">Last score</p>
+            <p className="text-xl font-bold text-primary">{pct(license.last_score)}</p>
+            {license.last_inspected_at && <p className="text-xs text-slate-500">{formatCalendarDate(license.last_inspected_at)}</p>}
+          </div>
+          <div className="rounded-lg border border-slate-200 p-2.5">
+            <p className="text-xs text-slate-500">Open tasks</p>
+            <p className="text-xl font-bold text-primary">{license.open_tasks}</p>
+            {license.overdue_tasks > 0 && <p className="text-xs font-semibold text-orange-700">{license.overdue_tasks} overdue</p>}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <Link href={`/companies/${company.company_id}`} className="flex min-h-10 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
+            Open company
+          </Link>
+          <Link
+            href={`/inspections?company_id=${company.company_id}`}
+            className="flex min-h-10 items-center justify-center rounded-lg border-[1.5px] border-primary text-sm font-semibold text-primary"
+          >
+            See its inspections
+          </Link>
+        </div>
+      </>
+    ) : null;
 
   return (
     <div className="space-y-3">
@@ -279,82 +351,33 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
             </div>
             <div className="absolute bottom-8 left-3 z-10 max-h-[45%] space-y-1.5 overflow-y-auto rounded-lg bg-white/95 px-3 py-2 shadow-md">
               {legend.map((row) => (
-                <p key={row.label} className="flex items-center gap-2 text-xs text-slate-800">
+                <p key={row.key} className="flex items-center gap-2 text-xs text-slate-800">
                   <span className="h-3.5 w-3.5 shrink-0 rounded-sm" style={{ background: row.colour }} aria-hidden="true" />
                   {row.label}
                 </p>
               ))}
             </div>
+            {details && (
+              <div className="absolute right-14 top-3 z-10 hidden max-h-[calc(100%-1.5rem)] w-80 space-y-3 overflow-y-auto rounded-xl bg-white p-4 shadow-xl lg:block" aria-label="Selected company">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCompanyId(null);
+                    setFocused(false);
+                  }}
+                  aria-label="Close"
+                  className="float-right -mr-1 -mt-1 flex h-8 w-8 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+                {details}
+              </div>
+            )}
           </div>
 
-          {/* The chosen company */}
-          <aside className="w-full shrink-0 space-y-3 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4 lg:w-80" aria-label="Selected company">
-            {company && license ? (
-              <>
-                <div>
-                  <p className="text-xs font-semibold text-slate-500">COMPANY</p>
-                  <p className="text-lg font-bold text-slate-900">{company.name}</p>
-                  <p className="text-sm text-slate-600">{company.regions.join(", ") || "Location not recorded"}</p>
-                </div>
-                {company.licenses.length > 1 && (
-                  <div role="group" aria-label="Licenses of this company" className="flex flex-wrap gap-1.5">
-                    {company.licenses.map((l) => (
-                      <button
-                        key={l.license_id}
-                        type="button"
-                        aria-pressed={l.license_id === license.license_id}
-                        onClick={() => setLicenseId(l.license_id)}
-                        className={`min-h-8 rounded-md border px-2 text-xs font-semibold ${l.license_id === license.license_id ? "border-golden-dark bg-amber-50 text-slate-900" : "border-slate-300 text-slate-600 hover:bg-slate-50"}`}
-                      >
-                        {l.license_number}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="space-y-1 rounded-lg bg-slate-50 p-3 text-sm">
-                  <p className="font-semibold">{license.license_number}</p>
-                  <p className="text-slate-600">
-                    {license.license_type} · {license.minerals || license.mineral_text || "—"} · {license.status}
-                  </p>
-                  <p className="text-slate-600">{license.woreda || license.region || "Location not recorded"}</p>
-                  <p className="text-slate-600">
-                    {license.team_name ?? "No team"}
-                    {license.travel_mode ? ` · by ${license.travel_mode}${license.airport ? ` via ${license.airport}` : ""}` : ""}
-                  </p>
-                  {!license.boundary && <p className="text-slate-500">No surveyed area: not on the map.</p>}
-                  {isRedZone(license) && (
-                    <p className="flex items-center gap-1.5 font-semibold text-red-700">
-                      <ShieldAlert className="h-4 w-4" /> {license.notes}
-                    </p>
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="rounded-lg border border-slate-200 p-2.5">
-                    <p className="text-xs text-slate-500">Last score</p>
-                    <p className="text-xl font-bold text-primary">{pct(license.last_score)}</p>
-                    {license.last_inspected_at && <p className="text-xs text-slate-500">{formatCalendarDate(license.last_inspected_at)}</p>}
-                  </div>
-                  <div className="rounded-lg border border-slate-200 p-2.5">
-                    <p className="text-xs text-slate-500">Open tasks</p>
-                    <p className="text-xl font-bold text-primary">{license.open_tasks}</p>
-                    {license.overdue_tasks > 0 && <p className="text-xs font-semibold text-orange-700">{license.overdue_tasks} overdue</p>}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Link href={`/companies/${company.company_id}`} className="flex min-h-10 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
-                    Open company
-                  </Link>
-                  <Link
-                    href={`/inspections?company_id=${company.company_id}`}
-                    className="flex min-h-10 items-center justify-center rounded-lg border-[1.5px] border-primary text-sm font-semibold text-primary"
-                  >
-                    See its inspections
-                  </Link>
-                </div>
-              </>
-            ) : (
-              <p className="text-sm text-slate-500">Choose a company in the list, or click a license area on the map, to see its team, last score and open tasks.</p>
-            )}
+          {/* Phone: the chosen company below the map */}
+          <aside className="w-full space-y-3 rounded-xl border border-slate-200 bg-white p-4 lg:hidden" aria-label="Selected company">
+            {details ?? <p className="text-sm text-slate-500">{HINT}</p>}
           </aside>
         </div>
       )}

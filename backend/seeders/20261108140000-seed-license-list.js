@@ -2,7 +2,9 @@
 /**
  * Imports the Ministry's license inspection list that ships with the project:
  * data/license-list/license-list.xlsx (companies + licenses, minerals, locations, teams),
- * and gives the licenses it adds their surveyed area from data/license-list/license-coordinates.xlsx.
+ * gives the licenses it adds their surveyed area from data/license-list/license-coordinates.xlsx,
+ * and the inspector accounts it creates (development only) their real email and phone from
+ * data/license-list/team-contacts.xlsx.
  *
  * Runs with every `npm run seed` and is safe to repeat: licenses already in the
  * database are skipped, so only rows that are new in the sheet are added, and
@@ -19,6 +21,7 @@ const path = require("path");
 const DATA = path.join(__dirname, "..", "data", "license-list");
 const FILE = path.join(DATA, "license-list.xlsx");
 const COORDS = path.join(DATA, "license-coordinates.xlsx");
+const CONTACTS = path.join(DATA, "team-contacts.xlsx");
 
 module.exports = {
   async up() {
@@ -35,6 +38,14 @@ module.exports = {
       const { applyLicenseCoordinates } = require("../services/licenseListUpdateService");
       const { applied } = await applyLicenseCoordinates({ coordsFile: COORDS, licenseIds: result.createdLicenseIds });
       console.log(`  Surveyed areas added:   ${applied} of ${result.createdLicenseIds.length} new license(s)`);
+    }
+
+    // The inspector accounts just created get their real email and phone (never existing accounts)
+    const newUserIds = (result.createdUsers ?? []).map((u) => u.user_id).filter(Boolean);
+    if (newUserIds.length && fs.existsSync(CONTACTS)) {
+      const { applyTeamContacts } = require("../services/teamContactsService");
+      const { stats } = await applyTeamContacts({ file: CONTACTS, onlyUserIds: newUserIds });
+      console.log(`  Contacts filled in:     ${stats.emails} email(s), ${stats.phones} phone(s) of ${newUserIds.length} new inspector account(s)`);
     }
   },
 

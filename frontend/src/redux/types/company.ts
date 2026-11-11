@@ -128,6 +128,7 @@ export interface MapLicenseRow {
   minerals: string | null;
   company_id: string;
   company_name: string;
+  sector_name: string;
   team_id: string | null;
   team_name: string | null;
   region: string | null;

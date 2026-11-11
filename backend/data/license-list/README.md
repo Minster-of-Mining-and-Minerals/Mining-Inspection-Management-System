@@ -1,8 +1,9 @@
 # License list
 
-Two files from the Ministry:
+Three files from the Ministry:
 
 - **`license-list.xlsx`**: the license inspection list. It has companies, license numbers, license types, minerals, issue dates, region, zone and woreda, team and members, comment, and travel (car or plane, and the airport). Current version: *Final License Inspection List 11/10/26*.
+- **`team-contacts.xlsx`**: the team members' real email and phone (the "Inspection Team" Google Form responses). Three phones that were typed without their leading 9 are corrected in this copy.
 - **`license-coordinates.xlsx`**: the corner points of every license area (degrees, minutes, seconds; Adindan datum). Converted unchanged from *Long and Latitude of inspection sites.xls*: the app's Excel reader can't open the old `.xls` format.
 
 The license list decides who, what and which team. The coordinate list decides where. A license's woreda, zone and region come from its surveyed area. Only a license missing from the coordinate list keeps the location typed in the license list.
@@ -49,3 +50,10 @@ Known problems, listed in every report until fixed in the source files:
 - Two pairs don't match between the files: `MOM\EL\00114\2023` vs `MOM\EL\00133\2024` (KEFI), and `MOM\LSML\73\2011` vs `MOM\SSML\73\2011` (Derba).
 
 The files contain company and staff names. Keep the repository private.
+
+## Team contacts
+
+- **`npm run seed`**: the inspector accounts it creates from the license list get their email and phone from `team-contacts.xlsx`. This only happens in development; on a server it creates no inspector accounts. Accounts that already exist are never changed by the seeder.
+- **`npm run import:team-contacts -- --dry-run`**, then the same without `--dry-run`, updates existing accounts. On a server, run it after creating the inspectors on the Users page. You can pass another sheet as the first argument.
+
+Names are matched allowing spelling differences and extra name parts ("Fitsume Kucha Dewelle" matches Fitsum Kucha). Only the email (which is the login) and the phone change. The rules are in `services/teamContactsService.js`.

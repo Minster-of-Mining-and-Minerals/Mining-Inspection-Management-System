@@ -71,6 +71,28 @@ async function readLicenseCoordinates(file) {
     current.parts.get(key).push([lat, lng]);
   }
 
+  /**
+   * A corner typed wrongly can still fall inside Ethiopia (e.g. 500 km from the rest of the area).
+   * A point is left out when it is far (over 50 km, and over 5 times the usual distance) from the
+   * middle of its part. Large areas whose points are all spread out are only reported.
+   */
+  const dropStrayPoints = (pts, lic, partName) => {
+    if (pts.length < 4) return pts;
+    const median = (xs) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+    const mLat = median(pts.map((p) => p[0]));
+    const mLng = median(pts.map((p) => p[1]));
+    const km = ([la, ln]) => Math.hypot((la - mLat) * 110.6, (ln - mLng) * 111.3 * Math.cos((mLat * Math.PI) / 180));
+    const dists = pts.map(km);
+    const usual = median(dists);
+    const kept = pts.filter((p, i) => !(dists[i] > 50 && dists[i] > 5 * Math.max(usual, 1)));
+    for (const [i, p] of pts.entries()) {
+      if (!kept.includes(p)) note(lic.row, lic.number, "Point far from the rest of the area", `${partName}, point ${i + 1}: ${p[0].toFixed(5)}, ${p[1].toFixed(5)} is ${Math.round(dists[i])} km from the other points — left out; correct it in the coordinate list.`);
+    }
+    const spread = Math.max(...kept.map(km)) * 2;
+    if (spread > 80) note(lic.row, lic.number, "Unusually large area", `${partName} spans about ${Math.round(spread)} km; check its points in the coordinate list.`);
+    return kept;
+  };
+
   const licenses = new Map();
   for (const [key, lic] of raw) {
     if (lic.datum && !/adindan/i.test(lic.datum)) {
@@ -80,7 +102,8 @@ async function readLicenseCoordinates(file) {
     }
     const polygons = [];
     let points = 0;
-    for (const [partName, pts] of lic.parts) {
+    for (const [partName, all] of lic.parts) {
+      const pts = dropStrayPoints(all, lic, partName);
       if (pts.length < 3) {
         note(lic.row, lic.number, "Part with too few points", `${partName}: ${pts.length} point(s); left out.`);
         continue;

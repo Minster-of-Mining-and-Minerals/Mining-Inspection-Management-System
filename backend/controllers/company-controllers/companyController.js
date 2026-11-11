@@ -284,7 +284,7 @@ const getLicenseMap = async (req, res) => {
     const [rows] = await sequelize.query(
       `SELECT l.license_id, l.license_number, l.license_type, l.status, l.boundary, l.center_lat, l.center_lng, l.notes,
               l.travel_mode, l.airport, l.mineral_text,
-              c.company_id, c.name AS company_name,
+              c.company_id, c.name AS company_name, sec.name AS sector_name,
               t.team_id, t.name AS team_name,
               (SELECT string_agg(m.name, ', ' ORDER BY m.name) FROM license_minerals lm JOIN minerals m ON m.mineral_id = lm.mineral_id WHERE lm.license_id = l.license_id) AS minerals,
               (SELECT string_agg(DISTINCT COALESCE(g.name, p.name, a.name), ', ')
@@ -298,6 +298,7 @@ const getLicenseMap = async (req, res) => {
               (SELECT COUNT(*)::int FROM inspections i WHERE i.license_id = l.license_id AND i.status <> 'submitted' AND i.due_at < NOW()) AS overdue_tasks
          FROM company_licenses l
          JOIN companies c ON c.company_id = l.company_id
+         JOIN sector_nodes sec ON sec.sector_node_id = l.sector_node_id
          LEFT JOIN LATERAL (SELECT tm.team_id, tm.name FROM team_licenses tl JOIN teams tm ON tm.team_id = tl.team_id
                              WHERE tl.license_id = l.license_id ORDER BY tl.created_at LIMIT 1) t ON TRUE
         WHERE ${where.join(" AND ")}
