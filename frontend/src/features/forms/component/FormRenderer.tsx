@@ -176,6 +176,8 @@ function FieldInput({
   const optLabel = (o: { label: string; label_am?: string | null }) => pickText(o.label, o.label_am, language);
   const pad = large ? "" : "pl-8";
   const am = language === "am";
+  // Empty answer boxes just say "Answer"
+  const answerHint = am ? "መልስ" : "Answer";
   // Big answer buttons (two per row) in the one-question view
   const choiceWrap = large ? "grid grid-cols-2 gap-2" : "flex flex-wrap gap-2";
   const choiceSize = large ? "justify-center rounded-lg px-3 py-3 text-base font-bold" : "rounded-lg px-3 py-1.5 text-sm font-semibold";
@@ -258,19 +260,19 @@ function FieldInput({
     case "text":
       return (
         <div className={pad}>
-          <Input value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={f.prefill ? (am ? "ከፈቃዱ የተሞላ፤ ማስተካከል ይቻላል" : "Filled in from the license; can be corrected") : undefined} />
+          <Input value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={answerHint} />
         </div>
       );
     case "long_text":
       return (
         <div className={pad}>
-          <textarea rows={4} className={textareaClass} value={value ?? ""} onChange={(e) => onChange(e.target.value)} />
+          <textarea rows={4} className={textareaClass} value={value ?? ""} onChange={(e) => onChange(e.target.value)} placeholder={answerHint} />
         </div>
       );
     case "number":
       return (
         <div className={`flex items-center gap-2 ${pad}`}>
-          <Input type="number" className="max-w-48" value={value ?? ""} min={f.min} max={f.max} onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)} />
+          <Input type="number" className="max-w-48" value={value ?? ""} min={f.min} max={f.max} onChange={(e) => onChange(e.target.value === "" ? null : e.target.value)} placeholder={answerHint} />
           {f.unit && <span className="text-sm text-slate-500">{f.unit}</span>}
         </div>
       );

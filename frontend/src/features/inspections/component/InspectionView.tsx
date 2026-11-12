@@ -23,11 +23,11 @@ import { distanceText } from "@/utils/licenseArea";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel } from "@/utils/device";
-import { Answers, defaultTableRows, scoreOf, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
+import { Answers, defaultTableRows, validateAnswers } from "@/features/forms/component/formLogic";
 import { useGetTaskQuery, useReturnTaskMutation, useSaveAnswersMutation, useSaveOfficeAnswersMutation, useSubmitTaskMutation } from "@/redux/api/inspectionApi";
 import type { AnswerProblem, TaskDetail } from "@/redux/types/inspection";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
-import { TaskStatusBadge, dueText, scoreText, scoreTone } from "./taskUi";
+import { TaskStatusBadge, dueText } from "./taskUi";
 
 const AUTOSAVE_MS = 3000;
 /** Someone watching an inspection another team is filling (supervisor, admin) sees its saved answers this often */
@@ -171,13 +171,6 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
     if (problems[key]) setProblems(({ [key]: _gone, ...rest }) => rest);
   };
 
-  // ---------- progress ----------
-  const progress = useMemo(() => {
-    const fields = visibleStructure(def, licenseType, answers).flatMap((s) => s.fields);
-    const required = fields.filter((f) => f.required && f.type !== "photo" && f.type !== "signature");
-    const open = validateAnswers(def, licenseType, answers);
-    return { required: required.length, missing: Object.keys(open).length, score: scoreOf(def, licenseType, answers).overall };
-  }, [def, licenseType, answers]);
 
   const goBack = async () => {
     if (dirty && canEdit) await saveNow();
@@ -357,7 +350,6 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
                 <div className="flex shrink-0 items-center gap-2">
                   <span className={`hidden text-right text-[11px] leading-tight sm:block ${saveState === "error" || saveState === "conflict" ? "font-medium text-red-600" : "text-slate-500"}`}>
                     {saveLabel}
-                    {progress.score != null && <span className={`block font-semibold ${scoreTone(progress.score)}`}>{scoreText(progress.score)}</span>}
                   </span>
                   <Button
                     variant="outline"
@@ -424,10 +416,6 @@ function SubmittedSummary({ task, onReturn }: { task: TaskDetail; onReturn?: () 
             {loc.site.inside ? "Submitted inside the license area" : `Submitted ${distanceText(loc.site.distance_m)} from the license area`}
           </p>
         )}
-      </div>
-      <div className="text-right">
-        <p className="text-xs text-slate-500">Score</p>
-        <p className={`text-2xl font-bold ${scoreTone(task.score)}`}>{scoreText(task.score)}</p>
       </div>
       {onReturn && (
         <Button variant="outline" className="gap-2" onClick={onReturn}>

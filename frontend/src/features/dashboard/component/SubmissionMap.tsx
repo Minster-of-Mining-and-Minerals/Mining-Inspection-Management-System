@@ -36,7 +36,6 @@ const popupHtml = (p: MapPoint) => `<div style="min-width:210px;font:13px/1.45 s
     <div style="margin-top:6px">📍 ${esc(p.place?.label ?? "Place not named")}${p.accuracy != null ? ` <span style="color:#64748b">(±${Math.round(p.accuracy)} m)</span>` : ""}</div>
     <div>📱 ${esc(deviceLabel(p.user_agent, p.platform))}</div>
     <div>🕒 ${esc(whenText(p.submitted_at))}${p.is_late ? ' · <span style="color:#b45309;font-weight:600">late</span>' : ""}</div>
-    <div>Score: <b>${p.score == null ? "—" : Math.round(p.score * 100) + "%"}</b></div>
     <a href="/inspections/${esc(p.inspection_id)}" style="display:inline-block;margin-top:6px;font-weight:600">Open inspection →</a>
   </div>`;
 

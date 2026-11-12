@@ -15,6 +15,7 @@ const { QueryTypes } = require("sequelize");
 const { validate: isUuid } = require("uuid");
 const { sequelize, FormVersion } = require("../../models");
 const { scopeSql } = require("../../services/sectorScope");
+const { byNaturalName } = require("../../utils/naturalOrder");
 const { visibleStructure } = require("../../utils/formAnswers");
 const { statusOptionsFor, questionText } = require("../../utils/formDefinition");
 
@@ -180,7 +181,8 @@ const getAnalytics = async (req, res) => {
     const resultsByTeam = new Map(teamResults.map((x) => [x.team_id, x]));
     const teams = teamTasks
       .map((t) => ({ ...t, ...(resultsByTeam.get(t.team_id) || { submitted_in_period: 0, on_time: 0, avg_score: null }) }))
-      .sort((a, b) => b.due - a.due);
+      // By team name (Team 2 before Team 10); "No team" last
+      .sort(byNaturalName((t) => (t.team_id ? t.team : null)));
 
     // ---- answers: distribution, sections, most frequent "not met" (from the answers themselves) ----
     const rows = await q(

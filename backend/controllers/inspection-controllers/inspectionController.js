@@ -25,6 +25,7 @@ const { positionInArea } = require("../../utils/geodesy");
 const fail = (res, status, message, extra) => res.status(status).json({ success: false, message, ...extra });
 const { can, myTeamId, loadTask } = require("./inspectionAccess");
 const { listFiles, sanitizeFileRefs, removeUnusedFiles } = require("./inspectionFileController");
+const notify = require("../../services/inspectionNotifications");
 const { placeOf } = require("../../services/placeService");
 
 const LIST_INCLUDE = [
@@ -452,9 +453,12 @@ const saveOfficeAnswers = async (req, res) => {
     const today = new Date(now.toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa" })).toDateString();
     const last = await InspectionEvent.findOne({ where: { inspection_id: task.inspection_id, type: "office_update", user_id: req.user.user_id }, order: [["created_at", "DESC"]], transaction });
     const lastDay = last && new Date(new Date(last.created_at).toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa" })).toDateString();
-    if (lastDay !== today)
+    const firstToday = lastDay !== today;
+    if (firstToday)
       await InspectionEvent.create({ inspection_id: task.inspection_id, type: "office_update", user_id: req.user.user_id, details: { sections: open.map((s) => s.number || s.title) } }, { transaction });
     await transaction.commit();
+    // Reviewers hear about it once per person and day, like the history line
+    if (firstToday) notify.officeCompleted(task.inspection_id, req.user.user_id, open.map((s) => s.number || s.title));
     return res.status(200).json({ success: true, data: { last_saved_at: task.last_saved_at, status: task.status } });
   } catch (error) {
     if (!transaction.finished) await transaction.rollback();
@@ -512,6 +516,7 @@ const submitInspection = async (req, res) => {
     );
     await transaction.commit();
     removeUnusedFiles(task).catch((e) => console.error("removeUnusedFiles", e.message)); // files taken out of answers
+    notify.inspectionSubmitted(task.inspection_id, req.user.user_id);
     return res.status(200).json({ success: true, message: late ? "Submitted (late)." : "Submitted.", data: { status: "submitted", is_late: late, score: task.score } });
   } catch (error) {
     await transaction.rollback();
@@ -537,6 +542,7 @@ const returnInspection = async (req, res) => {
       { transaction },
     );
     await transaction.commit();
+    notify.inspectionReturned(task.inspection_id, req.user.user_id, reason);
     return res.status(200).json({ success: true, message: "Returned to the team for correction." });
   } catch (error) {
     await transaction.rollback();
@@ -572,10 +578,16 @@ const updateAssignment = async (req, res) => {
           { transaction },
         );
         changes.due_at = due;
+        // A new due date: the team can be reminded again
+        changes.due_soon_notified_at = null;
+        changes.overdue_notified_at = null;
       }
     }
+    const fromTeamId = task.team_id;
     if (Object.keys(changes).length) await task.update(changes, { transaction });
     await transaction.commit();
+    if ("team_id" in changes) notify.inspectionReassigned(task.inspection_id, req.user.user_id, { fromTeamId, toTeamId: changes.team_id });
+    else if ("due_at" in changes) notify.inspectionReassigned(task.inspection_id, req.user.user_id, { dueChanged: true });
     return res.status(200).json({ success: true, message: Object.keys(changes).length ? "Saved." : "Nothing changed." });
   } catch (error) {
     await transaction.rollback();

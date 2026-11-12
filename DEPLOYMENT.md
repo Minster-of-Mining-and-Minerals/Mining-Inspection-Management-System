@@ -134,6 +134,25 @@ Existing data belongs to **Ministry of Mines**.
   Roles page and changes the copy, which belongs to their sector only.
 - The Plan Management System analytics API still covers the whole ministry.
 
+### Sessions, audit log and notifications
+
+- **Sessions:** every sign-in is a session the server checks on each request. It ends after
+  **24 hours without activity** and **7 days** after signing in (`SESSION_IDLE_HOURS`, `SESSION_MAX_DAYS`
+  in `backend/.env`). People see and sign out their devices under **Profile**; administrators can sign a
+  user out everywhere on the user's page. Deactivating an account or resetting a password signs it out
+  on every device. Updating never changes anyone's password, and people already signed in stay signed
+  in: their earlier sign-in keeps working until it expires (at most 7 days), then they sign in again
+  with the same password. Keep `SEED_DEV_PASSWORDS` and `SEED_USERS` unset or `false` on the server
+  (`true` resets the admin and demo accounts to `password` on every start).
+- **Audit log** (Administration → Audit Log, permission `audit:read`: central and sector admins): every
+  change by every account and every sign-in, with what changed. Read only; kept for 2 years
+  (`AUDIT_RETENTION_DAYS`, default 730).
+- **Notifications** (the bell, in the app only — no email): submitted inspections (sector admins,
+  supervisors, central admins, the rest of the team), returned for correction, tasks given to another
+  team or with a new due date, new rounds, tasks due within 2 days and overdue, section 4.1 completed at
+  the office, and sign-ins from a new device. The reminders run with the hourly schedule job
+  (`DISABLE_SCHEDULER=true` on a second server turns them off there too).
+
 ### Applying a new license list
 
 Restarts only **add** new licenses from `backend/data/license-list/`. To make existing licenses, teams, members and locations match a new list (and the coordinate list), run the update by hand. Take a database backup first (section 5):

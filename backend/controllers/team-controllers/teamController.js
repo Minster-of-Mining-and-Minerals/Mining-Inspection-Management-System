@@ -5,6 +5,7 @@ const { scopeWhere, inScope, findInScope, sectorForCreate } = require("../../ser
 const { licenseAreasInclude, licenseMineralsInclude, pageParams, pageMeta } = require("../../services/companyQueryService");
 const { addUserToTeam, ensureRole } = require("../../services/teamMembershipService");
 const { likeContains, escapeLike } = require("../../utils/search");
+const { naturalOrderSql } = require("../../utils/naturalOrder");
 
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 const today = () => new Date().toISOString().slice(0, 10);
@@ -80,8 +81,8 @@ const getTeams = async (req, res) => {
         include: [[literal(`(SELECT COUNT(*)::int FROM team_licenses tl WHERE tl.team_id = "Team"."team_id")`), "license_count"]],
       },
       include: [memberInclude({ left_on: null }), sectorInclude],
-      // "Team 2" before "Team 10": by code as a number when it is one, then by name
-      order: [[literal(`CASE WHEN "Team"."code" ~ '^[0-9]+$' THEN "Team"."code"::int END`), "ASC NULLS LAST"], ["name", "ASC"]],
+      // By name, "Team 2" before "Team 10"
+      order: [[literal(naturalOrderSql(`"Team"."name"`)), "ASC"]],
       distinct: true,
       limit,
       offset,

@@ -58,6 +58,9 @@ module.exports = (sequelize, DataTypes) => {
       submit_device: { type: DataTypes.JSONB, allowNull: true },
       submit_ip: { type: DataTypes.STRING(64), allowNull: true },
       return_count: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+      // Reminders sent to the team (services/inspectionNotifications.js); cleared when the due date changes
+      due_soon_notified_at: { type: DataTypes.DATE, allowNull: true },
+      overdue_notified_at: { type: DataTypes.DATE, allowNull: true },
     },
     {
       sequelize,

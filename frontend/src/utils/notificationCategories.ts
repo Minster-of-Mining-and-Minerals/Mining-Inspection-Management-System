@@ -14,6 +14,7 @@ export const NOTIFICATION_CATEGORY_MAP = {
     "INSPECTION_SUBMITTED",
     "INSPECTION_RETURNED",
     "INSPECTION_APPROVED",
+    "INSPECTION_OFFICE_UPDATED",
     "ROUND_STARTED",
     "TEAM_MEMBERSHIP_CHANGED",
   ],
@@ -37,6 +38,10 @@ export const getNotificationCategory = (type: string): NotificationCategory =>
 
 /** Page a notification should open, or null when it has nothing to link to. */
 export const getNotificationLink = (n: Notification): string | null => {
+  // Several tasks at once (new round, reminders): the task list
+  if (n.related_entity_type === "tasks") return "/my-tasks";
+  // About the person's own account (new sign-in, password changed): their profile
+  if (n.related_entity_type === "account") return "/profile";
   if (!n.related_entity_id) return null;
   switch (n.related_entity_type) {
     case "inspection":

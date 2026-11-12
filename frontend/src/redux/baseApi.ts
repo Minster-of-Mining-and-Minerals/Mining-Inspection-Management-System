@@ -53,8 +53,11 @@ const baseQueryWithReauth: BaseQueryFn = async (args, api, extraOptions) => {
     // pages (e.g. login, forgot password) must never be sent to login.
     const session = await getSession();
     if (session?.accessToken) {
+      // The session ended on the server (signed out elsewhere, inactivity, new password …): say why on the sign-in page
+      const data = (result.error as { data?: { code?: string; reason?: string } }).data;
+      const reason = data?.code === "SESSION_ENDED" && data.reason ? `?ended=${encodeURIComponent(data.reason)}` : "";
       console.warn("Unauthorized! Forced logout triggered.");
-      await performLogout();
+      await performLogout(`/login${reason}`);
     }
   }
   return result;
@@ -79,6 +82,7 @@ export const baseApi = createApi({
     "Dashboard",
     "Notification",
     "Profile",
+    "Sessions",
   ],
 
   endpoints: () => ({}),

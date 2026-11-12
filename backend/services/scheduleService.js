@@ -12,6 +12,7 @@
 const { QueryTypes } = require("sequelize");
 const { sequelize, InspectionSchedule, Inspection } = require("../models");
 const { localToday, addDays, occurrencesBetween, lastOccurrenceOnOrBefore, dueAtFor } = require("../utils/scheduleDates");
+const notify = require("./inspectionNotifications");
 
 const CATCH_UP_DAYS = 60;
 
@@ -79,8 +80,12 @@ const generateForSchedule = async (schedule, now = new Date()) => {
       }));
       if (rows.length) {
         const before = await Inspection.count({ where: { schedule_id: schedule.schedule_id, occurrence_date: d } });
+        const startedAt = new Date(Date.now() - 1000);
         await Inspection.bulkCreate(rows, { ignoreDuplicates: true });
-        created += (await Inspection.count({ where: { schedule_id: schedule.schedule_id, occurrence_date: d } })) - before;
+        const added = (await Inspection.count({ where: { schedule_id: schedule.schedule_id, occurrence_date: d } })) - before;
+        created += added;
+        // Each team with new tasks gets one notification
+        if (added) await notify.roundStarted(schedule.schedule_id, d, startedAt);
       }
     }
   }
@@ -114,7 +119,13 @@ const generateAll = async (now = new Date()) => {
 /** Hourly task creation (set DISABLE_SCHEDULER=true to turn it off, e.g. on a second server). */
 const startScheduler = () => {
   if (process.env.DISABLE_SCHEDULER === "true") return;
-  const run = () => generateAll().catch((e) => console.error("Inspection schedules:", e.message));
+  const run = () =>
+    generateAll()
+      .catch((e) => console.error("Inspection schedules:", e.message))
+      // Reminders: due within 2 days, overdue (each task once)
+      .then(() => notify.sendDueReminders())
+      // Audit log rows past the retention time
+      .then(() => require("./auditService").removeOldEntries());
   setTimeout(run, 15 * 1000);
   setInterval(run, 60 * 60 * 1000).unref();
 };

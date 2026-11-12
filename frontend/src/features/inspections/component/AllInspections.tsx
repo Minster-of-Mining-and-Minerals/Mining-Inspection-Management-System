@@ -14,7 +14,7 @@ import { TaskListParams, TeamProgress, useGetTasksQuery, useGetTeamProgressQuery
 import type { TaskListItem } from "@/redux/types/inspection";
 import { useGetSubmissionMapOptionsQuery } from "@/redux/api/dashboardApi";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
-import { TaskStatusBadge, dueText, scoreText, scoreTone } from "./taskUi";
+import { TaskStatusBadge, dueText } from "./taskUi";
 import { SectorFilter } from "@/components/common/SectorFilter";
 
 const STATUSES: [NonNullable<TaskListParams["status"]> | "", string][] = [
@@ -167,7 +167,6 @@ export default function AllInspections() {
               <th className="px-3 py-2 font-medium">Status</th>
               <th className="px-3 py-2 font-medium">Progress</th>
               <th className="px-3 py-2 font-medium">Submitted</th>
-              <th className="px-4 py-2 text-right font-medium">Score</th>
             </tr>
           </thead>
           <tbody className={`divide-y ${isFetching ? "opacity-60" : ""}`}>
@@ -206,7 +205,6 @@ export default function AllInspections() {
                     "—"
                   )}
                 </td>
-                <td className={`px-4 py-2 text-right font-semibold tabular-nums ${scoreTone(t.score)}`}>{t.status === "submitted" ? scoreText(t.score) : "—"}</td>
               </tr>
             ))}
           </tbody>

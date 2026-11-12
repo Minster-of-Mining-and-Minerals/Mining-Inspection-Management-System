@@ -3,6 +3,8 @@ const bcrypt = require("bcrypt");
 const { User } = require("../../models");
 const { sendEmail } = require("../../utils/sendEmail");
 const { Op } = require("sequelize");
+const { endAllSessions } = require("../../services/sessionService");
+const { accountNotice } = require("../../services/accountNotifications");
 
 /**
  * Request OTP for password reset
@@ -117,6 +119,9 @@ const resetPassword = async (req, res) => {
       otp_expiry: null,
       password_changed_at: new Date(),
     });
+    // A reset password: every device signs in again
+    await endAllSessions(user.user_id, "password_changed");
+    accountNotice(user.user_id, { type: "ACCOUNT_PASSWORD_CHANGED", title: "Your password was reset", message: "Your password was reset with a code sent to your email. All your devices were signed out. If this was not you, contact your administrator." });
 
     return res.status(200).json({
       success: true,

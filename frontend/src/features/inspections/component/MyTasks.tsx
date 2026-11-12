@@ -14,7 +14,6 @@ import Loading01 from "@/features/template/component/Loading/Loading01";
 import { useGetMyTasksQuery } from "@/redux/api/inspectionApi";
 import { FREQUENCY_LABEL, TaskGroup, TaskListItem } from "@/redux/types/inspection";
 import { formatCalendarDate, formatMonthYear } from "@/utils/date";
-import { scoreText } from "./taskUi";
 
 type Tab = "open" | TaskGroup;
 type GroupBy = "due" | "form" | "company" | "region";
@@ -453,7 +452,6 @@ function TaskCard({ task: t, groupBy, lang, onOpen }: { task: TaskListItem; grou
         <span className="flex items-start gap-2.5">
           <span className="line-clamp-2 min-w-0 flex-1 font-semibold leading-snug text-slate-900 [overflow-wrap:anywhere]">{name}</span>
           <span className="flex shrink-0 items-center gap-1.5">
-            {done && <span className="text-sm font-bold text-slate-700">{scoreText(t.score)}</span>}
             <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold ${chip.tone}`}>{chip.text}</span>
           </span>
         </span>

@@ -14,6 +14,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   CalendarClock,
+  ScrollText,
 } from "lucide-react";
 
 export type NavItem = {
@@ -166,5 +167,12 @@ export const NAVIGATION: NavItem[] = [
         allPermissions: ["PERMISSIONS:READ"],
       },
     ],
+  },
+  {
+    title: "Audit Log",
+    url: "/audit-log",
+    icon: ScrollText,
+    section: "Administration",
+    allPermissions: ["AUDIT:READ"],
   },
 ];

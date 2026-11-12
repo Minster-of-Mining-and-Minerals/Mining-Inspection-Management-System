@@ -15,23 +15,16 @@ const SubmissionMap = dynamic(() => import("./SubmissionMap"), {
   loading: () => <div className="h-[480px] w-full animate-pulse rounded-xl border border-slate-200 bg-slate-100 sm:h-[560px]" />,
 });
 
-const SCORE_BANDS: [string, string, string?][] = [
-  ["", "Any score"],
-  ["lt50", "Below 50%", "0-49.99"],
-  ["50to80", "50–79%", "50-79.99"],
-  ["gte80", "80% or more", "80-100"],
-];
 const PREF_KEY = "mims.dashboard.map.view";
 const selectClass = "h-9 min-w-0 rounded-md border border-input bg-white px-2 text-sm";
 
 /**
  * Where inspections were submitted, as a heatmap or points. Uses the dashboard's filters
- * (`base`: period, team, form …) plus its own: on time / late, score, imprecise points.
+ * (`base`: period, team, form …) plus its own: on time / late, imprecise points.
  */
 export default function SubmissionMapPanel({ base }: { base: MapFilters }) {
   const [mode, setMode] = useState<MapMode>("points");
   const [late, setLate] = useState("");
-  const [score, setScore] = useState("");
   const [showImprecise, setShowImprecise] = useState(false);
   const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
 
@@ -53,10 +46,8 @@ export default function SubmissionMapPanel({ base }: { base: MapFilters }) {
   };
 
   const params = useMemo<MapFilters>(() => {
-    const band = SCORE_BANDS.find(([k]) => k === score)?.[2];
-    const [score_min, score_max] = band ? band.split("-") : [undefined, undefined];
-    return { ...base, late: late || undefined, score_min, score_max, max_accuracy: showImprecise ? 0 : 500 };
-  }, [base, late, score, showImprecise]);
+    return { ...base, late: late || undefined, max_accuracy: showImprecise ? 0 : 500 };
+  }, [base, late, showImprecise]);
   const { data, isFetching, isError } = useGetSubmissionMapQuery(params);
   const c = data?.counts;
 
@@ -94,13 +85,6 @@ export default function SubmissionMapPanel({ base }: { base: MapFilters }) {
           <option value="">On time and late</option>
           <option value="false">On time only</option>
           <option value="true">Late only</option>
-        </select>
-        <select aria-label="Score" className={`${selectClass} ${score ? "border-primary text-primary" : ""}`} value={score} onChange={(e) => setScore(e.target.value)}>
-          {SCORE_BANDS.map(([k, label]) => (
-            <option key={k} value={k}>
-              {label}
-            </option>
-          ))}
         </select>
         <label className="flex items-center gap-1.5 text-sm text-slate-600">
           <input type="checkbox" className="h-4 w-4 accent-primary" checked={showImprecise} onChange={(e) => setShowImprecise(e.target.checked)} />
@@ -224,7 +208,7 @@ function SubmissionList({ points, activeId, onPick }: { points: MapPoint[]; acti
                 <span className="flex items-center gap-1.5 pl-6 text-xs text-slate-500">
                   <DeviceIcon ua={p.user_agent} />
                   <span className="truncate">{deviceLabel(p.user_agent, p.platform)}</span>
-                  <span className="ml-auto shrink-0 font-semibold text-slate-700">{p.score == null ? "—" : `${Math.round(p.score * 100)}%`}</span>
+                  <span className="ml-auto" />
                   <Link href={`/inspections/${p.inspection_id}`} onClick={(e) => e.stopPropagation()} className="shrink-0 font-medium text-primary hover:underline">
                     Open
                   </Link>

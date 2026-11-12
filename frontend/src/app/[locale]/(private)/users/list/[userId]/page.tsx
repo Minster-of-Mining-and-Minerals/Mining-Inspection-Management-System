@@ -15,6 +15,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { TemporaryPasswordDialog } from "@/components/common/modals/TemporaryPasswordDialog";
+import { SessionsCard } from "@/components/common/SessionsCard";
 import { toast } from "react-toastify";
 
 const UserViewPage = () => {
@@ -150,6 +151,11 @@ const UserViewPage = () => {
                                 ))}
                             </ul>
                         )}
+                    </div>
+
+                    {/* Signed-in devices; an administrator can sign the user out everywhere */}
+                    <div className="border-t px-6 py-6">
+                        <SessionsCard userId={String(userId)} userName={mappedUser.name} canSignOut />
                     </div>
                 </div>
 

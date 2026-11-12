@@ -1,4 +1,6 @@
 const { User, UserType, SectorNode, Attachment } = require("../../models");
+const { endAllSessions } = require("../../services/sessionService");
+const { accountNotice } = require("../../services/accountNotifications");
 const bcrypt = require("bcrypt");
 
 /**
@@ -108,6 +110,11 @@ const updateProfile = async (req, res) => {
 
     await user.update(updateData, { transaction: t });
     await t.commit();
+    if (password) {
+      // New password: the other devices sign in again
+      await endAllSessions(req.user.user_id, "password_changed", { exceptSessionId: req.session_id, byUserId: req.user.user_id });
+      accountNotice(req.user.user_id, { type: "ACCOUNT_PASSWORD_CHANGED", title: "Your password was changed", message: "Your password was changed. Your other devices were signed out. If this was not you, contact your administrator." });
+    }
 
     return res.status(200).json({
       success: true,

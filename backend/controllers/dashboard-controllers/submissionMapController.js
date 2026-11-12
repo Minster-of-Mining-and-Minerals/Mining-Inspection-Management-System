@@ -13,6 +13,7 @@ const { validate: isUuid } = require("uuid");
 const { sequelize } = require("../../models");
 const { placeOf } = require("../../services/placeService");
 const { scopeSql } = require("../../services/sectorScope");
+const { byNaturalName } = require("../../utils/naturalOrder");
 
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 const q = (sql, replacements) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
@@ -142,6 +143,8 @@ const getSubmissionMapOptions = async (req, res) => {
       q(`SELECT DISTINCT c.company_id AS id, c.name FROM inspections i JOIN companies c ON c.company_id = i.company_id WHERE i.status = 'submitted' AND ${s} ORDER BY c.name`),
       q(`SELECT area_id AS id, name FROM admin_areas WHERE level = 'region' AND is_active ORDER BY name`),
     ]);
+    // Team 2 before Team 10
+    teams.sort(byNaturalName((t) => t.name));
     return res.status(200).json({ success: true, data: { teams, inspectors, forms, schedules, companies, regions } });
   } catch (error) {
     console.error("getSubmissionMapOptions", error);

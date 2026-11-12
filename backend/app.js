@@ -119,6 +119,9 @@ app.use(cors(corsOptions));
 // Serialize all API date fields as ISO UTC strings
 app.use(dateSerializationMiddleware);
 
+// Audit log: every change request of every account (services/auditService.js)
+app.use(require("./services/auditService").auditRequests);
+
 // ================== Database Connection ==================
 const { sequelize } = require("./models");
 
@@ -186,6 +189,9 @@ app.use("/api/inspection-files", inspectionRoutes.fileLinks);
 
 // Dashboard (staff)
 app.use("/api/dashboard", require("./routers/dashboard-routes/dashboardRoutes"));
+
+// Audit log (read only)
+app.use("/api/audit-logs", require("./routers/audit-routes/auditRoutes"));
 
 // ================== Api Attachment Routes =====================
 app.use("/api/attachments", attachmentRoute);

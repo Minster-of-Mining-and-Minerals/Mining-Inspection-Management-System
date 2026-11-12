@@ -9,8 +9,15 @@ export default {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, request) {
         if (!credentials) return null;
+        // The person's own address and browser, for their list of signed-in devices (this request comes from the web server)
+        const headers = (request as Request | undefined)?.headers;
+        const clientHeaders: Record<string, string> = {};
+        const ua = headers?.get("user-agent");
+        const ip = headers?.get("x-forwarded-for")?.split(",")[0]?.trim() || headers?.get("x-real-ip");
+        if (ua) clientHeaders["x-client-user-agent"] = ua;
+        if (ip) clientHeaders["x-client-ip"] = ip;
 
         const { email, password } = credentials;
         const cleanEmail = typeof email === "string" ? email.trim() : "";
@@ -31,6 +38,7 @@ export default {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
+                ...clientHeaders,
               },
               body: JSON.stringify({ email: cleanEmail, password }),
             });

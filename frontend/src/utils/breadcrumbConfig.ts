@@ -36,6 +36,7 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
     // Inspection schedules & tasks
     // ================================================
     "/submission-map": [{ title: "Submission Map", path: "/submission-map" }],
+    "/audit-log": [{ title: "Audit Log", path: "/audit-log" }],
     "/my-tasks": [{ title: "My Tasks", path: "/my-tasks" }],
     "/my-team": [{ title: "My Team", path: "/my-team" }],
     "/my-companies": [{ title: "My Companies", path: "/my-companies" }],

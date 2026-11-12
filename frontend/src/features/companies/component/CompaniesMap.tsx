@@ -3,8 +3,8 @@
 /**
  * The companies page as a map (admins).
  *   left:   the matching companies, with a search; choosing one zooms the map to all its license areas
- *   middle: every matching license area, coloured by team or by the last inspection score
- *   right:  the chosen company and license (team, score, tasks, links)
+ *   middle: every matching license area, coloured by team
+ *   right:  the chosen company and license (team, last inspection, tasks, links)
  * Uses the same filters as the table, plus zone, team, RED ZONE and overdue tasks.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -24,22 +24,14 @@ const LicenseMap = dynamic(() => import("@/features/my-work/component/LicenseMap
   loading: () => <div className="absolute inset-0 animate-pulse bg-slate-100" />,
 });
 
-type ColourBy = "team" | "score";
 
 // Distinct, colour-blind-friendly team colours (blue/orange first), repeated when there are more teams
 const TEAM_COLOURS = ["#1D5FA8", "#D9730D", "#2A9D8F", "#8E44AD", "#B8860B", "#C2185B", "#5D6D7E", "#3E7C17", "#6D4C41", "#0097A7", "#7B1FA2", "#455A64"];
 const NO_TEAM = "#9AA3AB";
-const SCORE_BANDS = [
-  { label: "80% and above", colour: "#123E73", test: (s: number) => s >= 0.8 },
-  { label: "60–79%", colour: "#5B9BD5", test: (s: number) => s >= 0.6 },
-  { label: "Below 60%", colour: "#D9730D", test: () => true },
-];
-const scoreColour = (s: number | null) => (s == null ? NO_TEAM : SCORE_BANDS.find((b) => b.test(s))!.colour);
-const pct = (s: number | null) => (s == null ? "—" : `${Math.round(s * 100)}%`);
 const short = (name: string) => (name.length > 22 ? `${name.slice(0, 20).trim()}…` : name);
 const selectClass = (on: boolean) => `h-9 rounded-md border px-2 text-sm ${on ? "border-primary bg-sky-50 font-semibold text-primary" : "border-slate-300 bg-white"}`;
 const isRedZone = (l: MapLicenseRow) => !!l.notes && /red\s*zone/i.test(l.notes);
-const HINT = "Choose a company in the list, or click a license on the map, to see its team, last score and open tasks.";
+const HINT = "Choose a company in the list, or click a license on the map, to see its team, last inspection and open tasks.";
 
 interface CompanyGroup {
   company_id: string;
@@ -56,7 +48,6 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
   const [teamId, setTeamId] = useState("");
   const [redZone, setRedZone] = useState(false);
   const [overdue, setOverdue] = useState(false);
-  const [colourBy, setColourBy] = useState<ColourBy>("team");
   const [listSearch, setListSearch] = useState("");
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [licenseId, setLicenseId] = useState<string | null>(null);
@@ -131,9 +122,9 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
           id: l.license_id,
           label: short(l.company_name),
           boundary: l.boundary!,
-          color: colourBy === "team" ? (l.team_id ? teamColour.get(l.team_id) ?? NO_TEAM : NO_TEAM) : scoreColour(l.last_score),
+          color: l.team_id ? teamColour.get(l.team_id) ?? NO_TEAM : NO_TEAM,
         })),
-    [rows, colourBy, teamColour],
+    [rows, teamColour],
   );
   // Stable arrays (the map redraws when they change)
   const highlightIds = useMemo(() => companies.find((c) => c.company_id === companyId)?.licenses.map((l) => l.license_id) ?? [], [companies, companyId]);
@@ -141,16 +132,13 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
     () => (focused ? companies.find((c) => c.company_id === companyId)?.licenses.filter((l) => l.boundary).map((l) => l.license_id) : undefined),
     [focused, companies, companyId],
   );
-  const legend =
-    colourBy === "team"
-      ? (() => {
+  const legend = (() => {
           const teamsShown = [...new Map(rows.map((l) => [l.team_id ?? "none", { name: l.team_name ?? "No team", sector: l.sector_name }])).entries()];
           const repeated = (name: string) => teamsShown.filter(([, t]) => t.name === name).length > 1;
           return teamsShown
             .map(([id, t]) => ({ key: id, label: id !== "none" && t.sector && repeated(t.name) ? `${t.name} · ${t.sector}` : t.name, colour: id === "none" ? NO_TEAM : teamColour.get(id) ?? NO_TEAM }))
             .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
-        })()
-      : [...SCORE_BANDS.map((b) => ({ key: b.label, label: b.label, colour: b.colour })), { key: "none", label: "Not inspected yet", colour: NO_TEAM }];
+        })();
   const filtersOn = !!(zoneId || teamId || redZone || overdue);
 
   // The chosen company and license (a card on the map on a PC, below the map on a phone)
@@ -196,9 +184,8 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg border border-slate-200 p-2.5">
-            <p className="text-xs text-slate-500">Last score</p>
-            <p className="text-xl font-bold text-primary">{pct(license.last_score)}</p>
-            {license.last_inspected_at && <p className="text-xs text-slate-500">{formatCalendarDate(license.last_inspected_at)}</p>}
+            <p className="text-xs text-slate-500">Last inspected</p>
+            <p className="text-base font-bold text-primary">{license.last_inspected_at ? formatCalendarDate(license.last_inspected_at) : "Not yet"}</p>
           </div>
           <div className="rounded-lg border border-slate-200 p-2.5">
             <p className="text-xs text-slate-500">Open tasks</p>
@@ -315,7 +302,7 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
           <div className={`relative isolate h-[60vh] min-h-[420px] flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100 supports-[height:100dvh]:h-[60dvh] lg:h-auto lg:flex-1 ${max.frameClass}`}>
             <LicenseMap
               className="absolute inset-0"
-              ariaLabel={company && focused ? `Map zoomed to ${company.name}` : `Map of ${mapLicenses.length} license areas, coloured by ${colourBy === "team" ? "team" : "last inspection score"}`}
+              ariaLabel={company && focused ? `Map zoomed to ${company.name}` : `Map of ${mapLicenses.length} license areas, coloured by team`}
               licenses={mapLicenses}
               selectedId={license?.license_id ?? null}
               highlightIds={highlightIds}
@@ -325,27 +312,6 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
             />
             <MapMaximizeButton {...max} className="absolute right-3 top-[86px] z-10" />
             <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-2 rounded-lg bg-white/95 py-1.5 pl-3 pr-1.5 shadow-md">
-                <span className="text-xs font-semibold text-slate-500">Colour by</span>
-                <div role="group" aria-label="Colour by" className="flex gap-1">
-                  {(
-                    [
-                      ["team", "Team"],
-                      ["score", "Last score"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      aria-pressed={colourBy === key}
-                      onClick={() => setColourBy(key)}
-                      className={`min-h-8 rounded-md px-2.5 text-xs font-semibold ${colourBy === key ? "bg-primary text-white" : "text-primary hover:bg-slate-100"}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
               {focused && company && (
                 <button type="button" onClick={() => setFocused(false)} className="min-h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm font-semibold text-primary shadow-md">
                   Show all

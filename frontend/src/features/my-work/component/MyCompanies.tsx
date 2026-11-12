@@ -11,8 +11,7 @@ import type { MyLicense } from "@/redux/types/myWork";
 import { FREQUENCY_LABEL } from "@/redux/types/inspection";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { describeDue } from "@/features/inspections/component/taskUi";
-import { TaskStatusBadge, dueText, scoreText, scoreTone } from "@/features/inspections/component/taskUi";
-import { ScoreTrend } from "./ScoreTrend";
+import { TaskStatusBadge, dueText } from "@/features/inspections/component/taskUi";
 import { MyCompaniesMap } from "./MyCompaniesMap";
 
 /** The companies and licenses assigned to the user's team, and the team's own results there. */
@@ -184,16 +183,12 @@ function LicenseRow({ license: l }: { license: MyLicense }) {
         </div>
 
         <div className="w-48 space-y-1 text-sm">
-          <p className="text-xs text-slate-500">Latest result</p>
+          <p className="text-xs text-slate-500">Last inspected</p>
           {l.last_inspection ? (
-            <>
-              <p className={`text-xl font-bold ${scoreTone(l.last_inspection.score)}`}>{scoreText(l.last_inspection.score)}</p>
-              <p className="text-xs text-slate-500">
-                {formatCalendarDate(l.last_inspection.submitted_at.slice(0, 10))}
-                {l.last_inspection.is_late && " · late"}
-              </p>
-              {l.recent_scores.length > 1 && <ScoreTrend scores={l.recent_scores} />}
-            </>
+            <p className="font-semibold text-slate-900">
+              {formatCalendarDate(l.last_inspection.submitted_at.slice(0, 10))}
+              {l.last_inspection.is_late && <span className="font-normal text-amber-700"> · late</span>}
+            </p>
           ) : (
             <p className="text-xs text-slate-400">Not inspected by your team yet</p>
           )}
@@ -251,7 +246,6 @@ function History({ licenseId }: { licenseId: string }) {
               {t.submitter && <span className="text-slate-500"> · {t.submitter.full_name}</span>}
               {t.is_late && <span className="text-amber-700"> · late</span>}
             </span>
-            <span className={`font-semibold ${scoreTone(t.score)}`}>{scoreText(t.score)}</span>
           </button>
         </li>
       ))}

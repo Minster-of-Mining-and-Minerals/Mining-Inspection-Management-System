@@ -1,5 +1,7 @@
 const bcrypt = require("bcrypt");
 const { User } = require("../../models");
+const { endAllSessions } = require("../../services/sessionService");
+const { accountNotice } = require("../../services/accountNotifications");
 
 exports.changePassword = async (req, res) => {
   const t = await User.sequelize.transaction();
@@ -98,6 +100,9 @@ exports.changePassword = async (req, res) => {
     );
 
     await t.commit();
+    // Signed out on the other devices; the account owner is told
+    await endAllSessions(req.user.user_id, "password_changed", { exceptSessionId: req.session_id, byUserId: req.user.user_id });
+    accountNotice(req.user.user_id, { type: "ACCOUNT_PASSWORD_CHANGED", title: "Your password was changed", message: "Your password was changed. Your other devices were signed out. If this was not you, contact your administrator." });
     return res.status(200).json({
       success: true,
       message: "Password changed successfully",

@@ -1,10 +1,21 @@
-import { signOut } from "next-auth/react";
+import { getSession, signOut } from "next-auth/react";
+import { resolveApiBaseUrl } from "@/utils/apiUrl";
 
 /**
  * Perform a thorough logout by clearing all browser storage and sessions.
  * This ensures no stale data remains in localStorage, sessionStorage, or cookies.
  */
 export const performLogout = async (callbackUrl: string = "/login") => {
+  // 0. End this sign-in's session on the server (best effort: never blocks signing out)
+  try {
+    const session = await getSession();
+    if (session?.accessToken) {
+      await fetch(`${resolveApiBaseUrl()}/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${session.accessToken}` } });
+    }
+  } catch {
+    /* offline: the session ends by itself after the inactivity time */
+  }
+
   // 1. Clear all browser storage
   if (typeof window !== "undefined") {
     localStorage.clear();

@@ -4,9 +4,8 @@
  *
  * Amharic is as written in the Ministry's checklist; English labels are translations.
  * Changes from the paper form, so it works as a digital form:
- *   - Which license each question is for: all of them apply to exploration and mining licenses,
- *     except those marked MINING (mining licenses only): 3.5–3.11, 4.1 (license at the site),
- *     6 rehabilitation and mine closure.
+ *   - Every question is shown for exploration and mining licenses; the inspector leaves out the
+ *     ones that don't apply (none is required).
  *   - Section 3: yes / no questions, text areas (3, 11, 12) and attachments for 12. Sections 4–10:
  *     text areas; 10.9 takes any file. No question is scored, so this checklist gives no score.
  *   - Section 4.1 (contract work plan) is filled in at the office after the visit: optional, and the
@@ -25,8 +24,6 @@ const YES_NO = [
 ];
 const yesNo = (key, label, label_am, extra = {}) => ({ key, type: "select", label, label_am, options: YES_NO.map((o) => ({ ...o })), ...extra });
 const textArea = (key, label, label_am, extra = {}) => ({ key, type: "long_text", label, label_am, ...extra });
-// Questions for mining licenses only (the others are for exploration and mining licenses)
-const MINING = { applies_to: { license_types: ["mining"] } };
 // Any kind of file: photos, documents, videos
 const ANY_FILE = { accept: ["image", "document", "video"], max_files: 20 };
 
@@ -66,18 +63,17 @@ module.exports = {
         title: "Observation points",
         title_am: "የምልከታ ነጥቦች",
         fields: [
-          // 1–4 and 12: exploration and mining licenses; 5–11: mining licenses only
           yesNo("obs_work_at_site", "Are people at the licensed site at the time of the visit?", "በምልከታው ወቅት ፈቃድ በወጣበት ስፍራ ሰው ስለመኖሩ"),
           yesNo("obs_work_recent", "Has work taken place at the licensed site in the days or months before the visit?", "ከምልከታው ቀን ቀደም ባሉት ተከታታይ ቀናት/ወራት ፈቃድ በወጣበት ቦታ ስራ ስለመኖሩ"),
           textArea("obs_activities", "Activities currently being carried out, in detail", "እየተሰራ ያለው ተግባር አይነት በዝርዝር"),
           yesNo("obs_within_license_scope", "Does the company work only in the activity its license was issued for?", "ፈቃድ ባወጡበት ዘርፍ ብቻ ላይ የተሰማሩ ስለመሆኑ"),
-          yesNo("obs_production_recorded", "Are planned and actual production for the day recorded?", "ማዕድን ምርት ላይ የደረሱ ከሆነ የታቀደና ትክክለኛ የማዕድን ምርት መጠን ለዕለቱ ተመዝግቧል?", MINING),
-          yesNo("obs_production_evidence", "Are production figures supported by mine records, survey measurements, weighbridge tickets or other evidence?", "የምርት መረጃው በማዕድን መዝገብ፣ በSurvey መለኪያ፣ በWeighbridge ደረሰኝ ወይም በሌላ ማስረጃ የተደገፈ ስለመሆኑ", MINING),
-          yesNo("obs_materials_recorded", "Are mined ore, processed ore, removed waste rock / overburden and finished product / concentrate recorded separately?", "የተቆፈረ ማዕድን፣ የተቀነባበረ ማዕድን፣ የተወገደ ቆሻሻ አፈር/ድንጋይ እና የተዘጋጀ ምርት/Concentrate በተለያዩ የተመዘገበ ሰልመሆኑ", MINING),
-          yesNo("obs_stockpile", "Are stockpiles identified, measured, reconciled and secured?", "የማዕድን ክምችት (Stockpile) ተለይቶ፣ ተለክቶ፣ ተነጻጽሮና ተጠብቆ ስለመገኘቱ", MINING),
-          yesNo("obs_dispatch_records", "Are transport, dispatch and sales records available?", "የማጓጓዣ፣ የDispatch እና የሽያጭ መዝገቦች ስለመኖራቸው", MINING),
-          yesNo("obs_hours_downtime", "Are working hours, shifts, machine availability and downtime recorded?", "የሥራ ሰዓት፣ ፈረቃ፣ የማሽን መገኘትና Downtime ስለመመዝገቡ", MINING),
-          textArea("obs_variance", "Production shortfalls against the plan, work stoppages or unexplained losses, with their reasons", "ከዕቅድ እነጻር የተፈጠረ የምርት ልዩነት፣ የሥራ መቋረጥ ወይም ያልተገለጸ ኪሳራ ካለ ከነ ምክንያቱ", MINING),
+          yesNo("obs_production_recorded", "Are planned and actual production for the day recorded?", "ማዕድን ምርት ላይ የደረሱ ከሆነ የታቀደና ትክክለኛ የማዕድን ምርት መጠን ለዕለቱ ተመዝግቧል?"),
+          yesNo("obs_production_evidence", "Are production figures supported by mine records, survey measurements, weighbridge tickets or other evidence?", "የምርት መረጃው በማዕድን መዝገብ፣ በSurvey መለኪያ፣ በWeighbridge ደረሰኝ ወይም በሌላ ማስረጃ የተደገፈ ስለመሆኑ"),
+          yesNo("obs_materials_recorded", "Are mined ore, processed ore, removed waste rock / overburden and finished product / concentrate recorded separately?", "የተቆፈረ ማዕድን፣ የተቀነባበረ ማዕድን፣ የተወገደ ቆሻሻ አፈር/ድንጋይ እና የተዘጋጀ ምርት/Concentrate በተለያዩ የተመዘገበ ሰልመሆኑ"),
+          yesNo("obs_stockpile", "Are stockpiles identified, measured, reconciled and secured?", "የማዕድን ክምችት (Stockpile) ተለይቶ፣ ተለክቶ፣ ተነጻጽሮና ተጠብቆ ስለመገኘቱ"),
+          yesNo("obs_dispatch_records", "Are transport, dispatch and sales records available?", "የማጓጓዣ፣ የDispatch እና የሽያጭ መዝገቦች ስለመኖራቸው"),
+          yesNo("obs_hours_downtime", "Are working hours, shifts, machine availability and downtime recorded?", "የሥራ ሰዓት፣ ፈረቃ፣ የማሽን መገኘትና Downtime ስለመመዝገቡ"),
+          textArea("obs_variance", "Production shortfalls against the plan, work stoppages or unexplained losses, with their reasons", "ከዕቅድ እነጻር የተፈጠረ የምርት ልዩነት፣ የሥራ መቋረጥ ወይም ያልተገለጸ ኪሳራ ካለ ከነ ምክንያቱ"),
           textArea("obs_unauthorized", "Where unauthorized digging, stockpile movement or mineral transport is suspected, further supporting information collected from the area", "ያልተፈቀደ ቁፋሮ፣ የማዕድን ምርት ክምችት እንቅስቃሴ ወይም የማዕድን ማጓጓዝ ጥርጣሬ ካለ ተጨማሪ አመካኝ መረጃዎች ከአካባቢው መውሰድ"),
           { key: "obs_unauthorized_files", type: "photo", label: "Attachments for question 12 (photos, documents, videos)", label_am: "ለጥያቄ 12 የተያያዙ ማስረጃዎች (ፎቶ፣ ሰነድ፣ ቪዲዮ)", ...ANY_FILE },
         ],
@@ -88,7 +84,7 @@ module.exports = {
         title: "Mining license and legal compliance",
         title_am: "የማዕድን ፈቃድና የሕግ ተገዢነት",
         fields: [
-          textArea("legal_license_on_site", "A valid mining license or permit document is available at the site", "ተገቢው የማዕድን ፈቃድ ወይም ፈቃድ ሰጪ ሰነድ ትክክለኛ ሆኖ በሳይት ስለመገኘቱ", MINING),
+          textArea("legal_license_on_site", "A valid mining license or permit document is available at the site", "ተገቢው የማዕድን ፈቃድ ወይም ፈቃድ ሰጪ ሰነድ ትክክለኛ ሆኖ በሳይት ስለመገኘቱ"),
           textArea("legal_conditions", "License conditions and reporting obligations are being met", "የፈቃድ ቅድመ ሁኔታዎችና የሪፖርት ግዴታዎች እየተፈጸሙ ስለመሆኑ"),
           textArea("legal_within_boundary", "Work is carried out within the licensed boundary and coordinates", "ሥራዎች በተፈቀደው የፈቃድ ወሰንና መጋጠሚያዎች ውስጥ ስለመካሄዳቸው"),
           textArea("legal_plans", "Approved mining, environmental and mine-closure plans are available as required", "የተፈቀዱ የማዕድን፣ የአካባቢና የማዕድን ቦታ መዝጊያ ዕቅዶች እንደአስፈላጊነቱ ስለመገኘታቸው"),
@@ -182,9 +178,9 @@ module.exports = {
           textArea("env_fuel_chemicals", "Fuel, oil and chemicals are stored in proper containment with spill response in place", "ነዳጅ፣ ዘይትና ኬሚካሎች በተገቢ መያዣና Spill Response ዝግጅት ስለመቀመጣቸው"),
           textArea("env_waste", "Hazardous and non-hazardous waste is separated, stored and disposed of properly", "አደገኛና አደገኛ ያልሆኑ ቆሻሻዎች ተለይተው፣ ተቀምጠውና በተገቢው ሁኔታ ስለመወገዳቸው"),
           textArea("env_erosion", "Soil erosion, sedimentation and land disturbance are under control", "የአፈር መሸርሸር፣ ደለል መከማቸትና የመሬት መረበሽ ቁጥጥር ሥር ስለመሆኑ"),
-          textArea("env_rehabilitation", "Progressive rehabilitation is being carried out", "ቀጣይ የመሬት መልሶ ማልማት (Progressive Rehabilitation) እየተከናወነ ስለመሆኑ", MINING),
+          textArea("env_rehabilitation", "Progressive rehabilitation is being carried out", "ቀጣይ የመሬት መልሶ ማልማት (Progressive Rehabilitation) እየተከናወነ ስለመሆኑ"),
           textArea("env_reporting", "Environmental incidents, complaints and monitoring results are recorded and reported to the relevant body", "የአካባቢ አደጋዎች፣ ቅሬታዎችና የክትትል ውጤቶች ተመዝግበው ለሚመለከተው አካል ስለመቅረቡ"),
-          textArea("env_closure", "Mine closure and land rehabilitation obligations are planned and being met", "የማዕድን ቦታ መዝጊያና የመሬት መልሶ ማልማት ግዴታዎች ታቅደው እየተፈጸሙ ስለመሆኑ", MINING),
+          textArea("env_closure", "Mine closure and land rehabilitation obligations are planned and being met", "የማዕድን ቦታ መዝጊያና የመሬት መልሶ ማልማት ግዴታዎች ታቅደው እየተፈጸሙ ስለመሆኑ"),
         ],
       },
       {

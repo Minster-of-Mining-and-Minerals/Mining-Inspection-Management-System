@@ -29,7 +29,7 @@ import {
 import type { TaskListItem } from "@/redux/types/inspection";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { ScheduleFormDialog } from "./ScheduleFormDialog";
-import { TaskStatusBadge, describeDue, describeFrequency, describeTarget, dueText, scoreText, scoreTone } from "./taskUi";
+import { TaskStatusBadge, describeDue, describeFrequency, describeTarget, dueText } from "./taskUi";
 
 type StatusFilter = NonNullable<TaskListParams["status"]> | "all";
 const FILTERS: [StatusFilter, string][] = [
@@ -228,7 +228,6 @@ export default function ScheduleDetail() {
                     <th className="px-3 py-2 font-medium">Team</th>
                     <th className="px-3 py-2 font-medium">Status</th>
                     <th className="px-3 py-2 font-medium">Submitted</th>
-                    <th className="px-3 py-2 text-right font-medium">Score</th>
                     {canAssign && <th className="px-3 py-2" />}
                   </tr>
                 </thead>
@@ -255,7 +254,6 @@ export default function ScheduleDetail() {
                           "—"
                         )}
                       </td>
-                      <td className={`px-3 py-2 text-right font-semibold ${scoreTone(t.score)}`}>{t.status === "submitted" ? scoreText(t.score) : "—"}</td>
                       {canAssign && (
                         <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                           {t.status !== "submitted" && (

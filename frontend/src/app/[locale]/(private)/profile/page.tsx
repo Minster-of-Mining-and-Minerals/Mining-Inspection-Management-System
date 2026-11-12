@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useUploadAttachmentsMutation } from "@/redux/api/attachementApi";
 import { useGetProfileQuery, useUpdateProfileMutation } from "@/redux/api/profileApi";
+import { SessionsCard } from "@/components/common/SessionsCard";
 import { getFileUrl } from "@/utils/fileUrl";
 
 // Identity fields are managed by the administrator, so only the password is editable here.
@@ -246,6 +247,11 @@ export default function ProfilePage() {
           </Form>
         </div>
       </section>
+
+      {/* Signed-in devices and recent sign-ins */}
+      <div className="mt-5">
+        <SessionsCard />
+      </div>
     </main>
   );
 }

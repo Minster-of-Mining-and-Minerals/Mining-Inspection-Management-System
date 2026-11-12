@@ -24,6 +24,18 @@ import {
   authLabelClass,
 } from "@/components/layout/AuthShell";
 
+/** Why a session ended (the server's reason), as shown on the sign-in page */
+const SESSION_ENDED_NOTE: Record<string, string> = {
+  signed_out_by_user: "This device was signed out from another device. Please sign in again.",
+  signed_out_by_admin: "An administrator signed you out. Please sign in again.",
+  inactive: "You were signed out after 24 hours without activity. Please sign in again.",
+  expired: "Your sign-in has expired. Please sign in again.",
+  password_changed: "Your password was changed. Please sign in with the new password.",
+  deactivated: "Your account was deactivated. Contact your administrator.",
+  no_session: "Please sign in again.",
+  signed_out: "You were signed out. Please sign in again.",
+};
+
 export default function ExternalLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
@@ -34,6 +46,8 @@ export default function ExternalLogin() {
   const searchParams = useSearchParams();
 
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  // Why the previous session ended (sent here by the app), shown above the form
+  const endedNote = SESSION_ENDED_NOTE[searchParams.get("ended") ?? ""] ?? null;
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -85,6 +99,12 @@ export default function ExternalLogin() {
       <p className="mt-1 text-sm text-[#B6CBD8]">
         Welcome back · <span className="text-golden-bright">እንኳን ደህና መጡ</span>
       </p>
+
+      {endedNote && !authError && (
+        <div role="status" className="mt-6 rounded-xl border border-amber-300/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+          {endedNote}
+        </div>
+      )}
 
       {authError && (
         <div role="alert" className="mt-6 rounded-xl border border-red-400/40 bg-red-500/15 px-4 py-3 text-sm text-red-100">

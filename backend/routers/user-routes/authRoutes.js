@@ -54,6 +54,11 @@ router.post("/login", validateLogin, authController.login);
  */
 router.post("/logout", authController.logout);
 
+// The signed-in person's sessions (devices): list, sign out one, sign out all the others
+router.get("/sessions", authenticateToken, authController.getMySessions);
+router.post("/sessions/sign-out-others", authenticateToken, authController.endMyOtherSessions);
+router.delete("/sessions/:id", authenticateToken, authController.endMySession);
+
 /**
  * @swagger
  * /api/auth/me/permissions:

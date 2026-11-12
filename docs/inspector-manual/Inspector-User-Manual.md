@@ -116,7 +116,7 @@ After signing in, the **Dashboard** opens. It shows how your team is doing (Figu
 - **Me**: the inspections you submitted yourself, late submissions, and inspections returned to you for correction.
 - **Team submissions per week** and **Recent submissions**.
 
-> **Note:** The MoM Mining Field Monitoring Checklist does not give a score, so **Average score** shows "—" for these inspections.
+> **Note:** The checklist does not give a score, so the Dashboard shows no scores.
 
 <div align="center">
 <img src="images/03-dashboard.png" width="300" alt="Dashboard showing the menu button and the Team this month summary">
@@ -299,17 +299,11 @@ At the top of the list ① you can choose how to see the checklist:
 **Figure 13.** One question at a time: ① the question with its answer buttons, ② Previous, ③ Next.
 </div>
 
-### 7.2 Which questions you see: exploration or mining
+### 7.2 Questions for exploration and mining licenses
 
-You do **not** choose the license type. The system knows it from the license and shows only the questions that apply:
+The checklist shows **every question** for both exploration and mining licenses. Some questions are mostly about mining work, for example production, stockpiles, dispatch and sales records (section 3), the license document at the site (section 4), and rehabilitation and mine closure (section 6).
 
-| Questions shown only for **mining** licenses | All other questions |
-|---|---|
-| Section 3, questions 5–11 (production, stockpile, dispatch, working hours, production shortfalls) | Shown for **both** exploration and mining licenses. |
-| Section 4, question 1 (a valid license document at the site) | |
-| Section 6: progressive rehabilitation, and mine closure obligations | |
-
-Because of this, the same question can have a different number on an exploration license and on a mining license.
+**Skip the questions that do not apply** to the license you are inspecting. You do not need to choose the license type: it is shown at the top of the task (for example *mining* or *exploration*).
 
 > **Important:** **No question is mandatory.** Answer every question you can. Before you submit, the system shows you which questions are still empty (section 9.1).
 

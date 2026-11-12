@@ -23,6 +23,10 @@ export const routePermissions: RouteConfig[] = [
     permissions: { allPermissions: ["DASHBOARD:VIEW", "INSPECTIONS:READ_ALL"] },
   },
   {
+    path: "/audit-log",
+    permissions: { allPermissions: ["AUDIT:READ"] },
+  },
+  {
     path: "/my-team",
     permissions: { anyPermissions: ["INSPECTIONS:CONDUCT", "INSPECTIONS:READ_OWN"] },
   },

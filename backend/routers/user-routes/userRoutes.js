@@ -8,6 +8,8 @@ const {
   deleteUser,
   toggleUserActiveStatus,
   resetUserPassword,
+  getUserSessions,
+  signOutUserEverywhere,
   getProfile,
   getUserTypes,
   getUserPositions,
@@ -244,5 +246,9 @@ router.patch("/:id/toggle-status", authorize("users", "update"), toggleUserActiv
  *         description: Password reset successfully
  */
 router.post("/:id/reset-password", authorize("users", "update"), resetUserPassword);
+
+// A user's sessions (devices) and signing them out everywhere
+router.get("/:id/sessions", authorize("users", "read"), getUserSessions);
+router.post("/:id/sessions/sign-out", authorize("users", "update"), signOutUserEverywhere);
 
 module.exports = router;

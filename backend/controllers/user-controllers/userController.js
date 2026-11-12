@@ -9,6 +9,7 @@ const {
   TeamMember,
   sequelize,
 } = require("../../models");
+const { endAllSessions, openSessions, recentSessions } = require("../../services/sessionService");
 const { v4: uuidv4, validate: isUuid } = require("uuid");
 const { Op, literal } = require("sequelize");
 const { likeContains } = require("../../utils/search");
@@ -708,6 +709,8 @@ const resetUserPassword = async (req, res) => {
     );
 
     await t.commit();
+    // The old password no longer works: every device signs in again
+    await endAllSessions(user.user_id, "password_changed", { byUserId: req.user.user_id });
 
     // Send email notification (the reset stands even if the email fails)
     const emailSent = await trySendEmail(
@@ -784,7 +787,39 @@ const getProfile = async (req, res) => {
   }
 };
 
+/* =================== Sessions of a user (administrators) =================== */
+
+/** GET /api/users/:id/sessions — the user's open sessions and recent sign-ins. */
+const getUserSessions = async (req, res) => {
+  try {
+    const user = await findUserInScope(req.params.id)(req);
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+    const [open, recent] = await Promise.all([openSessions(user.user_id), recentSessions(user.user_id)]);
+    return res.status(200).json({ success: true, data: { open, recent } });
+  } catch (error) {
+    console.error("getUserSessions", error);
+    return res.status(500).json({ success: false, message: "Failed to load the sessions." });
+  }
+};
+
+/** POST /api/users/:id/sessions/sign-out — sign the user out on every device. */
+const signOutUserEverywhere = async (req, res) => {
+  try {
+    const user = await findUserInScope(req.params.id)(req);
+    if (!user) return res.status(404).json({ success: false, message: "User not found." });
+    await assertCanManageUser(req, user.user_id);
+    const [n] = await endAllSessions(user.user_id, "signed_out_by_admin", { byUserId: req.user.user_id });
+    return res.status(200).json({ success: true, message: n ? `${user.full_name} was signed out on ${n} device${n === 1 ? "" : "s"}.` : `${user.full_name} was not signed in.` });
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ success: false, message: error.message });
+    console.error("signOutUserEverywhere", error);
+    return res.status(500).json({ success: false, message: "Failed to sign the user out." });
+  }
+};
+
 module.exports = {
+  getUserSessions,
+  signOutUserEverywhere,
   createUser,
   getUsers,
   getUserById,

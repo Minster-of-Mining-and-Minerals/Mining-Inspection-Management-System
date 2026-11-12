@@ -1,13 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { TrendingUp, UsersRound } from "lucide-react";
+import { UsersRound } from "lucide-react";
 import Loading01 from "@/features/template/component/Loading/Loading01";
 import { useGetMyStatsQuery } from "@/redux/api/myWorkApi";
 import type { MyStats, TeamStats } from "@/redux/types/myWork";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
-import { scoreText, scoreTone } from "@/features/inspections/component/taskUi";
-import { ScoreTrend } from "./ScoreTrend";
 
 const pct = (a: number, b: number) => (b ? `${Math.round((a / b) * 100)}%` : "—");
 
@@ -29,7 +27,7 @@ export default function TeamDashboard() {
     <div className="w-full space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-primary">Dashboard</h1>
-        <p className="text-sm text-slate-500">{data.team.name}: tasks, submissions and scores. Only your team’s inspections are counted.</p>
+        <p className="text-sm text-slate-500">{data.team.name}: tasks and submissions. Only your team’s inspections are counted.</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -39,7 +37,6 @@ export default function TeamDashboard() {
           <h2 className="text-sm font-semibold text-slate-900">Me</h2>
           <dl className="mt-3 grid grid-cols-2 gap-3">
             <Tile label="Inspections I submitted" value={data.me.submitted} />
-            <Tile label="Average score" value={scoreText(data.me.avg_score)} tone={scoreTone(data.me.avg_score)} />
             <Tile label="Submitted late" value={data.me.late} tone={data.me.late ? "text-amber-700" : undefined} />
             <Tile label="Returned for correction" value={data.me.returned} tone={data.me.returned ? "text-violet-700" : undefined} />
           </dl>
@@ -48,35 +45,7 @@ export default function TeamDashboard() {
 
       <WeeklyChart weekly={data.weekly} />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="rounded-xl border border-slate-200 bg-white p-4">
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <TrendingUp className="h-4 w-4 text-primary" /> Scores by company
-          </h2>
-          {data.by_company.length ? (
-            <ul className="divide-y">
-              {data.by_company.map((c) => {
-                const scores = c.scores.filter((x): x is number => x != null);
-                const latest = scores[scores.length - 1] ?? null;
-                return (
-                  <li key={c.company_id} className="flex items-center gap-3 py-2 text-sm">
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-slate-800">{c.company_name}</span>
-                      <span className="text-xs text-slate-500">
-                        {scores.map((x) => scoreText(x)).join(" → ")} · last {formatCalendarDate(c.last_at.slice(0, 10))}
-                      </span>
-                    </span>
-                    <ScoreTrend scores={scores} />
-                    <span className={`w-12 text-right font-semibold ${scoreTone(latest)}`}>{scoreText(latest)}</span>
-                  </li>
-                );
-              })}
-            </ul>
-          ) : (
-            <p className="py-6 text-center text-sm text-slate-500">No submitted inspections yet.</p>
-          )}
-        </section>
-
+      <div>
         <section className="rounded-xl border border-slate-200 bg-white p-4">
           <h2 className="mb-2 text-sm font-semibold text-slate-900">Recent submissions</h2>
           {data.recent.length ? (
@@ -91,7 +60,6 @@ export default function TeamDashboard() {
                         {r.is_late && <span className="text-amber-700"> · late</span>}
                       </span>
                     </span>
-                    <span className={`font-semibold ${scoreTone(r.score)}`}>{scoreText(r.score)}</span>
                   </button>
                 </li>
               ))}
@@ -122,7 +90,6 @@ function StatsCard({ title, s }: { title: string; s: TeamStats }) {
         <Tile label="Submitted" value={`${s.submitted} / ${s.tasks}`} />
         <Tile label="On time" value={pct(s.on_time, s.submitted)} tone={s.submitted && s.on_time / s.submitted < 0.8 ? "text-amber-700" : undefined} />
         <Tile label="Overdue now" value={s.overdue} tone={s.overdue ? "text-red-700" : undefined} />
-        <Tile label="Average score" value={scoreText(s.avg_score)} tone={scoreTone(s.avg_score)} />
       </dl>
       <p className="mt-2 text-xs text-slate-500">
         {s.open} open · {s.late} submitted late
