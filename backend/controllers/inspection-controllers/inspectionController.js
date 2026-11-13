@@ -201,7 +201,12 @@ const areasOf = async (licenseIds) => {
   return joined;
 };
 
-/** Answered / total questions of started tasks: Map(inspection_id -> { answered, total }) */
+/**
+ * Answered / total questions of started tasks: Map(inspection_id -> { answered, total }).
+ * Only the inspector's own work counts: questions filled in from the license (prefill) are left out,
+ * and a table with a row per team member (the signatures) counts once a row is signed or dated,
+ * not for the team names it starts with. Photo / signature questions are left out too.
+ */
 const progressOf = async (tasks) => {
   const started = tasks.filter((t) => t.status === "in_progress" && t.form_version_id);
   const out = new Map();
@@ -213,14 +218,16 @@ const progressOf = async (tasks) => {
   const defs = new Map(versions.map((v) => [v.version_id, v.definition]));
   const ans = new Map(answers.map((a) => [a.inspection_id, a.answers || {}]));
   const filled = (v) => v != null && v !== "" && !(Array.isArray(v) && !v.length) && !(typeof v === "object" && !Array.isArray(v) && ("value" in v ? !v.value : "rows" in v ? !v.rows?.length : false));
+  const teamTableSigned = (v) => (v?.rows || []).some((r) => Object.entries(r?.cells || {}).some(([k, x]) => k !== "full_name" && x != null && x !== ""));
+  const answered = (f, v) => (f.type === "table" && f.team_rows ? teamTableSigned(v) : filled(v));
   for (const t of started) {
     const def = defs.get(t.form_version_id);
     if (!def) continue;
     const a = ans.get(t.inspection_id) || {};
     const fields = visibleStructure(def, t.license?.license_type, a)
       .flatMap((s) => s.fields)
-      .filter((f) => f.type !== "photo" && f.type !== "signature");
-    out.set(t.inspection_id, { answered: fields.filter((f) => filled(a[f.key])).length, total: fields.length });
+      .filter((f) => f.type !== "photo" && f.type !== "signature" && !f.prefill);
+    out.set(t.inspection_id, { answered: fields.filter((f) => answered(f, a[f.key])).length, total: fields.length });
   }
   return out;
 };

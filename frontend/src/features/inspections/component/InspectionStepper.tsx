@@ -17,8 +17,10 @@ export type StepMode = "question" | "section";
 // Renamed so everyone starts on the section view once; their own choice is remembered from then on
 const MODE_KEY = "mims.inspection.layout";
 
-const filled = (_f: FormField, v: any) => {
+const filled = (f: FormField, v: any) => {
   if (v == null || v === "") return false;
+  // The signature table starts with the team's names: it counts once a row is signed or dated
+  if (f.type === "table" && f.team_rows) return ((v?.rows || []) as { cells?: Record<string, unknown> }[]).some((r) => Object.entries(r.cells || {}).some(([k, x]) => k !== "full_name" && x !== "" && x != null));
   if (Array.isArray(v)) return v.length > 0;
   if (typeof v === "object") {
     if ("value" in v) return !!v.value;
@@ -160,14 +162,18 @@ export function InspectionStepper({
 
   const current = sections[sIndex];
   const here = flat[qIndex];
+  // Progress counts only the inspector's own answers: questions filled in from the license are left out
+  const counted = (f: FormField) => !f.prefill;
   const sectionStats = sections.map(({ fields }) => ({
-    answered: fields.filter((f) => filled(f, answers[f.key])).length,
+    answered: fields.filter((f) => counted(f) && filled(f, answers[f.key])).length,
+    counted: fields.filter(counted).length,
     total: fields.length,
     // Not filled in (or a problem): the "left" count of the sections menu
     missing: fields.filter((f) => open[f.key] || unfilled.some((u) => u.key === f.key)).length,
     flagged: fields.some((f) => problems[f.key]),
   }));
   const answeredAll = sectionStats.reduce((n, s) => n + s.answered, 0);
+  const countedAll = sectionStats.reduce((n, s) => n + s.counted, 0);
   const isLast = mode === "question" ? qIndex >= flat.length - 1 : sIndex >= sections.length - 1;
   const isFirst = mode === "question" ? qIndex <= 0 : sIndex <= 0;
   const next = () => (isLast ? setChecking(true) : mode === "question" ? goQuestion(qIndex + 1) : goSection(sIndex + 1));
@@ -270,7 +276,7 @@ export function InspectionStepper({
           <DialogHeader>
             <DialogTitle>{am ? "ክፍሎች" : "Sections"}</DialogTitle>
             <DialogDescription>
-              {answeredAll} / {flat.length} {am ? "ጥያቄዎች ተመልሰዋል" : "questions answered"}
+              {answeredAll} / {countedAll} {am ? "ጥያቄዎች ተመልሰዋል" : "questions answered"}
             </DialogDescription>
           </DialogHeader>
           <div className="flex rounded-lg bg-slate-100 p-1 text-sm" role="group" aria-label={am ? "አቀማመጥ" : "Layout"}>
@@ -313,7 +319,7 @@ export function InspectionStepper({
                         {pickText(section.title, section.title_am, language)}
                       </span>
                       <span className="text-xs text-slate-500">
-                        {st.answered} / {st.total} {am ? "ተመልሷል" : "answered"}
+                        {st.counted ? `${st.answered} / ${st.counted} ${am ? "ተመልሷል" : "answered"}` : am ? "ከፈቃዱ የተሞላ" : "Filled in from the license"}
                       </span>
                     </span>
                     {st.missing ? (
