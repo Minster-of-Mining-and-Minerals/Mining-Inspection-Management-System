@@ -49,6 +49,7 @@ export default function SubmissionMap({ points, mode, focusId }: { points: MapPo
 
   // Create the map once
   useEffect(() => {
+    let resize: ResizeObserver | undefined;
     let cancelled = false;
     (async () => {
       const leaflet = (await import("leaflet")).default;
@@ -66,9 +67,15 @@ export default function SubmissionMap({ points, mode, focusId }: { points: MapPo
         .addTo(map.current);
       void showOnlyEthiopia(leaflet, map.current);
       draw();
+      // Redraw the tiles when the frame changes size (full page and back, phone rotation)
+      if (typeof ResizeObserver !== "undefined" && el.current) {
+        resize = new ResizeObserver(() => map.current?.invalidateSize());
+        resize.observe(el.current);
+      }
     })();
     return () => {
       cancelled = true;
+      resize?.disconnect();
       map.current?.remove();
       map.current = null;
     };
@@ -141,5 +148,5 @@ export default function SubmissionMap({ points, mode, focusId }: { points: MapPo
     }
   }, [focusId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <div ref={el} className="relative isolate z-0 h-[50vh] min-h-[360px] w-full rounded-xl border border-slate-200 bg-slate-100" role="region" aria-label="Map of inspection submissions" />;
+  return <div ref={el} className="relative isolate z-0 h-full w-full rounded-xl border border-slate-200 bg-slate-100" role="region" aria-label="Map of inspection submissions" />;
 }

@@ -24,10 +24,6 @@ const STATUSES: [NonNullable<TaskListParams["status"]> | "", string][] = [
   ["submitted", "Submitted"],
   ["in_progress", "In progress"],
   ["open", "Not submitted"],
-  ["todo", "Not started"],
-  ["overdue", "Overdue"],
-  ["on_time", "On time"],
-  ["late", "Late"],
   ["returned", "Returned for correction"],
 ];
 const KEYS = ["status", "team_id", "submitted_by", "form_id", "schedule_id", "company_id", "region_id", "license_type", "from", "to", "date_field", "sort", "search"] as const;
@@ -142,48 +138,58 @@ export default function AllInspections() {
         />
       )}
 
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[860px] text-sm">
-          <thead className="bg-slate-50 text-left text-xs text-slate-500">
+      <div className="overflow-x-auto rounded-xl border border-slate-300 bg-white">
+        <table className="w-full min-w-[900px] table-fixed text-sm">
+          {/* Company gets the most room; the rest are sized to what they show */}
+          <colgroup>
+            <col className="w-[30%]" />
+            <col className="w-[12%]" />
+            <col className="w-[16%]" />
+            <col className="w-[13%]" />
+            <col className="w-[12%]" />
+            <col className="w-[17%]" />
+          </colgroup>
+          {/* Navy header band, striped rows */}
+          <thead className="bg-primary text-left text-xs uppercase tracking-wider text-white">
             <tr>
-              <th className="px-4 py-2 font-medium">Company / license</th>
-              <th className="px-3 py-2 font-medium">Team</th>
-              <th className="px-3 py-2 font-medium">Round · due</th>
-              <th className="px-3 py-2 font-medium">Status</th>
-              <th className="px-3 py-2 font-medium">Progress</th>
-              <th className="px-3 py-2 font-medium">Submitted</th>
+              <th className="px-4 py-3 font-bold">Company / license</th>
+              <th className="px-4 py-3 font-bold">Team</th>
+              <th className="px-4 py-3 font-bold">Round · due</th>
+              <th className="px-4 py-3 font-bold">Status</th>
+              <th className="px-4 py-3 font-bold">Progress</th>
+              <th className="px-4 py-3 font-bold">Submitted</th>
             </tr>
           </thead>
-          <tbody className={`divide-y ${isFetching ? "opacity-60" : ""}`}>
+          <tbody className={isFetching ? "opacity-60" : ""}>
             {(data?.data ?? []).map((t) => (
-              <tr key={t.inspection_id} className="cursor-pointer hover:bg-slate-50" onClick={() => router.push(`/inspections/${t.inspection_id}`)}>
-                <td className="px-4 py-2">
-                  <Link href={`/inspections/${t.inspection_id}`} className="font-medium text-slate-900 hover:text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
+              <tr key={t.inspection_id} className="cursor-pointer transition-colors even:bg-slate-50 hover:bg-sky-50" onClick={() => router.push(`/inspections/${t.inspection_id}`)}>
+                <td className="px-4 py-2.5 align-middle">
+                  <Link href={`/inspections/${t.inspection_id}`} className="block break-words font-bold leading-snug text-primary hover:underline" onClick={(e) => e.stopPropagation()}>
                     {t.company?.name}
                   </Link>
-                  <p className="text-xs text-slate-500">
-                    {t.license?.license_number} · {t.license?.license_type}
+                  <p className="truncate text-xs text-slate-500" title={`${t.license?.license_number ?? ""} · ${t.license?.license_type ?? ""}`}>
+                    <span className="font-mono">{t.license?.license_number}</span> · {t.license?.license_type}
                   </p>
                 </td>
-                <td className="px-3 py-2 text-slate-700">{t.team?.name ?? <span className="font-medium text-amber-700">No team</span>}</td>
-                <td className="px-3 py-2 text-xs text-slate-600">
+                <td className="truncate px-4 py-2.5 align-middle text-slate-700">{t.team?.name ?? <span className="font-medium text-amber-700">No team</span>}</td>
+                <td className="px-4 py-2.5 align-middle text-[13px] text-slate-700">
                   {formatCalendarDate(t.occurrence_date)}
-                  <span className="block text-slate-500">due {dueText(t.due_at)}</span>
+                  <span className={`block text-xs ${t.is_overdue ? "font-semibold text-red-700" : "text-slate-500"}`}>due {dueText(t.due_at)}</span>
                 </td>
-                <td className="px-3 py-2">
-                  <TaskStatusBadge task={t} />
+                <td className="px-4 py-2.5 align-middle">
+                  <TaskStatusBadge task={t} dot />
                 </td>
-                <td className="px-3 py-2">
+                <td className="px-4 py-2.5 align-middle">
                   <TaskProgress task={t} />
                 </td>
-                <td className="px-3 py-2 text-xs text-slate-600">
+                <td className="px-4 py-2.5 align-middle text-[13px] text-slate-700">
                   {t.submitted_at ? (
                     <>
                       {formatDateTime(t.submitted_at)}
-                      <span className="block text-slate-500">{t.submitter?.full_name}</span>
+                      <span className="block truncate text-xs text-slate-500">{t.submitter?.full_name}</span>
                     </>
                   ) : (
-                    "—"
+                    <span className="text-slate-300">—</span>
                   )}
                 </td>
               </tr>
@@ -216,18 +222,16 @@ export default function AllInspections() {
 
 /** How much of a task is answered: a bar and "12 / 40" while open. */
 function TaskProgress({ task: t }: { task: TaskListItem }) {
-  if (t.status === "submitted") return <span className="text-xs font-medium text-green-700">Complete</span>;
-  if (t.status === "todo" || !t.progress) return <span className="text-xs text-slate-400">Not started</span>;
+  if (t.status === "submitted") return <span className="text-[13px] font-medium text-green-700">Complete</span>;
+  if (t.status === "todo" || !t.progress) return <span className="text-[13px] text-slate-400">Not started</span>;
   const { answered, total } = t.progress;
   const pct = total ? Math.round((answered / total) * 100) : 0;
   return (
-    <div className="w-28" title={`${answered} of ${total} questions answered`}>
-      <div className="h-1.5 overflow-hidden rounded-full bg-slate-200">
+    <div className="flex w-full items-center gap-2" title={`${answered} of ${total} questions answered`}>
+      <div className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-slate-200">
         <div className="h-full rounded-full bg-amber-500" style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs tabular-nums text-slate-600">
-        {answered} / {total} · {pct}%
-      </span>
+      <span className="shrink-0 text-xs tabular-nums text-slate-600">{pct}%</span>
     </div>
   );
 }

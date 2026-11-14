@@ -42,7 +42,16 @@ export const describeTarget = (s: Pick<Schedule, "target_type" | "license_type">
       : `${s.license_count ?? "Chosen"} chosen license${s.license_count === 1 ? "" : "s"}`;
 
 /** To do / In progress / Overdue / Submitted / Submitted late */
-export function TaskStatusBadge({ task, className = "" }: { task: Pick<TaskListItem, "status" | "is_overdue" | "is_late" | "return_count">; className?: string }) {
+const DOT: Record<string, string> = {
+  "bg-amber-100 text-amber-800": "bg-amber-500 text-amber-800",
+  "bg-green-100 text-green-800": "bg-green-600 text-green-800",
+  "bg-red-100 text-red-700": "bg-red-600 text-red-700",
+  "bg-violet-100 text-violet-800": "bg-violet-600 text-violet-800",
+  "bg-sky-100 text-sky-800": "bg-sky-600 text-sky-800",
+  "bg-slate-100 text-slate-700": "bg-slate-400 text-slate-700",
+};
+
+export function TaskStatusBadge({ task, className = "", dot }: { task: Pick<TaskListItem, "status" | "is_overdue" | "is_late" | "return_count">; className?: string; dot?: boolean }) {
   const [label, tone] =
     task.status === "submitted"
       ? task.is_late
@@ -53,6 +62,15 @@ export function TaskStatusBadge({ task, className = "" }: { task: Pick<TaskListI
         : task.status === "in_progress"
           ? [task.return_count ? "Returned for correction" : "In progress", task.return_count ? "bg-violet-100 text-violet-800" : "bg-sky-100 text-sky-800"]
           : ["To do", "bg-slate-100 text-slate-700"];
+  if (dot) {
+    const [bg, text] = (DOT[tone] ?? "bg-slate-400 text-slate-700").split(" ");
+    return (
+      <span className={`inline-flex items-center gap-1.5 text-[13px] font-semibold ${text} ${className}`}>
+        <span aria-hidden="true" className={`h-2.5 w-2.5 shrink-0 rounded-full ${bg}`} />
+        {label}
+      </span>
+    );
+  }
   return <span className={`inline-flex shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${tone} ${className}`}>{label}</span>;
 }
 
