@@ -36,8 +36,18 @@ export interface Team {
   sector?: { sector_node_id: string; name: string; name_am?: string | null } | null;
 }
 
+/** A license's latest inspection given to the team (its current round) */
+export interface TeamLicenseInspection {
+  inspection_id: string;
+  status: "todo" | "in_progress" | "submitted";
+  occurrence_date: string;
+  due_at: string;
+  submitted_at: string | null;
+  is_late: boolean;
+}
+
 export interface TeamDetail extends Team {
-  licenses: CompanyLicense[];
+  licenses: (CompanyLicense & { latest_inspection?: TeamLicenseInspection | null })[];
 }
 
 export interface TeamRef {

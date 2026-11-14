@@ -16,7 +16,7 @@ import { baseApi } from "@/redux/baseApi";
 import { setSelectedSectorId } from "@/lib/sectorSelection";
 import { localizedName } from "@/utils/localizedName";
 import { AlertTriangle, ArrowDown, ArrowUp, MapPin, Minus, Table2 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Loading01 from "@/features/template/component/Loading/Loading01";
 import { useGetAnalyticsQuery, Analytics, MapFilters } from "@/redux/api/dashboardApi";
 import { formatCalendarDate } from "@/utils/date";
@@ -24,7 +24,6 @@ import { DashboardFilterBar, useDashboardFilters } from "./DashboardFilters";
 
 // Colours by job: one blue for amounts; two categories (on time / late); fixed status colours for answers
 const BLUE = "#2a78d6";
-const ORANGE = "#eb6834";
 const GRID = "#e2e8f0";
 const AXIS = { fontSize: 12, fill: "#64748b" };
 
@@ -33,7 +32,6 @@ const ratio = (a: number, b: number) => (b ? a / b : null);
 const shortDay = (d: string) => formatCalendarDate(d).replace(/, \d{4}$/, "");
 
 const selectClass = "h-9 min-w-0 rounded-md border border-input bg-white px-2 text-sm";
-const weekEnd = (week: string) => new Date(Date.parse(`${week}T00:00:00Z`) + 6 * 86400e3).toISOString().slice(0, 10);
 
 /** Link to the inspections list with the dashboard's filters plus `extra` (later keys win). */
 const listLink = (base: MapFilters, extra: Record<string, string | undefined>) => {
@@ -102,28 +100,26 @@ function Body({ data, base }: { data: Analytics; base: MapFilters }) {
       {/* Over time */}
       <div className="grid gap-4">
         <ChartCard
-          title="Inspections submitted per week"
-          subtitle="On time and late, by week of submission · click a week to see its inspections"
-          table={{ head: ["Week of", "On time", "Late", "Total"], rows: data.weekly.map((x) => [shortDay(x.week), x.on_time, x.late, x.on_time + x.late]) }}
-          empty={!data.weekly.length}
+          title="Inspections submitted per day"
+          subtitle={`${data.daily.reduce((n, x) => n + x.submitted, 0)} submitted over ${data.daily.length} day${data.daily.length === 1 ? "" : "s"} · click a day to see its inspections`}
+          table={{ head: ["Day", "Submitted", "On time", "Late"], rows: data.daily.filter((x) => x.submitted).map((x) => [formatCalendarDate(x.day), x.submitted, x.on_time, x.late]) }}
+          empty={!data.daily.some((x) => x.submitted)}
         >
           <ResponsiveContainer width="100%" height={260}>
             <BarChart
-              data={data.weekly.map((x) => ({ ...x, label: shortDay(x.week) }))}
+              data={data.daily.map((x) => ({ ...x, label: shortDay(x.day) }))}
               margin={{ top: 8, right: 8, left: -12, bottom: 0 }}
               onClick={(e: any) => {
-                const wk = e?.activePayload?.[0]?.payload?.week;
-                if (wk) router.push(go({ status: "submitted", from: wk, to: weekEnd(wk) }));
+                const d = e?.activePayload?.[0]?.payload;
+                if (d?.submitted) router.push(go({ status: "submitted", from: d.day, to: d.day }));
               }}
               style={{ cursor: "pointer" }}
             >
               <CartesianGrid vertical={false} stroke={GRID} />
-              <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} />
+              <XAxis dataKey="label" tick={AXIS} tickLine={false} axisLine={{ stroke: GRID }} interval="preserveStartEnd" minTickGap={18} />
               <YAxis allowDecimals={false} tick={AXIS} tickLine={false} axisLine={false} />
-              <Tooltip cursor={{ fill: "rgba(148,163,184,0.12)" }} />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="on_time" name="On time" stackId="s" fill={BLUE} stroke="#fff" strokeWidth={2} maxBarSize={36} />
-              <Bar dataKey="late" name="Late" stackId="s" fill={ORANGE} stroke="#fff" strokeWidth={2} radius={[4, 4, 0, 0]} maxBarSize={36} />
+              <Tooltip cursor={{ fill: "rgba(148,163,184,0.12)" }} content={<DayTip />} />
+              <Bar dataKey="submitted" name="Submitted" fill={BLUE} radius={[4, 4, 0, 0]} maxBarSize={36} />
             </BarChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -288,6 +284,25 @@ function Kpi({ label, value, note, delta, unit, bar, alert, href }: { label: str
 }
 
 /** A chart with a "Table" switch showing the same numbers. */
+/** Hover on a day: the date, how many were submitted, on time / late. */
+function DayTip({ active, payload }: { active?: boolean; payload?: { payload: Analytics["daily"][number] }[] }) {
+  const d = active ? payload?.[0]?.payload : undefined;
+  if (!d) return null;
+  return (
+    <div className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs shadow-md">
+      <p className="font-semibold text-slate-900">{formatCalendarDate(d.day)}</p>
+      <p className="mt-0.5 text-slate-700">
+        <span className="font-semibold">{d.submitted}</span> submitted
+      </p>
+      {d.submitted > 0 && (
+        <p className="text-slate-500">
+          {d.on_time} on time · {d.late} late
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ChartCard({ title, subtitle, children, table, empty }: { title: string; subtitle?: string; children: React.ReactNode; table: { head: string[]; rows: (string | number)[][] }; empty?: boolean }) {
   const [asTable, setAsTable] = useState(false);
   return (

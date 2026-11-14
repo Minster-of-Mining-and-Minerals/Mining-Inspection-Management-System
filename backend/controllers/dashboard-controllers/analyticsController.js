@@ -26,6 +26,29 @@ const LOCAL_DAY = (col) => `(${col} AT TIME ZONE 'Africa/Addis_Ababa')::date`;
 const MAX_ANSWER_SCAN = 3000;
 
 const dayShift = (d, n) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86400e3).toISOString().slice(0, 10);
+/** Today in Ethiopia, YYYY-MM-DD */
+const todayLocal = () => new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+const MAX_DAYS = 400;
+
+/** Every day from the first to the last (empty days as 0); the period's end is not later than today. */
+const fillDays = (rows, from, to) => {
+  const byDay = new Map(rows.map((x) => [x.day, x]));
+  const start = from ?? rows[0]?.day;
+  if (!start) return [];
+  let end = to && to < todayLocal() ? to : todayLocal();
+  if (rows.length && rows[rows.length - 1].day > end) end = rows[rows.length - 1].day;
+  if (end < start) return [];
+  // A very long period (e.g. all time): its last MAX_DAYS days
+  let first = start;
+  if (daysBetween(first, end) >= MAX_DAYS) first = dayShift(end, -(MAX_DAYS - 1));
+  const out = [];
+  for (let d = first; d <= end; d = dayShift(d, 1)) {
+    const x = byDay.get(d);
+    out.push({ day: d, submitted: x?.submitted ?? 0, on_time: x?.on_time ?? 0, late: x?.late ?? 0 });
+  }
+  return out;
+};
+
 const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400e3);
 
 /** The license's region name (from its woreda / zone / region). */
@@ -128,7 +151,7 @@ const getAnalytics = async (req, res) => {
           )
         : Promise.resolve(null);
 
-    const [workload, results, previous, weekly, byRegion, teamTasks, teamResults, companies, sectors] = await Promise.all([
+    const [workload, results, previous, daily, byRegion, teamTasks, teamResults, companies, sectors] = await Promise.all([
       q(
         `SELECT COUNT(*)::int AS due,
                 COUNT(*) FILTER (WHERE i.status = 'submitted')::int AS submitted,
@@ -141,13 +164,13 @@ const getAnalytics = async (req, res) => {
       resultsOf(sw),
       prev ? resultsOf(subWhere(prev.from, prev.to)) : Promise.resolve(null),
       q(
-        `SELECT to_char(date_trunc('week', i.submitted_at AT TIME ZONE 'Africa/Addis_Ababa'), 'YYYY-MM-DD') AS week,
+        `SELECT to_char(${LOCAL_DAY("i.submitted_at")}, 'YYYY-MM-DD') AS day,
+                COUNT(*)::int AS submitted,
                 COUNT(*) FILTER (WHERE NOT i.is_late)::int AS on_time,
-                COUNT(*) FILTER (WHERE i.is_late)::int AS late,
-                AVG(i.score)::float AS avg_score
+                COUNT(*) FILTER (WHERE i.is_late)::int AS late
            ${FROM} ${sw} GROUP BY 1 ORDER BY 1`,
         rr,
-      ),
+      ).then((rows) => fillDays(rows, from, to)),
       q(
         `SELECT COALESCE(${REGION_OF}, 'Region not recorded') AS region, ${REGION_ID_OF} AS region_id, COUNT(*)::int AS submitted, AVG(i.score)::float AS avg_score
            ${FROM} ${sw} GROUP BY 1, 2 ORDER BY avg_score ASC NULLS LAST`,
@@ -244,7 +267,7 @@ const getAnalytics = async (req, res) => {
         workload,
         results,
         previous,
-        weekly,
+        daily,
         by_region: byRegion,
         teams,
         lowest_companies: companies,

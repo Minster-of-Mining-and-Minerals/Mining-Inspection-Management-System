@@ -5,7 +5,7 @@
  *   left:   the matching companies, with a search; choosing one zooms the map to all its license areas
  *   middle: every matching license area, coloured by team
  *   right:  the chosen company and license (team, last inspection, tasks, links)
- * Uses the same filters as the table, plus zone, team, RED ZONE and overdue tasks.
+ * Uses the same filters as the table, plus zone, team and RED ZONE.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
@@ -31,7 +31,6 @@ const NO_TEAM = "#9AA3AB";
 const short = (name: string) => (name.length > 22 ? `${name.slice(0, 20).trim()}…` : name);
 const selectClass = (on: boolean) => `h-9 rounded-md border px-2 text-sm ${on ? "border-primary bg-sky-50 font-semibold text-primary" : "border-slate-300 bg-white"}`;
 const isRedZone = (l: MapLicenseRow) => !!l.notes && /red\s*zone/i.test(l.notes);
-const HINT = "Choose a company in the list, or click a license on the map, to see its team, last inspection and open tasks.";
 
 interface CompanyGroup {
   company_id: string;
@@ -47,7 +46,6 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
   const max = useMapMaximize();
   const [teamId, setTeamId] = useState("");
   const [redZone, setRedZone] = useState(false);
-  const [overdue, setOverdue] = useState(false);
   const [listSearch, setListSearch] = useState("");
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [licenseId, setLicenseId] = useState<string | null>(null);
@@ -61,7 +59,6 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
     area_id: (regionId && zoneId) || base.area_id,
     team_id: teamId || undefined,
     red_zone: redZone || undefined,
-    overdue: overdue || undefined,
   };
   const { data, isFetching, isError } = useGetLicenseMapQuery(params);
   const rows = useMemo(() => data?.data ?? [], [data]);
@@ -139,17 +136,12 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
             .map(([id, t]) => ({ key: id, label: id !== "none" && t.sector && repeated(t.name) ? `${t.name} · ${t.sector}` : t.name, colour: id === "none" ? NO_TEAM : teamColour.get(id) ?? NO_TEAM }))
             .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
         })();
-  const filtersOn = !!(zoneId || teamId || redZone || overdue);
+  const filtersOn = !!(zoneId || teamId || redZone);
 
   // The chosen company and license (a card on the map on a PC, below the map on a phone)
-  const details =
+  const licenseDetails =
     company && license ? (
       <>
-        <div>
-          <p className="text-xs font-semibold text-slate-500">COMPANY</p>
-          <p className="text-lg font-bold text-slate-900">{company.name}</p>
-          <p className="text-sm text-slate-600">{company.regions.join(", ") || "Location not recorded"}</p>
-        </div>
         {company.licenses.length > 1 && (
           <div role="group" aria-label="Licenses of this company" className="flex flex-wrap gap-1.5">
             {company.licenses.map((l) => (
@@ -206,11 +198,22 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
         </div>
       </>
     ) : null;
+  const details =
+    company && licenseDetails ? (
+      <>
+        <div>
+          <p className="text-xs font-semibold text-slate-500">COMPANY</p>
+          <p className="text-lg font-bold text-slate-900">{company.name}</p>
+          <p className="text-sm text-slate-600">{company.regions.join(", ") || "Location not recorded"}</p>
+        </div>
+        {licenseDetails}
+      </>
+    ) : null;
 
   return (
     <div className="space-y-3">
       {/* Map-only filters (the rest are above, shared with the table) */}
-      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3">
+      <div className="grid grid-cols-2 items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 lg:flex lg:flex-wrap">
         {regionId && (
           <select aria-label="Zone" className={selectClass(!!zoneId)} value={zoneId} onChange={(e) => setZoneId(e.target.value)}>
             <option value="">All zones</option>
@@ -232,9 +235,6 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
         <label className={`flex h-9 items-center gap-2 rounded-md border px-3 text-sm ${redZone ? "border-primary bg-sky-50 font-semibold text-primary" : "border-slate-300"}`}>
           <input type="checkbox" checked={redZone} onChange={(e) => setRedZone(e.target.checked)} /> RED ZONE only
         </label>
-        <label className={`flex h-9 items-center gap-2 rounded-md border px-3 text-sm ${overdue ? "border-primary bg-sky-50 font-semibold text-primary" : "border-slate-300"}`}>
-          <input type="checkbox" checked={overdue} onChange={(e) => setOverdue(e.target.checked)} /> Overdue tasks
-        </label>
         {filtersOn && (
           <button
             type="button"
@@ -243,13 +243,12 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
               setZoneId("");
               setTeamId("");
               setRedZone(false);
-              setOverdue(false);
             }}
           >
             Clear these filters
           </button>
         )}
-        <span className="ml-auto text-sm text-slate-500" aria-live="polite">
+        <span className="col-span-2 text-sm text-slate-500 lg:ml-auto" aria-live="polite">
           {isFetching ? "Loading…" : data ? `${data.meta.licenses} licenses of ${data.meta.companies} companies${data.meta.without_area ? ` · ${data.meta.without_area} without a surveyed area (not on the map)` : ""}` : ""}
         </span>
       </div>
@@ -259,21 +258,21 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
       ) : (
         <div className="flex flex-col gap-3 lg:h-[calc(100vh-20rem)] lg:min-h-[560px] lg:flex-row lg:supports-[height:100dvh]:h-[calc(100dvh-20rem)]">
           {/* Companies */}
-          <aside className="flex max-h-80 w-full shrink-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 lg:max-h-none lg:w-72" aria-label="Companies">
+          <aside className="order-2 flex w-full shrink-0 flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 lg:order-none lg:w-72" aria-label="Companies">
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <Input aria-label="Search companies on the map" value={listSearch} onChange={(e) => setListSearch(e.target.value)} placeholder="Company, license, team, place" className="pl-9" />
             </div>
             <p className="px-1 text-xs font-semibold text-slate-500">
-              {shownCompanies.length} of {companies.length} companies
+              {shownCompanies.length} of {companies.length} companies<span className="font-normal lg:hidden"> · tap one to show it on the map</span>
             </p>
-            <div className="-mr-1 flex-1 space-y-1.5 overflow-y-auto pr-1">
+            <div className="space-y-1.5 lg:-mr-1 lg:flex-1 lg:overflow-y-auto lg:pr-1">
               {shownCompanies.map((c) => {
                 const on = c.company_id === companyId;
                 const onMap = c.licenses.filter((l) => l.boundary).length;
                 return (
+                  <div key={c.company_id} className={on ? "rounded-lg border-2 border-primary lg:border-0" : ""}>
                   <button
-                    key={c.company_id}
                     ref={(el) => {
                       if (el) itemRefs.current.set(c.company_id, el);
                       else itemRefs.current.delete(c.company_id);
@@ -281,7 +280,7 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
                     type="button"
                     aria-pressed={on}
                     onClick={() => chooseCompany(c.company_id)}
-                    className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${on ? "border-golden-dark bg-amber-50" : "border-slate-200 hover:bg-slate-50"}`}
+                    className={`w-full scroll-mt-[calc(40dvh+5rem)] rounded-lg border px-3 py-2.5 text-left transition-colors lg:scroll-mt-0 ${on ? "border-transparent bg-amber-50 lg:border-golden-dark" : "border-slate-200 hover:bg-slate-50"}`}
                   >
                     <span className="block text-sm font-semibold text-slate-900">{c.name}</span>
                     <span className="block text-xs text-slate-500">
@@ -292,6 +291,8 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
                     {c.regions.length > 0 && <span className="block truncate text-xs text-slate-500">{c.regions.join(", ")}</span>}
                     {c.licenses.some(isRedZone) && <span className="mt-0.5 block text-xs font-semibold text-red-700">RED ZONE</span>}
                   </button>
+                  {on && licenseDetails && <div className="space-y-3 px-3 pb-3 pt-2 lg:hidden">{licenseDetails}</div>}
+                  </div>
                 );
               })}
               {!shownCompanies.length && <p className="py-6 text-center text-sm text-slate-500">No company matches.</p>}
@@ -299,7 +300,7 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
           </aside>
 
           {/* Map */}
-          <div className={`relative isolate h-[60vh] min-h-[420px] flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100 supports-[height:100dvh]:h-[60dvh] lg:h-auto lg:flex-1 ${max.frameClass}`}>
+          <div className={`isolate order-1 sticky top-14 z-20 h-[40vh] min-h-[260px] flex-none overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-md supports-[height:100dvh]:h-[40dvh] sm:top-16 lg:relative lg:top-auto lg:z-auto lg:order-none lg:shadow-none lg:h-auto lg:flex-1 ${max.frameClass}`}>
             <LicenseMap
               className="absolute inset-0"
               ariaLabel={company && focused ? `Map zoomed to ${company.name}` : `Map of ${mapLicenses.length} license areas, coloured by team`}
@@ -344,10 +345,6 @@ export function CompaniesMap({ base, regionId }: { base: Omit<LicenseMapParams, 
             )}
           </div>
 
-          {/* Phone: the chosen company below the map */}
-          <aside className="w-full space-y-3 rounded-xl border border-slate-200 bg-white p-4 lg:hidden" aria-label="Selected company">
-            {details ?? <p className="text-sm text-slate-500">{HINT}</p>}
-          </aside>
         </div>
       )}
     </div>

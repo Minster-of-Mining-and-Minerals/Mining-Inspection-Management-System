@@ -65,6 +65,21 @@ export interface CompanyLicense {
   /** Team(s) responsible for inspecting this license */
   teams?: { team_id: string; name: string; code: string | null; is_active: boolean }[];
   company?: { company_id: string; name: string; name_am: string | null; is_active: boolean };
+  /** On the company page: the license's latest inspections and how many there are */
+  inspections?: {
+    total: number;
+    submitted: number;
+    recent: {
+      inspection_id: string;
+      status: "todo" | "in_progress" | "submitted";
+      occurrence_date: string;
+      due_at: string;
+      submitted_at: string | null;
+      is_late: boolean;
+      form_name: string | null;
+      team: { team_id: string; name: string } | null;
+    }[];
+  };
 }
 
 export interface Company {

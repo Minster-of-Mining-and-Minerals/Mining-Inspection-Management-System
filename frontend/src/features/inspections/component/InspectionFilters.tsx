@@ -2,7 +2,7 @@
 
 /**
  * Filters of the Inspections page (design: "Inspections · Desktop / Mobile", "Filters sheet"):
- *   - computer: a bar above the list — Region, Team, Inspector, Checklist, and "More filters" for the rest;
+ *   - computer: a bar above the list — Region, Team, Company, License type, and "Dates";
  *   - phone: a Filters button opening a bottom sheet with the same groups, Clear all and Show results.
  * Filters apply at once (they live in the address); "Show results" closes the sheet.
  * Also the Export menu (CSV / JSON of what is filtered).
@@ -79,9 +79,6 @@ function FilterFields({ values: v, options: o, onChange, columns }: Props & { co
         <Field label="Team">
           <Pick label="Team" value={v.team_id} list={o?.teams} onChange={(x) => onChange({ team_id: x })} />
         </Field>
-        <Field label="Inspector" wide={wide}>
-          <Pick label="Inspector" value={v.submitted_by} list={o?.inspectors} onChange={(x) => onChange({ submitted_by: x })} />
-        </Field>
       </Group>
       <Group title="What" columns={columns}>
         <Field label="Company" wide={wide}>
@@ -94,20 +91,8 @@ function FilterFields({ values: v, options: o, onChange, columns }: Props & { co
             <option value="exploration">Exploration</option>
           </select>
         </Field>
-        <Field label="Checklist">
-          <Pick label="Checklist" value={v.form_id} list={o?.forms} onChange={(x) => onChange({ form_id: x })} />
-        </Field>
-        <Field label="Schedule" wide={wide}>
-          <Pick label="Schedule" value={v.schedule_id} list={o?.schedules} onChange={(x) => onChange({ schedule_id: x })} />
-        </Field>
       </Group>
       <Group title="When" columns={columns}>
-        <Field label="Dates are" wide={wide}>
-          <select aria-label="Dates are" className={fieldClass} value={v.date_field ?? "submitted"} onChange={(e) => onChange({ date_field: e.target.value === "assigned" ? "assigned" : undefined })}>
-            <option value="submitted">Submitted on</option>
-            <option value="assigned">Round started on</option>
-          </select>
-        </Field>
         <div className="col-span-full grid grid-cols-2 gap-2.5">
           <Field label="From">
             <input type="date" aria-label="From" className={`${fieldClass} ${v.from ? activeClass : ""}`} value={v.from ?? ""} onChange={(e) => onChange({ from: e.target.value || undefined })} />
@@ -121,7 +106,7 @@ function FilterFields({ values: v, options: o, onChange, columns }: Props & { co
   );
 }
 
-const MORE_KEYS: FilterKey[] = ["company_id", "license_type", "schedule_id", "from", "to"];
+const MORE_KEYS: FilterKey[] = ["from", "to"];
 
 /** Computer: the filter bar above the list. The less-used filters open with "More filters". */
 export function FilterBar({ values: v, options: o, onChange, onClear }: Props) {
@@ -139,32 +124,7 @@ export function FilterBar({ values: v, options: o, onChange, onClear }: Props) {
           <Field label="Team">
             <Pick label="Team" value={v.team_id} list={o?.teams} onChange={(x) => onChange({ team_id: x })} />
           </Field>
-          <Field label="Inspector">
-            <Pick label="Inspector" value={v.submitted_by} list={o?.inspectors} onChange={(x) => onChange({ submitted_by: x })} />
-          </Field>
-          <Field label="Checklist">
-            <Pick label="Checklist" value={v.form_id} list={o?.forms} onChange={(x) => onChange({ form_id: x })} />
-          </Field>
-        </div>
-        <button
-          type="button"
-          aria-expanded={showMore}
-          onClick={() => setMore(!showMore)}
-          disabled={moreCount > 0}
-          className={`flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold disabled:cursor-default ${moreCount ? "border-primary bg-sky-50/60 text-primary" : "border-slate-300 text-slate-700 hover:border-primary hover:text-primary"}`}
-        >
-          <SlidersHorizontal className="h-4 w-4" /> More filters{moreCount ? ` (${moreCount})` : ""}
-          <ChevronDown className={`h-4 w-4 transition-transform ${showMore ? "rotate-180" : ""}`} />
-        </button>
-        {count > 0 && (
-          <button type="button" onClick={onClear} className="flex h-10 shrink-0 items-center gap-1 px-1 text-sm font-semibold text-primary hover:underline">
-            <X className="h-4 w-4" /> Clear all
-          </button>
-        )}
-      </div>
-      {showMore && (
-        <div className="grid grid-cols-7 gap-3 border-t border-slate-100 pt-3">
-          <Field label="Company" wide>
+          <Field label="Company">
             <Pick label="Company" value={v.company_id} list={o?.companies} onChange={(x) => onChange({ company_id: x })} />
           </Field>
           <Field label="License type">
@@ -174,15 +134,25 @@ export function FilterBar({ values: v, options: o, onChange, onClear }: Props) {
               <option value="exploration">Exploration</option>
             </select>
           </Field>
-          <Field label="Schedule">
-            <Pick label="Schedule" value={v.schedule_id} list={o?.schedules} onChange={(x) => onChange({ schedule_id: x })} />
-          </Field>
-          <Field label="Dates are">
-            <select aria-label="Dates are" className={fieldClass} value={v.date_field ?? "submitted"} onChange={(e) => onChange({ date_field: e.target.value === "assigned" ? "assigned" : undefined })}>
-              <option value="submitted">Submitted on</option>
-              <option value="assigned">Round started on</option>
-            </select>
-          </Field>
+        </div>
+        <button
+          type="button"
+          aria-expanded={showMore}
+          onClick={() => setMore(!showMore)}
+          disabled={moreCount > 0}
+          className={`flex h-10 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-semibold disabled:cursor-default ${moreCount ? "border-primary bg-sky-50/60 text-primary" : "border-slate-300 text-slate-700 hover:border-primary hover:text-primary"}`}
+        >
+          <SlidersHorizontal className="h-4 w-4" /> Dates{moreCount ? ` (${moreCount})` : ""}
+          <ChevronDown className={`h-4 w-4 transition-transform ${showMore ? "rotate-180" : ""}`} />
+        </button>
+        {count > 0 && (
+          <button type="button" onClick={onClear} className="flex h-10 shrink-0 items-center gap-1 px-1 text-sm font-semibold text-primary hover:underline">
+            <X className="h-4 w-4" /> Clear all
+          </button>
+        )}
+      </div>
+      {showMore && (
+        <div className="grid grid-cols-4 gap-3 border-t border-slate-100 pt-3">
           <Field label="From">
             <input type="date" aria-label="From" className={`${fieldClass} ${v.from ? activeClass : ""}`} value={v.from ?? ""} onChange={(e) => onChange({ from: e.target.value || undefined })} />
           </Field>

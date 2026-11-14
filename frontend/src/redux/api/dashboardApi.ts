@@ -72,7 +72,8 @@ export interface Analytics {
   workload: { due: number; submitted: number; overdue: number; open: number; no_team: number };
   results: ResultTotals;
   previous: ResultTotals | null;
-  weekly: { week: string; on_time: number; late: number; avg_score: number | null }[];
+  /** Inspections submitted each day of the period (days without any as 0) */
+  daily: { day: string; submitted: number; on_time: number; late: number }[];
   by_region: { region: string; region_id: string | null; submitted: number; avg_score: number | null }[];
   teams: { team: string; team_id: string | null; due: number; submitted: number; overdue: number; submitted_in_period: number; on_time: number; avg_score: number | null }[];
   lowest_companies: { company_id: string; company: string; submitted: number; avg_score: number; last_score: number | null; scores: (number | null)[] }[];

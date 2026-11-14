@@ -56,7 +56,17 @@ const loadTeam = async (id, transaction) => {
     order: [[{ model: Company, as: "company" }, "name", "ASC"], ["license_number", "ASC"]],
     transaction,
   });
-  return { ...team.toJSON(), licenses };
+  // Each license's latest inspection given to this team (its current round)
+  const latest = licenses.length
+    ? await sequelize.query(
+        `SELECT DISTINCT ON (license_id) license_id, inspection_id, status, occurrence_date, due_at, submitted_at, is_late
+           FROM inspections WHERE team_id = :team AND license_id IN (:ids)
+          ORDER BY license_id, occurrence_date DESC, created_at DESC`,
+        { replacements: { team: id, ids: licenses.map((l) => l.license_id) }, type: sequelize.QueryTypes.SELECT, transaction },
+      )
+    : [];
+  const byLicense = new Map(latest.map(({ license_id, ...x }) => [license_id, x]));
+  return { ...team.toJSON(), licenses: licenses.map((l) => ({ ...l.toJSON(), latest_inspection: byLicense.get(l.license_id) ?? null })) };
 };
 
 /* =================== Teams =================== */

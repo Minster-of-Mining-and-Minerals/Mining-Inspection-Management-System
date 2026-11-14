@@ -64,8 +64,8 @@ export const TableLayout: React.FC<PageLayoutProps> = ({
   });
 
   return (
-    <div className=" p-6 border rounded-lg w-full bg-white shadow">
-      <div className="space-y-6 w-full">
+    <div className="w-full rounded-lg border bg-white p-3 shadow sm:p-6">
+      <div className="w-full space-y-4 sm:space-y-6">
         {/* Page Header - Single Line Layout */}
         <div className="flex flex-col w-full bg lg:flex-row lg:items-center lg:justify-between gap-4">
           {/* Left side - Title and Description */}
@@ -103,15 +103,16 @@ export const TableLayout: React.FC<PageLayoutProps> = ({
             )}
           </div>
           {/* Right side - Search, Filters, and Actions in one line */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             {/* Search */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <div className="relative min-w-0 basis-full sm:basis-auto">
+              <Search className="absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 transform text-gray-400" />
               <Input
                 placeholder="Search..."
+                aria-label="Search"
                 value={localSearch}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="pl-10 w-64"
+                className="h-12 w-full pl-10 text-[15px] sm:h-9 sm:w-64 sm:text-sm"
               />
             </div>
             {showToggleHierarchyNode && (
@@ -149,7 +150,7 @@ export const TableLayout: React.FC<PageLayoutProps> = ({
             )}
 
             {filteredActions.length > 0 && (
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-1 items-center gap-2 sm:flex-none">
                 {filteredActions.map((action, index) => (
                   <Button
                     key={index}
@@ -157,7 +158,7 @@ export const TableLayout: React.FC<PageLayoutProps> = ({
                     size={action.size || "default"}
                     onClick={action.onClick}
                     disabled={action.disabled || action.loading}
-                    className="flex items-center space-x-2"
+                    className="flex h-12 flex-1 items-center justify-center space-x-2 sm:h-9 sm:flex-none"
                   >
                     {action.loading ? (
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowLeft, Edit, MapPin, Plus, Power, Trash2 } from "lucide-react";
+import { ArrowLeft, ChevronRight, ClipboardList, Edit, MapPin, Plus, Power, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -126,6 +126,16 @@ export default function CompanyDetail() {
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-semibold text-slate-900">Licenses ({company.licenses.length})</h2>
+          <a
+            href={`/inspections?company_id=${company.company_id}`}
+            onClick={(e) => {
+              e.preventDefault();
+              router.push(`/inspections?company_id=${company.company_id}`);
+            }}
+            className="mr-auto flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+          >
+            <ClipboardList className="h-4 w-4" /> All inspections of this company
+          </a>
           {canUpdate && (
             <Button onClick={() => setLicenseDialog({ open: true, license: null })} className="gap-2">
               <Plus className="h-4 w-4" /> Add license
@@ -170,8 +180,9 @@ export default function CompanyDetail() {
                     </dd>
                   </div>
                   <div className="flex gap-2">
-                    <dt className="w-20 shrink-0 text-slate-500">Team</dt>
+                    <dt className="sr-only">Team</dt>
                     <dd>
+                      {l.teams?.length ? <span className="text-slate-500">Assigned to </span> : null}
                       {l.teams?.length ? (
                         l.teams.map((t, i) => (
                           <span key={t.team_id}>
@@ -182,7 +193,7 @@ export default function CompanyDetail() {
                           </span>
                         ))
                       ) : (
-                        <span className="italic text-slate-400">Not assigned</span>
+                        <span className="italic text-slate-400">Not assigned to a team</span>
                       )}
                     </dd>
                   </div>
@@ -201,6 +212,8 @@ export default function CompanyDetail() {
                     </dd>
                   </div>
                 </dl>
+
+                <LicenseInspections license={l} go={(href) => router.push(href)} />
 
                 {(canUpdate || canDelete) && (
                   <div className="mt-3 flex justify-end gap-1 border-t pt-3">
@@ -254,6 +267,68 @@ export default function CompanyDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/** Ethiopia date of a moment (ISO), for formatCalendarDate */
+const localDay = (iso: string) => new Date(new Date(iso).getTime() + 3 * 3600e3).toISOString();
+/** The last day to submit (due_at is midnight after it) */
+const lastDay = (due: string) => localDay(new Date(new Date(due).getTime() - 1).toISOString());
+
+type RecentInspection = NonNullable<CompanyLicense["inspections"]>["recent"][number];
+const statusOf = (t: RecentInspection): [string, string] =>
+  t.status === "submitted"
+    ? [t.is_late ? "Submitted late" : "Submitted", t.is_late ? "bg-amber-100 text-amber-900" : "bg-green-100 text-green-800"]
+    : new Date(t.due_at) < new Date()
+      ? ["Overdue", "bg-red-100 text-red-800"]
+      : t.status === "in_progress"
+        ? ["In progress", "bg-sky-100 text-sky-800"]
+        : ["Not started", "bg-slate-100 text-slate-700"];
+
+/** A license's latest inspections: status, team given it, date; each opens the inspection. */
+function LicenseInspections({ license: l, go }: { license: CompanyLicense; go: (href: string) => void }) {
+  const ins = l.inspections;
+  if (!ins) return null;
+  const link = (href: string) => ({
+    href,
+    onClick: (e: React.MouseEvent) => {
+      e.preventDefault();
+      go(href);
+    },
+  });
+  return (
+    <div className="mt-3 border-t pt-3">
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">Inspections</p>
+      {ins.total === 0 ? (
+        <p className="text-sm italic text-slate-400">No inspection yet</p>
+      ) : (
+        <>
+          <ul className="space-y-1">
+            {ins.recent.map((t) => {
+              const [label, cls] = statusOf(t);
+              return (
+                <li key={t.inspection_id}>
+                  <a {...link(`/inspections/${t.inspection_id}`)} className="group flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-slate-50" title="Open the inspection">
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium text-slate-900">{t.team ? `Assigned to ${t.team.name}` : "Not assigned to a team"}</span>
+                      <span className="block truncate text-xs text-slate-500">
+                        {t.status === "submitted" && t.submitted_at ? `Submitted ${formatCalendarDate(localDay(t.submitted_at))}` : `Due ${formatCalendarDate(lastDay(t.due_at))}`}
+                        {t.form_name ? ` · ${t.form_name}` : ""}
+                      </span>
+                    </span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 group-hover:text-primary" aria-hidden="true" />
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+          <a {...link(`/inspections?search=${encodeURIComponent(l.license_number)}`)} className="mt-1.5 inline-block px-2 text-sm font-semibold text-primary hover:underline">
+            All inspections of this license ({ins.total} · {ins.submitted} submitted)
+          </a>
+        </>
+      )}
     </div>
   );
 }

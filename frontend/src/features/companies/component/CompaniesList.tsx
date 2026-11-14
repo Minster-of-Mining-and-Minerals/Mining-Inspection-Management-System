@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ColumnDef } from "@tanstack/react-table";
-import { Eye, List, Map as MapIcon, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Eye, List, Map as MapIcon, Plus } from "lucide-react";
 import { DataTable } from "@/features/template/component/tableList/DataTable";
 import { TableLayout } from "@/features/template/component/tableList/TableLayout";
 import Loading01 from "@/features/template/component/Loading/Loading01";
@@ -224,15 +224,15 @@ export default function CompaniesList() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-primary">Companies</h1>
           <p className="text-sm text-slate-500">Licensed exploration and mining companies. Search by company name, TIN or license number.</p>
         </div>
-        <div role="group" aria-label="View" className="flex rounded-lg border border-slate-300 bg-white p-1">
+        <div role="group" aria-label="View" className="grid grid-cols-2 rounded-xl border border-slate-300 bg-white p-1 sm:flex sm:rounded-lg">
           {(
             [
-              ["table", "Table", List],
+              ["table", "List", List],
               ["map", "Map", MapIcon],
             ] as const
           ).map(([key, label, Icon]) => (
@@ -241,7 +241,7 @@ export default function CompaniesList() {
               type="button"
               aria-pressed={view === key}
               onClick={() => setView(key)}
-              className={`flex min-h-9 items-center gap-1.5 rounded-md px-3 text-sm font-semibold ${view === key ? "bg-primary text-white" : "text-primary hover:bg-slate-100"}`}
+              className={`flex min-h-10 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-semibold sm:min-h-9 sm:rounded-md ${view === key ? "bg-primary text-white" : "text-primary hover:bg-slate-100"}`}
             >
               <Icon className="h-4 w-4" /> {label}
             </button>
@@ -249,11 +249,11 @@ export default function CompaniesList() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="-mx-3 flex gap-2 overflow-x-auto px-3 sm:mx-0 sm:grid sm:grid-cols-4 sm:gap-3 sm:overflow-visible sm:px-0">
         {statCards.map((s) => (
-          <div key={s.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <p className="text-xs font-medium text-slate-500">{s.label}</p>
-            <p className="text-2xl font-bold tabular-nums text-primary">{s.value?.toLocaleString() ?? "—"}</p>
+          <div key={s.label} className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 sm:px-4 sm:py-3">
+            <p className="text-[11px] font-medium text-slate-500 sm:text-xs">{s.label}</p>
+            <p className="text-lg font-bold tabular-nums text-primary sm:text-2xl">{s.value?.toLocaleString() ?? "—"}</p>
           </div>
         ))}
       </div>
@@ -275,6 +275,16 @@ export default function CompaniesList() {
           <div className="py-10 text-center text-red-600">Could not load companies.</div>
         ) : (
           <div className={isFetching ? "opacity-60 transition-opacity" : ""}>
+            <div className="md:hidden">
+              <CompanyCards
+                companies={data?.data ?? []}
+                page={pageIndex + 1}
+                pages={data?.meta?.totalPages ?? 1}
+                onPage={(p) => setPageIndex(p - 1)}
+                onOpen={(id) => router.push(`/companies/${id}`)}
+              />
+            </div>
+            <div className="hidden md:block">
             <DataTable
               columns={columns}
               data={data?.data ?? []}
@@ -286,11 +296,91 @@ export default function CompaniesList() {
               tablePageSize={pageSize}
               currentIndex={pageIndex}
             />
+            </div>
           </div>
         )}
       </TableLayout>
 
       <CompanyDialog open={creating} company={null} onClose={() => setCreating(false)} />
+    </div>
+  );
+}
+
+/** Phone: one card per company (name, Amharic name, status, licenses, minerals, region). */
+function CompanyCards({ companies, page, pages, onPage, onOpen }: { companies: Company[]; page: number; pages: number; onPage: (p: number) => void; onOpen: (id: string) => void }) {
+  if (!companies.length) return <p className="py-10 text-center text-sm text-slate-500">No companies found.</p>;
+  return (
+    <div className="space-y-2.5">
+      <ul className="space-y-2.5">
+        {companies.map((c) => {
+          const exploration = c.licenses.filter((l) => l.license_type === "exploration").length;
+          const mining = c.licenses.filter((l) => l.license_type === "mining").length;
+          const minerals = [...new Set(c.licenses.flatMap((l) => l.minerals.map((m) => m.name)))];
+          const regions = regionsOf(c.licenses);
+          return (
+            <li key={c.company_id}>
+              <a
+                href={`/companies/${c.company_id}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  onOpen(c.company_id);
+                }}
+                className="block rounded-xl border border-slate-200 bg-white p-3.5 transition hover:border-primary"
+              >
+                <div className="flex items-start gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-base font-bold leading-snug text-primary">{c.name}</p>
+                    {c.name_am && (
+                      <p lang="am" className="mt-0.5 break-words text-[13px] text-slate-500">
+                        {c.name_am}
+                      </p>
+                    )}
+                  </div>
+                  <span
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${c.is_active ? "bg-green-100 text-green-800" : "bg-slate-100 text-slate-600"}`}
+                  >
+                    <span className={`h-1.5 w-1.5 rounded-full ${c.is_active ? "bg-green-600" : "bg-slate-400"}`} />
+                    {c.is_active ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
+                  {exploration > 0 && <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-800">{exploration} exploration</span>}
+                  {mining > 0 && <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800">{mining} mining</span>}
+                  {c.licenses.length === 0 && <span className="text-xs italic text-slate-400">No licenses</span>}
+                </div>
+                {minerals.length > 0 && (
+                  <p className="mt-2.5 flex gap-2 text-[13px] text-slate-700">
+                    <span className="w-16 shrink-0 text-slate-500">Minerals</span>
+                    <span className="min-w-0 break-words">
+                      {minerals.slice(0, 4).join(", ")}
+                      {minerals.length > 4 ? ` +${minerals.length - 4}` : ""}
+                    </span>
+                  </p>
+                )}
+                {regions.length > 0 && (
+                  <p className="mt-1 flex gap-2 text-[13px] text-slate-700">
+                    <span className="w-16 shrink-0 text-slate-500">Region</span>
+                    <span className="min-w-0 break-words">{regions.join(", ")}</span>
+                  </p>
+                )}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+      {pages > 1 && (
+        <nav aria-label="Pages" className="flex items-center justify-between gap-2 pt-1">
+          <Button variant="outline" className="h-11 gap-1" disabled={page <= 1} onClick={() => onPage(page - 1)}>
+            <ChevronLeft className="h-4 w-4" /> Previous
+          </Button>
+          <span className="text-sm text-slate-600">
+            Page {page} of {pages}
+          </span>
+          <Button variant="outline" className="h-11 gap-1" disabled={page >= pages} onClick={() => onPage(page + 1)}>
+            Next <ChevronRight className="h-4 w-4" />
+          </Button>
+        </nav>
+      )}
     </div>
   );
 }

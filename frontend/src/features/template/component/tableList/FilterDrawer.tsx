@@ -406,7 +406,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <Button variant="outline" className="flex items-center space-x-2">
+        <Button variant="outline" className="flex h-12 flex-1 items-center justify-center space-x-2 border-[1.5px] border-primary font-semibold text-primary sm:h-9 sm:flex-none sm:border sm:border-input sm:font-medium sm:text-foreground">
           <svg
             className="h-4 w-4"
             fill="none"

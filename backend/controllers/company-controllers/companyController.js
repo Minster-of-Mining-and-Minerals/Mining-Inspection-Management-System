@@ -117,7 +117,34 @@ const getCompanyById = async (req, res) => {
     if (!isUuid(req.params.id)) return fail(res, 400, "Invalid company id.");
     const company = await loadCompany(req.params.id);
     if (!company || !inScope(req, company.sector_node_id)) return fail(res, 404, "Company not found.");
-    return res.status(200).json({ success: true, data: company });
+    const data = company.toJSON();
+    // Each license's 3 latest inspections (with the team given each one), and how many there are
+    const ids = (data.licenses || []).map((l) => l.license_id);
+    const rows = ids.length
+      ? await sequelize.query(
+          `SELECT * FROM (
+             SELECT i.license_id, i.inspection_id, i.status, i.occurrence_date, i.due_at, i.submitted_at, i.is_late,
+                    i.team_id, t.name AS team_name, f.name AS form_name,
+                    ROW_NUMBER() OVER (PARTITION BY i.license_id ORDER BY i.occurrence_date DESC, i.created_at DESC) AS rn,
+                    COUNT(*) OVER (PARTITION BY i.license_id)::int AS total,
+                    COUNT(*) FILTER (WHERE i.status = 'submitted') OVER (PARTITION BY i.license_id)::int AS submitted
+               FROM inspections i
+               LEFT JOIN teams t ON t.team_id = i.team_id
+               LEFT JOIN forms f ON f.form_id = i.form_id
+              WHERE i.license_id IN (:ids)) x
+            WHERE rn <= 3 ORDER BY license_id, rn`,
+          { replacements: { ids }, type: sequelize.QueryTypes.SELECT },
+        )
+      : [];
+    for (const l of data.licenses || []) {
+      const mine = rows.filter((r) => r.license_id === l.license_id);
+      l.inspections = {
+        total: mine[0]?.total ?? 0,
+        submitted: mine[0]?.submitted ?? 0,
+        recent: mine.map(({ license_id, rn, total, submitted, team_id, team_name, ...x }) => ({ ...x, team: team_id ? { team_id, name: team_name } : null })),
+      };
+    }
+    return res.status(200).json({ success: true, data });
   } catch (error) {
     return handleError(res, error, "Failed to fetch company.");
   }
