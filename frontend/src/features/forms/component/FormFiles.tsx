@@ -238,13 +238,35 @@ function UploadField({ accept, max, maxMb, count, am, disabled, onPick }: { acce
   );
 }
 
+/**
+ * Opens a file in the viewer. A link, not a button: a read-only form sits in a disabled <fieldset>,
+ * which disables every button inside it (so files could not be opened on a submitted inspection).
+ * Ctrl/Cmd-click still opens the file in a new tab.
+ */
+function OpenLink({ url, onOpen, className, title, children }: { url?: string; onOpen: () => void; className?: string; title?: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={url ?? "#"}
+      title={title}
+      className={`${className ?? ""} cursor-pointer rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary`}
+      onClick={(e) => {
+        if (url && (e.ctrlKey || e.metaKey || e.shiftKey || e.button !== 0)) return;
+        e.preventDefault();
+        onOpen();
+      }}
+    >
+      {children}
+    </a>
+  );
+}
+
 function FileTile({ meta, url, onOpen, onRemove }: { meta?: FormFileMeta; url?: string; onOpen: () => void; onRemove?: () => void }) {
   const [confirming, setConfirming] = useState(false);
   if (!meta) return null;
   const isImage = meta.kind === "image" && !/hei[cf]/i.test(meta.mime_type);
   return (
     <li className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <button type="button" onClick={onOpen} className="flex h-full w-full flex-col items-center justify-center gap-1 p-1 text-center" title={`Open ${meta.original_name}`}>
+      <OpenLink url={url} onOpen={onOpen} className="flex h-full w-full flex-col items-center justify-center gap-1 p-1 text-center" title={`Open ${meta.original_name}`}>
         {isImage && url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt={meta.original_name} className="h-full w-full rounded object-cover" />
@@ -255,7 +277,7 @@ function FileTile({ meta, url, onOpen, onRemove }: { meta?: FormFileMeta; url?: 
             <span className="text-[10px] text-slate-500">{formatBytes(meta.size_bytes)}</span>
           </>
         )}
-      </button>
+      </OpenLink>
       {onRemove && (
       <button
         type="button"
@@ -349,11 +371,11 @@ export function SignatureAnswerInput({ field: f, value, onChange }: { field: For
     <div className="space-y-2">
       {list.map((s, i) => (
         <div key={s.file_id} className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-2">
-          <button type="button" onClick={() => setViewing(i)} className="flex flex-col items-start gap-1 text-left" title="Open the signature">
+          <OpenLink url={api.urlFor(s.file_id)} onOpen={() => setViewing(i)} className="flex flex-col items-start gap-1 text-left" title="Open the signature">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             {api.urlFor(s.file_id) ? <img src={api.urlFor(s.file_id)} alt={`Signature of ${s.name || "signer"}`} className="h-16 w-48 rounded bg-white object-contain" /> : <span className="h-16 w-48" />}
             <span className="text-[11px] font-medium text-slate-500">{signatureSource(api.files[s.file_id])}</span>
-          </button>
+          </OpenLink>
           {withName && (
             <label className="min-w-40 flex-1 space-y-1 text-xs text-slate-600">
               Name of the person who signed
@@ -453,11 +475,11 @@ export function SignatureCell({ fieldKey, value, onChange, signer }: { fieldKey:
   if (value)
     return (
       <div className="flex items-center gap-1">
-        <button type="button" onClick={() => setViewing(0)} className="flex flex-col items-start gap-0.5 text-left" title="Open the signature">
+        <OpenLink url={url} onOpen={() => setViewing(0)} className="flex flex-col items-start gap-0.5 text-left" title="Open the signature">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           {url ? <img src={url} alt={`Signature${signer ? ` of ${signer}` : ""}`} className="h-10 w-28 rounded border border-slate-200 bg-white object-contain" /> : <span className="h-10 w-28 rounded border border-slate-200 bg-slate-50" />}
           <span className="text-[10px] font-medium text-slate-500">{signatureSource(api.files[value])}</span>
-        </button>
+        </OpenLink>
         <MediaViewer items={[viewerItem(api, value, [signer, signatureSource(api.files[value])].filter(Boolean).join(" · "))]} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />
         {!api.readOnly && (
           <button
