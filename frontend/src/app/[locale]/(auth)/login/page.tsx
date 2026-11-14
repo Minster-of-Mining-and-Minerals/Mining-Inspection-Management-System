@@ -49,8 +49,11 @@ export default function ExternalLogin() {
   // Why the previous session ended (sent here by the app), shown above the form
   const endedNote = SESSION_ENDED_NOTE[searchParams.get("ended") ?? ""] ?? null;
 
+  // Sent here because the session ended: stay on the form (an old sign-in still being cleared
+  // must not bounce the user back to the dashboard, which would sign them out again)
+  const cameFromEndedSession = searchParams.has("ended");
   useEffect(() => {
-    if (status === "authenticated") {
+    if (status === "authenticated" && !cameFromEndedSession) {
       const isFirstLogin = (session?.user as any)?.is_first_logged_in;
       if (isFirstLogin) {
         router.push("/change-password");
@@ -58,7 +61,7 @@ export default function ExternalLogin() {
         router.push(callbackUrl);
       }
     }
-  }, [status, session, callbackUrl, router]);
+  }, [status, session, callbackUrl, router, cameFromEndedSession]);
   const [formData, setFormData] = useState({
     email: "",
     password: ""

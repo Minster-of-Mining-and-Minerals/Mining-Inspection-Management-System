@@ -1,11 +1,20 @@
 import { getSession, signOut } from "next-auth/react";
 import { resolveApiBaseUrl } from "@/utils/apiUrl";
 
+// One sign-out at a time: when a session has ended, every request on the page gets "session
+// ended" at once; each used to start its own sign-out and reload the login page (it "blinked").
+let running: Promise<void> | null = null;
+
 /**
  * Perform a thorough logout by clearing all browser storage and sessions.
  * This ensures no stale data remains in localStorage, sessionStorage, or cookies.
  */
-export const performLogout = async (callbackUrl: string = "/login") => {
+export const performLogout = (callbackUrl: string = "/login"): Promise<void> => {
+  if (!running) running = doLogout(callbackUrl);
+  return running;
+};
+
+const doLogout = async (callbackUrl: string) => {
   // 0. End this sign-in's session on the server (best effort: never blocks signing out)
   try {
     const session = await getSession();
@@ -13,7 +22,7 @@ export const performLogout = async (callbackUrl: string = "/login") => {
       await fetch(`${resolveApiBaseUrl()}/auth/logout`, { method: "POST", headers: { Authorization: `Bearer ${session.accessToken}` } });
     }
   } catch {
-    /* offline: the session ends by itself after the inactivity time */
+    /* offline, or the session already ended: it ends by itself after the inactivity time */
   }
 
   // 1. Clear all browser storage
@@ -38,9 +47,18 @@ export const performLogout = async (callbackUrl: string = "/login") => {
   //    IP) when they reached the site through a different address.
   try {
     await signOut({ redirect: false });
-  } finally {
-    if (typeof window !== "undefined") {
-      window.location.href = callbackUrl;
-    }
+  } catch {
+    /* the cookie is removed below anyway */
+  }
+  // 4. Safety net: remove the (httpOnly) sign-in cookie on this site directly, so the login
+  //    page can't mistake a stale cookie for a live sign-in and bounce back to the dashboard.
+  try {
+    await fetch("/api/session-clear", { method: "POST", credentials: "same-origin" });
+  } catch {
+    /* ignore */
+  }
+  if (typeof window !== "undefined") {
+    // replace: no extra history entry, so Back doesn't return to the signed-out page
+    window.location.replace(callbackUrl);
   }
 };
