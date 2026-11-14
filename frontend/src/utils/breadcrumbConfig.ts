@@ -32,6 +32,12 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         { title: "Base Data", path: "/basedata" },
         { title: "Organization", path: "/basedata/sectors" },
     ],
+    "/basedata/sectors/[sectorId]": [
+        { title: "Base Data", path: "/basedata" },
+        { title: "Organization", path: "/basedata/sectors" },
+        { title: "Sector", path: "/basedata/sectors/[sectorId]" },
+    ],
+    "/profile": [{ title: "My Profile", path: "/profile" }],
     // ================================================
     // Inspection schedules & tasks
     // ================================================
@@ -66,7 +72,7 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
     "/teams": [{ title: "Teams", path: "/teams" }],
     "/teams/[teamId]": [
         { title: "Teams", path: "/teams" },
-        { title: "Team Details", path: "/teams/[teamId]" },
+        { title: "Team", path: "/teams/[teamId]" },
     ],
 
     // ================================================
@@ -75,7 +81,7 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
     "/companies": [{ title: "Companies", path: "/companies" }],
     "/companies/[companyId]": [
         { title: "Companies", path: "/companies" },
-        { title: "Company Details", path: "/companies/[companyId]" },
+        { title: "Company", path: "/companies/[companyId]" },
     ],
 
     // ================================================
@@ -93,7 +99,7 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
     ],
     "/users/list/[userId]": [
         { title: "Users", path: "/users/list" },
-        { title: "User Details", path: "/users/list/[userId]" },
+        { title: "User", path: "/users/list/[userId]" },
     ],
     "/users/permissions": [
         { title: "Users", path: "/users/list" },
@@ -111,7 +117,7 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
     "/users/roles/[id]": [
         { title: "Users", path: "/users/list" },
         { title: "Roles", path: "/users/roles" },
-        { title: "Role Details", path: "/users/roles/[id]" },
+        { title: "Role", path: "/users/roles/[id]" },
     ],
 
     // ================================================

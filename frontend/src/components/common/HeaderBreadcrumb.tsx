@@ -1,7 +1,8 @@
 "use client";
 
 import { useParams, usePathname } from "next/navigation";
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { usePermissions } from "@/hooks/usePermissions";
 import { breadcrumbConfig } from "../../utils/breadcrumbConfig";
 import { useBreadcrumbTitle } from "../../providers/BreadcrumbProvider";
 import Link from "next/link";
@@ -11,6 +12,7 @@ const HeaderBreadcrumb = ({ variant = "light" }: { variant?: "light" | "dark" } 
     const pathname = usePathname();
     const params = useParams();
     const { dynamicBreadcrumb, dynamicTitles } = useBreadcrumbTitle();
+    const { check } = usePermissions();
 
     // ✅ extract locale from params
     const locale = params?.locale as string;
@@ -24,63 +26,42 @@ const HeaderBreadcrumb = ({ variant = "light" }: { variant?: "light" | "dark" } 
     const withLocale = (path: string) =>
         path ? `/${locale}${path}` : "";
 
-    const getBreadcrumbs = () => {
+    const getBreadcrumbs = (): { title: string; path: string }[] => {
         // 1️⃣ exact match
         if (breadcrumbConfig[pathnameWithoutLocale]) {
             return breadcrumbConfig[pathnameWithoutLocale];
         }
 
-        // 2️⃣ dynamic routes
-        for (const [route, breadcrumbs] of Object.entries(breadcrumbConfig)) {
-            const routePattern = route.replace(/:[^/]+/g, "[^/]+");
-            const regex = new RegExp(`^${routePattern}$`);
-
-            if (regex.test(pathnameWithoutLocale)) {
-                const paramNames =
-                    route.match(/:[^/]+/g)?.map(p => p.slice(1)) || [];
-
-                return breadcrumbs.map((crumb, index) => {
-                    const isLast = index === breadcrumbs.length - 1;
-
-                    if (!crumb.path) {
-                        if (isLast) {
-                            return {
-                                ...crumb,
-                                title: dynamicBreadcrumb.title || crumb.title,
-                            };
-                        }
-                        return crumb;
-                    }
-
-                    let resolvedPath = crumb.path;
-
-                    paramNames.forEach(paramName => {
-                        const value = params[paramName];
-                        if (value) {
-                            resolvedPath = resolvedPath.replace(`:${paramName}`, value as string);
-                        }
-                    });
-
-                    let title = crumb.title;
-
-                    paramNames.forEach(paramName => {
-                        const value = params[paramName];
-                        if (value && dynamicTitles[value as string]) {
-                            if (resolvedPath.includes(`/${value}`)) {
-                                title = dynamicTitles[value as string];
-                            }
-                        }
-                    });
-
-                    return {
-                        title,
-                        path: resolvedPath,
-                    };
-                });
-            }
+        // 2️⃣ detail pages: routes written like "/companies/[companyId]"
+        for (const [route, crumbs] of Object.entries(breadcrumbConfig)) {
+            if (!route.includes("[")) continue;
+            // Compare part by part; "[name]" parts take any value
+            const want = route.split("/");
+            const have = pathnameWithoutLocale.split("/");
+            if (want.length !== have.length) continue;
+            const values: Record<string, string> = {};
+            const names: string[] = [];
+            const fits = want.every((part, i) => {
+                const param = /^\[([^\]]+)\]$/.exec(part);
+                if (!param) return part === have[i];
+                if (!have[i]) return false;
+                values[param[1]] = decodeURIComponent(have[i]);
+                names.push(param[1]);
+                return true;
+            });
+            if (!fits) continue;
+            const fill = (p: string) => p.replace(/\[([^\]]+)\]/g, (_, n) => values[n] ?? "");
+            return crumbs.map((crumb, index) => {
+                const isLast = index === crumbs.length - 1;
+                const id = isLast ? values[names[names.length - 1]] : undefined;
+                // The page's own name (set by the page once loaded), else the generic word
+                const named = (id && dynamicTitles[id]) || (isLast && dynamicBreadcrumb.title) || null;
+                return { title: named || crumb.title, path: fill(crumb.path) };
+            });
         }
 
-        // 3️⃣ fallback
+        // 3️⃣ fallback: never show an id as a title
+        const looksLikeId = (s: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(s) || /^\d+$/.test(s);
         const segments = pathnameWithoutLocale.split("/").filter(Boolean);
         let currentPath = "";
 
@@ -92,15 +73,24 @@ const HeaderBreadcrumb = ({ variant = "light" }: { variant?: "light" | "dark" } 
                 title:
                     isLast && dynamicBreadcrumb.title
                         ? dynamicBreadcrumb.title
-                        : segment
-                            .replace(/[-_]/g, " ")
-                            .replace(/\b\w/g, c => c.toUpperCase()),
+                        : looksLikeId(segment)
+                            ? "Details"
+                            : segment
+                                .replace(/[-_]/g, " ")
+                                .replace(/\b\w/g, c => c.toUpperCase()),
                 path: isLast ? "" : currentPath,
             };
         });
     };
 
-    const breadcrumbs = getBreadcrumbs();
+    // People who only work on their own tasks reach an inspection from My Tasks
+    const seesAllInspections = check({ anyPermissions: ["INSPECTIONS:READ_ALL"] });
+    const adjust = (list: { title: string; path: string }[]) =>
+        !seesAllInspections && /^\/inspections\/[^/]+$/.test(pathnameWithoutLocale)
+            ? list.map((c, i) => (i === 0 ? { title: "My Tasks", path: "/my-tasks" } : c))
+            : list;
+
+    const breadcrumbs = adjust(getBreadcrumbs());
 
     if (variant === "dark") {
         const parents = breadcrumbs.slice(0, -1);
@@ -123,8 +113,16 @@ const HeaderBreadcrumb = ({ variant = "light" }: { variant?: "light" | "dark" } 
                         ))}
                     </nav>
                 )}
+                {parents.length > 0 && parents[parents.length - 1].path && (
+                    <Link
+                        href={withLocale(parents[parents.length - 1].path)}
+                        className="flex items-center gap-0.5 truncate text-xs text-slate-300 hover:text-white sm:hidden"
+                    >
+                        <ChevronLeftIcon aria-hidden className="h-3 w-3 shrink-0" /> {parents[parents.length - 1].title}
+                    </Link>
+                )}
                 {current && (
-                    <span className="truncate text-base font-bold text-white sm:text-lg">{current.title}</span>
+                    <span className="truncate text-base font-bold text-white sm:text-lg" title={current.title}>{current.title}</span>
                 )}
             </div>
         );

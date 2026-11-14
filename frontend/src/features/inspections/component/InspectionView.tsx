@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, History, Loader2, Lock, MapPin, RotateCcw, Save, Send, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,7 @@ const initialAnswers = (task: TaskDetail): Answers => {
 export default function InspectionView() {
   const { inspectionId } = useParams<{ inspectionId: string }>();
   const { data: task, isLoading, isError, error, refetch } = useGetTaskQuery(inspectionId, { skip: !inspectionId, refetchOnMountOrArgChange: true });
+  useBreadcrumbTitleEffect(task ? [task.company?.name ?? "Inspection", task.license?.license_number].filter(Boolean).join(" · ") : undefined, inspectionId);
   // Watching (not filling) an inspection that isn't submitted: follow the team's saves live
   const watching = !!task && !task.can.fill && task.status !== "submitted";
   useGetTaskQuery(inspectionId, { skip: !inspectionId || !watching, pollingInterval: LIVE_MS, skipPollingIfUnfocused: true });

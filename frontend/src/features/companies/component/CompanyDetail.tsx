@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronDown, ChevronRight, ClipboardList, Edit, MapPin, Plus, Power, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,6 +37,7 @@ export default function CompanyDetail() {
   const canDelete = check({ allPermissions: ["COMPANIES:DELETE"] });
 
   const { data: company, isLoading, isError } = useGetCompanyByIdQuery(companyId, { skip: !companyId });
+  useBreadcrumbTitleEffect(company?.name, companyId);
   const [updateCompany, { isLoading: toggling }] = useUpdateCompanyMutation();
   const [deleteLicense, { isLoading: deleting }] = useDeleteLicenseMutation();
 

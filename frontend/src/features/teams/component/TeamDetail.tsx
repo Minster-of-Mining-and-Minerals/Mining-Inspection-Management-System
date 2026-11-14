@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
 import { ArrowLeft, Crown, Edit, LogOut, MapPin, Plus, Power, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ export default function TeamDetail() {
   const canCreateUsers = canManageMembers && check({ allPermissions: ["USERS:CREATE"] });
 
   const { data: team, isLoading, isError } = useGetTeamByIdQuery(teamId, { skip: !teamId });
+  useBreadcrumbTitleEffect(team?.name, teamId);
   const [updateTeam, { isLoading: toggling }] = useUpdateTeamMutation();
   const [updateMember] = useUpdateTeamMemberMutation();
   const [removeMember, { isLoading: removing }] = useRemoveTeamMemberMutation();

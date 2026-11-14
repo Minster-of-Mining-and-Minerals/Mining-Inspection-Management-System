@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
 import { AlertTriangle, ArrowLeft, Edit, Pause, Play, Search, Square, Trash2, UserCog } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,7 @@ export default function ScheduleDetail() {
   const canAssign = check({ allPermissions: ["INSPECTIONS:ASSIGN"] });
 
   const { data: s, isLoading, isError } = useGetScheduleByIdQuery(scheduleId, { skip: !scheduleId });
+  useBreadcrumbTitleEffect(s?.name, scheduleId);
   const [updateSchedule, { isLoading: updating }] = useUpdateScheduleMutation();
   const [deleteSchedule] = useDeleteScheduleMutation();
   const [editing, setEditing] = useState(false);

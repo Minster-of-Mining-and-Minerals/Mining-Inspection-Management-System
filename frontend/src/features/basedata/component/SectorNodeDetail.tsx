@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { useGetSectorNodeByIdQuery } from "@/redux/api/sectorNodeApi";
 import { Badge } from "@/components/ui/badge";
 import Loading01 from "@/features/template/component/Loading/Loading01";
@@ -25,6 +26,7 @@ export default function SectorNodeDetail() {
   const { data: sector, isLoading, isError } = useGetSectorNodeByIdQuery(id, {
     skip: !id,
   });
+  useBreadcrumbTitleEffect(sector?.name, id);
 
   const head = sector?.head;
 

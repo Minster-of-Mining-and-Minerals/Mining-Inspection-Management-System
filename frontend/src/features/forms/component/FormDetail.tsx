@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronDown, ChevronRight, Edit, FilePlus2, PencilLine, Power, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -43,6 +44,7 @@ export default function FormDetail() {
   const canEditLive = check({ allPermissions: ["FORMS:EDIT_LIVE"] });
 
   const { data: form, isLoading, isError } = useGetFormByIdQuery(formId, { skip: !formId });
+  useBreadcrumbTitleEffect(form?.name, formId);
   const [createDraft, { isLoading: startingDraft }] = useCreateDraftMutation();
   const [discardDraft, { isLoading: discarding }] = useDiscardDraftMutation();
   const [updateForm, { isLoading: toggling }] = useUpdateFormMutation();

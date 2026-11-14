@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { useGetUserByIdQuery, useResetUserPasswordMutation } from "@/redux/api/userApi";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { User2Icon, KeyRound } from "lucide-react";
@@ -22,6 +23,7 @@ const UserViewPage = () => {
     const { userId } = useParams();
     const { data: user, isLoading, isError, refetch } =
         useGetUserByIdQuery(userId as string);
+    useBreadcrumbTitleEffect(user?.full_name, userId as string);
     const [resetUserPassword, { isLoading: isResetting }] = useResetUserPasswordMutation();
     const [showResetConfirm, setShowResetConfirm] = useState(false);
     const [tempPassword, setTempPassword] = useState<{ password: string; email?: string } | null>(null);

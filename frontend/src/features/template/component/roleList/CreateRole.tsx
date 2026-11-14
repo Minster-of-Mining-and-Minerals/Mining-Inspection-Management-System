@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState, useMemo, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { useSession } from "next-auth/react";
 import { useLocale } from "next-intl";
 import { toast } from "sonner";
@@ -66,6 +67,7 @@ export default function CreateRole() {
   const { data: sectorNodes } = useGetSectorNodesQuery({ limit: 100 }, { skip: !isCentral || !switcherSectorId });
   const switcherSector = sectorNodes?.data?.find((s) => s.sector_node_id === switcherSectorId);
   const role = roleResponse as Role | undefined;
+  useBreadcrumbTitleEffect(isEditMode ? role?.name : undefined, id);
   const readOnly = isEditMode && role?.can_edit === false;
 
   // Group permissions by resource
