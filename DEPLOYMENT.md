@@ -246,3 +246,11 @@ that nginx forwards `inspection.mom.gov.et` to it. That nginx does HTTPS (needs 
 - Run **one** backend container only: it also creates the scheduled inspection tasks every hour.
 - Uploads are limited to 100 MB per file (nginx `client_max_body_size`); each question can set a lower limit.
 - The map tiles come from OpenStreetMap over the internet.
+
+
+./deploy.sh backup
+git fetch
+git stash
+git pull --no-edit origin sector-classification
+git stash pop
+docker compose up -d --build
