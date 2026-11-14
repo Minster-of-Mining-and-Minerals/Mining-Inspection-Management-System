@@ -14,12 +14,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import type { FileKind, FormField } from "@/redux/types/form";
 import type { SignatureAnswer } from "./formLogic";
 import { MediaViewer, ViewerItem } from "./MediaViewer";
+import { asJpegIfHeic, isHeic, useHeicPreview } from "@/utils/heic";
 
 /** How a signature was given: drawn on the screen (saved as signature.png) or a photo of it */
 export const signatureSource = (meta?: FormFileMeta) => (!meta ? "" : meta.original_name === "signature.png" ? "Signed on the screen" : "Uploaded photo");
 const viewerItem = (api: FormFilesApi, id: string, note?: string): ViewerItem => {
   const m = api.files[id];
-  return { url: api.urlFor(id), name: m?.original_name ?? "file", mime: m?.mime_type ?? "", kind: m?.kind ?? "", note };
+  return { url: api.urlFor(id), name: m?.original_name ?? "file", mime: m?.mime_type ?? "", kind: m?.kind ?? "", size: m?.size_bytes, note };
 };
 
 export interface FormFileMeta {
@@ -128,7 +129,7 @@ export function FileAnswer({
         toast.error(`At most ${max} files here.`);
         break;
       }
-      const { blob, name } = kind === "image" ? await shrinkImage(file) : { blob: file as Blob, name: file.name };
+      const { blob, name } = kind === "image" ? await shrinkImage(await asJpegIfHeic(file)) : { blob: file as Blob, name: file.name };
       if (blob.size > maxMb * MB) {
         toast.error(`“${file.name}” is ${formatBytes(blob.size)}; the limit here is ${maxMb} MB.`);
         continue;
@@ -262,14 +263,18 @@ function OpenLink({ url, onOpen, className, title, children }: { url?: string; o
 
 function FileTile({ meta, url, onOpen, onRemove }: { meta?: FormFileMeta; url?: string; onOpen: () => void; onRemove?: () => void }) {
   const [confirming, setConfirming] = useState(false);
+  const heic = meta?.kind === "image" && isHeic(meta.mime_type, meta.original_name);
+  const src = useHeicPreview(url, heic);
   if (!meta) return null;
-  const isImage = meta.kind === "image" && !/hei[cf]/i.test(meta.mime_type);
+  const isImage = meta.kind === "image" && !!src && src !== "failed";
   return (
     <li className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-white">
       <OpenLink url={url} onOpen={onOpen} className="flex h-full w-full flex-col items-center justify-center gap-1 p-1 text-center" title={`Open ${meta.original_name}`}>
-        {isImage && url ? (
+        {isImage ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={url} alt={meta.original_name} className="h-full w-full rounded object-cover" />
+          <img src={src} alt={meta.original_name} className="h-full w-full rounded object-cover" />
+        ) : heic && src === undefined ? (
+          <Loader2 className="h-5 w-5 animate-spin text-primary" aria-label="Preparing the photo" />
         ) : (
           <>
             {meta.kind === "video" ? <Film className="h-6 w-6 text-primary" /> : meta.kind === "image" ? <Camera className="h-6 w-6 text-primary" /> : <FileText className="h-6 w-6 text-primary" />}
@@ -298,7 +303,8 @@ function FileTile({ meta, url, onOpen, onRemove }: { meta?: FormFileMeta; url?: 
 const SIGNATURE_MAX_BYTES = 2 * MB; // the server's limit for a signature
 
 /** A photo of a signature on paper, made small enough for a signature: longest side 1600 px, JPEG. */
-const signaturePhoto = async (file: File): Promise<{ blob: Blob; name: string }> => {
+const signaturePhoto = async (picked: File): Promise<{ blob: Blob; name: string }> => {
+  const file = await asJpegIfHeic(picked);
   try {
     const bitmap = await createImageBitmap(file);
     const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));

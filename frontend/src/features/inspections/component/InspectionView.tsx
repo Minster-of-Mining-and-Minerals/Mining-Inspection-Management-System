@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, CheckCircle2, History, Loader2, Lock, MapPin, RotateCcw, Save, Send, Smartphone } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, History, Loader2, Lock, MapPin, RotateCcw, Save, Send, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -388,41 +388,77 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 /* =================== after submitting =================== */
 function SubmittedSummary({ task, onReturn, onShowPlace }: { task: TaskDetail; onReturn?: () => void; onShowPlace: () => void }) {
   const loc = task.submit_location;
+  const device = task.submit_device ? deviceLabel(task.submit_device.user_agent, task.submit_device.platform) : null;
+  const tile = "min-w-0 rounded-xl border border-slate-200 bg-white p-3";
   return (
-    <section className="flex flex-wrap items-start gap-4 rounded-xl border border-green-200 bg-green-50/60 p-4 text-sm">
-      <CheckCircle2 className="mt-0.5 h-5 w-5 text-green-700" />
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="font-semibold text-slate-900">
-          Submitted {formatDateTime(task.submitted_at)}
-          {task.submitter && ` by ${task.submitter.full_name}`}
-          {task.is_late && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">late</span>}
-        </p>
-        <p className="flex items-center gap-1 text-xs text-slate-600">
-          <Lock className="h-3.5 w-3.5" /> Read-only. {onReturn ? "You can return it to the team if something needs correcting." : "Ask a supervisor if something needs correcting."}
-        </p>
-        <p className="text-xs text-slate-600">
-          <MapPin className="mr-1 inline h-3.5 w-3.5" />
+    <section aria-label="Submission" className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+      {/* Banner */}
+      <div className="flex items-center gap-3 bg-[#1B7A3E] px-4 py-3 text-white">
+        <CheckCircle2 className="h-7 w-7 shrink-0" aria-hidden="true" />
+        <div className="min-w-0 flex-1">
+          <p className="flex items-center gap-1.5 text-base font-bold">
+            Submitted <span className="font-normal opacity-80">·</span>
+            <span className="inline-flex items-center gap-1 font-semibold">
+              <Lock className="h-3.5 w-3.5" aria-hidden="true" /> read-only
+            </span>
+          </p>
+          <p className="text-[13px] text-[#DDF2E4]">{formatDateTime(task.submitted_at)}</p>
+        </div>
+        {task.is_late && <span className="shrink-0 rounded-full bg-[#FFE2B3] px-2.5 py-0.5 text-xs font-bold text-[#6B3A00]">Late</span>}
+      </div>
+
+      <div className="space-y-3 p-3 sm:p-4">
+        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          <div className={tile}>
+            <p className="text-xs text-slate-500">Submitted by</p>
+            <p className="mt-0.5 break-words text-[15px] font-semibold leading-snug text-slate-900">{task.submitter?.full_name ?? "—"}</p>
+          </div>
+          <div className={tile}>
+            <p className="text-xs text-slate-500">Device</p>
+            <p className="mt-0.5 flex items-start gap-1.5 break-words text-[15px] font-semibold leading-snug text-slate-900">
+              <Smartphone className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" aria-hidden="true" />
+              {device ?? "—"}
+            </p>
+          </div>
+
+          {/* Location: opens the Site tab's map */}
           {loc?.lat != null ? (
-            // Shown on the Site tab's map (inside the system)
-            <button type="button" className="text-primary hover:underline" onClick={onShowPlace} title="Show on the map">
-              {loc.place?.label ?? `${loc.lat.toFixed(5)}, ${loc.lng!.toFixed(5)}`} (±{loc.accuracy} m)
+            <button type="button" onClick={onShowPlace} title="Show on the map" className={`${tile} col-span-2 flex items-center gap-3 text-left transition hover:border-primary`}>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#E7EEF4] text-primary">
+                <MapPin className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs text-slate-500">Location · ±{loc.accuracy} m</span>
+                <span className="mt-0.5 block break-words text-[15px] font-semibold leading-snug text-slate-900">{loc.place?.label ?? `${loc.lat.toFixed(5)}, ${loc.lng!.toFixed(5)}`}</span>
+                {loc.site && (
+                  <span className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-xs font-bold ${loc.site.inside ? "bg-[#E3F4E8] text-[#145C2F]" : "bg-orange-100 text-orange-900"}`}>
+                    {loc.site.inside ? "Inside the license area" : `${distanceText(loc.site.distance_m)} from the license area`}
+                  </span>
+                )}
+              </span>
+              <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" aria-hidden="true" />
             </button>
           ) : (
-            <span className="text-amber-700">No location: {loc?.error ?? "not shared"}</span>
+            <div className={`${tile} col-span-2 flex items-center gap-3`}>
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-700">
+                <MapPin className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs text-slate-500">Location</span>
+                <span className="mt-0.5 block break-words text-sm font-semibold text-amber-800">Not shared{loc?.error ? `: ${loc.error}` : ""}</span>
+              </span>
+            </div>
           )}
-          {task.submit_device && <span className="ml-2">· 📱 {deviceLabel(task.submit_device.user_agent, task.submit_device.platform)}</span>}
-        </p>
-        {loc?.site && (
-          <p className={`text-xs font-semibold ${loc.site.inside ? "text-green-700" : "text-orange-800"}`}>
-            {loc.site.inside ? "Submitted inside the license area" : `Submitted ${distanceText(loc.site.distance_m)} from the license area`}
-          </p>
+        </div>
+
+        {onReturn ? (
+          <Button variant="outline" className="h-12 w-full gap-2 border-primary text-primary sm:h-10 sm:w-auto" onClick={onReturn}>
+            <RotateCcw className="h-4 w-4" /> Return for correction
+          </Button>
+        ) : (
+          <p className="text-xs text-slate-500">Ask a supervisor if something needs correcting.</p>
         )}
       </div>
-      {onReturn && (
-        <Button variant="outline" className="gap-2" onClick={onReturn}>
-          <RotateCcw className="h-4 w-4" /> Return for correction
-        </Button>
-      )}
     </section>
   );
 }
