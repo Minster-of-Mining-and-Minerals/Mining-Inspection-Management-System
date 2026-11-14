@@ -143,11 +143,10 @@ export default function AllInspections() {
       )}
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-        <table className="w-full min-w-[1020px] text-sm">
+        <table className="w-full min-w-[860px] text-sm">
           <thead className="bg-slate-50 text-left text-xs text-slate-500">
             <tr>
               <th className="px-4 py-2 font-medium">Company / license</th>
-              <th className="px-3 py-2 font-medium">Checklist</th>
               <th className="px-3 py-2 font-medium">Team</th>
               <th className="px-3 py-2 font-medium">Round · due</th>
               <th className="px-3 py-2 font-medium">Status</th>
@@ -165,10 +164,6 @@ export default function AllInspections() {
                   <p className="text-xs text-slate-500">
                     {t.license?.license_number} · {t.license?.license_type}
                   </p>
-                </td>
-                <td className="px-3 py-2 text-slate-700">
-                  {t.form?.name}
-                  {t.schedule && <p className="text-xs text-slate-500">{t.schedule.name}</p>}
                 </td>
                 <td className="px-3 py-2 text-slate-700">{t.team?.name ?? <span className="font-medium text-amber-700">No team</span>}</td>
                 <td className="px-3 py-2 text-xs text-slate-600">
