@@ -26,7 +26,7 @@ const PIN_SVG = `<svg width="30" height="40" viewBox="0 0 30 40" xmlns="http://w
 </svg>`;
 
 export const whenText = (iso: string) =>
-  new Date(iso).toLocaleString("en-GB", { timeZone: "Africa/Addis_Ababa", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  new Date(iso).toLocaleString("en-GB", { timeZone: "Africa/Addis_Ababa", day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).replace(/\b(am|pm)\b/, (s) => s.toUpperCase());
 
 const popupHtml = (p: MapPoint) => `<div style="min-width:210px;font:13px/1.45 system-ui,sans-serif">
     <div style="font-weight:700">${esc(p.submitted_by_name ?? "Unknown inspector")}</div>

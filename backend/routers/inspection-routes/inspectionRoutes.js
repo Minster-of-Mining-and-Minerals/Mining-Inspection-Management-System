@@ -112,6 +112,8 @@ const readAny = authorizeAny([
 ]);
 inspectionRouter.get("/", readAny, inspections.getInspections);
 inspectionRouter.get("/team-progress", readAny, inspections.getTeamProgress);
+// The filtered inspections as a CSV / JSON file (summary, or one row per answer)
+inspectionRouter.get("/export", readAny, inspections.exportInspections);
 inspectionRouter.get("/my", authorizeAny([["inspections", "read_own"], ["inspections", "conduct"]]), inspections.getMyTasks);
 inspectionRouter.get("/my/stats", authenticateToken, getMyStats);
 inspectionRouter.get("/license/:licenseId", readAny, inspections.getLicenseHistory);

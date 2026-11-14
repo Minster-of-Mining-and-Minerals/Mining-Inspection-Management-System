@@ -15,22 +15,24 @@ import type { TaskListItem } from "@/redux/types/inspection";
 import { useGetSubmissionMapOptionsQuery } from "@/redux/api/dashboardApi";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge, dueText } from "./taskUi";
+import { ExportMenu, FilterBar, FilterKey, FilterSheetButton } from "./InspectionFilters";
 import { SectorFilter } from "@/components/common/SectorFilter";
 
 const STATUSES: [NonNullable<TaskListParams["status"]> | "", string][] = [
+  // All, Submitted and In progress first, then the others
   ["", "All"],
+  ["submitted", "Submitted"],
+  ["in_progress", "In progress"],
   ["open", "Not submitted"],
   ["todo", "Not started"],
-  ["in_progress", "In progress"],
   ["overdue", "Overdue"],
-  ["submitted", "Submitted"],
   ["on_time", "On time"],
   ["late", "Late"],
   ["returned", "Returned for correction"],
 ];
 const KEYS = ["status", "team_id", "submitted_by", "form_id", "schedule_id", "company_id", "region_id", "license_type", "from", "to", "date_field", "sort", "search"] as const;
 type Key = (typeof KEYS)[number];
-const selectClass = "h-9 min-w-0 rounded-md border border-input bg-white px-2 text-sm";
+const FILTER_KEYS: FilterKey[] = ["region_id", "team_id", "submitted_by", "company_id", "license_type", "form_id", "schedule_id", "date_field", "from", "to"];
 
 export default function AllInspections() {
   const router = useRouter();
@@ -65,17 +67,13 @@ export default function AllInspections() {
   const meta = data?.meta;
   const filterCount = KEYS.filter((k) => k !== "status" && k !== "search" && k !== "date_field" && k !== "sort" && filters[k]).length;
 
-  const Select = ({ k, label, list }: { k: Key; label: string; list?: { id: string; name: string }[] }) =>
-    list && list.length ? (
-      <select aria-label={label} className={`${selectClass} ${filters[k] ? "border-primary text-primary" : ""}`} value={filters[k] ?? ""} onChange={(e) => setParam({ [k]: e.target.value || undefined })}>
-        <option value="">{label}: all</option>
-        {list.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-    ) : null;
+  const filterValues = Object.fromEntries(FILTER_KEYS.map((k) => [k, filters[k]])) as Partial<Record<FilterKey, string>>;
+  const clearFilters = () => {
+    setSearch("");
+    router.replace(pathname, { scroll: false });
+  };
+  // What the export takes: the page's filters (not the page number)
+  const exportQuery = Object.fromEntries(Object.entries(filters).filter(([, v]) => v)) as Record<string, string>;
 
   return (
     <div className="w-full space-y-4">
@@ -89,59 +87,47 @@ export default function AllInspections() {
           <h1 className="text-2xl font-bold text-primary">Inspections</h1>
           <p className="text-sm text-slate-500">Every inspection task and its result. Open one to see its answers, photos, location and history.</p>
         </div>
+        <SectorFilter className="hidden h-10 lg:block" />
+        <ExportMenu query={exportQuery} />
       </div>
 
-      <div className="flex gap-1.5 overflow-x-auto pb-1" role="tablist" aria-label="Status">
-        {STATUSES.map(([k, label]) => (
-          <button
-            key={k || "all"}
-            type="button"
-            role="tab"
-            aria-selected={(filters.status ?? "") === k}
-            onClick={() => setParam({ status: k || undefined })}
-            className={`shrink-0 rounded-full border px-3 py-1.5 text-sm ${(filters.status ?? "") === k ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-600 hover:border-slate-400"}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <div className="min-w-0 space-y-4">
+          {/* Search, and on a phone the Filters sheet */}
+          <div className="flex gap-2.5">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3.5 z-10 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <Input aria-label="Search company or license" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Company or license number" className="h-11 rounded-lg bg-white pl-11 text-[15px]" />
+            </div>
+            <FilterSheetButton values={filterValues} options={options} onChange={(p) => setParam(p)} onClear={clearFilters} />
+          </div>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-0 flex-1 basis-56">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <Input aria-label="Search company or license" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Company or license number" className="h-9 bg-white pl-9" />
-        </div>
-        <SectorFilter />
-        <Select k="region_id" label="Region" list={options?.regions} />
-        <Select k="team_id" label="Team" list={options?.teams} />
-        <Select k="submitted_by" label="Inspector" list={options?.inspectors} />
-        <Select k="form_id" label="Checklist" list={options?.forms} />
-        <Select k="schedule_id" label="Schedule" list={options?.schedules} />
-        <Select k="company_id" label="Company" list={options?.companies} />
-        <select aria-label="License type" className={`${selectClass} ${filters.license_type ? "border-primary text-primary" : ""}`} value={filters.license_type ?? ""} onChange={(e) => setParam({ license_type: e.target.value || undefined })}>
-          <option value="">License type: all</option>
-          <option value="mining">Mining</option>
-          <option value="exploration">Exploration</option>
-        </select>
-        <input type="date" aria-label="From" className={selectClass} value={filters.from ?? ""} onChange={(e) => setParam({ from: e.target.value || undefined })} />
-        <input type="date" aria-label="To" className={selectClass} value={filters.to ?? ""} onChange={(e) => setParam({ to: e.target.value || undefined })} />
-        <select aria-label="Dates are" className={selectClass} value={filters.date_field ?? "submitted"} onChange={(e) => setParam({ date_field: e.target.value === "assigned" ? "assigned" : undefined })}>
-          <option value="submitted">Dates: submitted on</option>
-          <option value="assigned">Dates: round started on</option>
-        </select>
-        {(filterCount > 0 || filters.status || filters.search) && (
-          <button
-            type="button"
-            className="flex items-center gap-1 text-sm text-primary hover:underline"
-            onClick={() => {
-              setSearch("");
-              router.replace(pathname, { scroll: false });
-            }}
-          >
-            <X className="h-4 w-4" /> Clear
-          </button>
-        )}
-      </div>
+          <FilterBar values={filterValues} options={options} onChange={(p) => setParam(p)} onClear={clearFilters} />
+
+          {/* Status: pills on a phone, underlined tabs on a computer */}
+          <nav aria-label="Status" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:gap-1 lg:border-b lg:border-slate-200 lg:px-0 lg:pb-0">
+            {STATUSES.map(([k, label]) => {
+              const on = (filters.status ?? "") === k;
+              return (
+                <button
+                  key={k || "all"}
+                  type="button"
+                  aria-current={on ? "page" : undefined}
+                  onClick={() => setParam({ status: k || undefined })}
+                  className={`shrink-0 whitespace-nowrap text-sm font-semibold transition-colors
+                    h-9 rounded-full border px-3.5 lg:h-auto lg:rounded-none lg:border-0 lg:border-b-[3px] lg:px-4 lg:py-2.5
+                    ${on ? "border-primary bg-primary text-white lg:border-golden-bright lg:bg-transparent lg:text-primary" : "border-slate-300 bg-white text-slate-600 hover:text-primary lg:border-transparent lg:bg-transparent"}`}
+                >
+                  {label}
+                </button>
+              );
+            })}
+          </nav>
+
+          {(filterCount > 0 || filters.status || filters.search) && (
+            <button type="button" className={`flex items-center gap-1 text-sm text-primary hover:underline ${filters.status || filters.search ? "" : "lg:hidden"}`} onClick={clearFilters}>
+              <X className="h-4 w-4" /> Clear all filters
+            </button>
+          )}
 
       {teams && teams.length > 0 && (
         <TeamProgressStrip
@@ -228,6 +214,7 @@ export default function AllInspections() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

@@ -96,10 +96,13 @@ function formatWithTimezone(
   if (!d) return DATE_FALLBACK;
 
   try {
+    // "2:30 pm" → "2:30 PM"
     return new Intl.DateTimeFormat("en-GB", {
       timeZone: SYSTEM_TIMEZONE,
       ...options,
-    }).format(d);
+    })
+      .format(d)
+      .replace(/\b(am|pm)\b/, (s) => s.toUpperCase());
   } catch {
     return DATE_FALLBACK;
   }
@@ -126,24 +129,24 @@ export function formatCalendarDate(value: string | null | undefined): string {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" });
 }
 
-/** e.g. 14:30 */
+/** e.g. 2:30 PM */
 export function formatTime(value: unknown): string {
   return formatWithTimezone(value, {
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
   });
 }
 
-/** e.g. 24 Jun 2026, 14:30 */
+/** e.g. 24 Jun 2026, 2:30 PM */
 export function formatDateTime(value: unknown): string {
   return formatWithTimezone(value, {
     year: "numeric",
     month: "short",
     day: "numeric",
-    hour: "2-digit",
+    hour: "numeric",
     minute: "2-digit",
-    hour12: false,
+    hour12: true,
   });
 }
 

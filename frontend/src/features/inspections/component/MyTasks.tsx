@@ -196,8 +196,12 @@ export default function MyTasks() {
         (!typeFilter || x.license?.license_type === typeFilter) &&
         (!regionFilter || x.area?.region === regionFilter),
     );
+    const pctOf = (t: TaskListItem) => (t.progress?.total ? t.progress.answered / t.progress.total : 0);
     const sorted = [...list].sort((a, b) =>
-      sort === "company"
+      // In progress: the most advanced first
+      tab === "in_progress"
+        ? pctOf(b) - pctOf(a) || a.due_at.localeCompare(b.due_at)
+        : sort === "company"
         ? (a.company?.name ?? "").localeCompare(b.company?.name ?? "")
         : sort === "saved"
           ? (b.last_saved_at ?? b.submitted_at ?? "").localeCompare(a.last_saved_at ?? a.submitted_at ?? "")
@@ -232,7 +236,8 @@ export default function MyTasks() {
       else n.add(key);
       return n;
     });
-  const tabs: Tab[] = ["open", "todo", "in_progress", "returned", "overdue", "submitted"];
+  // All, Submitted and In progress first, then the others
+  const tabs: Tab[] = ["open", "submitted", "in_progress", "todo", "overdue", "returned"];
 
   return (
     <div className="w-full space-y-3">
@@ -333,7 +338,24 @@ export default function MyTasks() {
         </Button>
       </div>
       {showFilters && (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-xs">
+        // Phone: a bottom sheet over the page; computer: a panel under the toolbar
+        <div className="fixed inset-0 z-50 flex items-end bg-slate-900/55 lg:static lg:z-auto lg:block lg:bg-transparent" onClick={() => setShowFilters(false)}>
+        <div
+          role="dialog"
+          aria-label={t("filters")}
+          onClick={(e) => e.stopPropagation()}
+          className="w-full rounded-t-2xl bg-white px-5 pb-6 pt-2.5 text-sm lg:rounded-xl lg:border lg:border-slate-200 lg:p-3 lg:text-xs"
+        >
+          <div className="mb-2 flex justify-center lg:hidden" aria-hidden="true">
+            <span className="h-1 w-10 rounded-full bg-slate-300" />
+          </div>
+          <div className="mb-3 flex items-center justify-between lg:hidden">
+            <h2 className="text-lg font-bold text-slate-900">{t("filters")}</h2>
+            <button type="button" aria-label="Close filters" onClick={() => setShowFilters(false)} className="flex h-11 w-11 items-center justify-center rounded-md text-slate-700 hover:bg-slate-100">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+        <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center lg:gap-2">
           <FilterSelect
             label={am ? "የፈቃድ ዓይነት" : "License type"}
             value={typeFilter}
@@ -373,6 +395,24 @@ export default function MyTasks() {
               <X className="h-3.5 w-3.5" /> {t("clear")}
             </button>
           )}
+        </div>
+          <div className="mt-5 flex gap-2.5 lg:hidden">
+            <Button
+              variant="outline"
+              className="h-12 flex-1"
+              onClick={() => {
+                setFormFilter("");
+                setTypeFilter("");
+                setRegionFilter("");
+              }}
+            >
+              Clear all
+            </Button>
+            <Button className="h-12 flex-[2]" onClick={() => setShowFilters(false)}>
+              Show results
+            </Button>
+          </div>
+        </div>
         </div>
       )}
 

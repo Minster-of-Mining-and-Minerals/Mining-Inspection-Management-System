@@ -13,6 +13,14 @@ import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { FileKind, FormField } from "@/redux/types/form";
 import type { SignatureAnswer } from "./formLogic";
+import { MediaViewer, ViewerItem } from "./MediaViewer";
+
+/** How a signature was given: drawn on the screen (saved as signature.png) or a photo of it */
+export const signatureSource = (meta?: FormFileMeta) => (!meta ? "" : meta.original_name === "signature.png" ? "Signed on the screen" : "Uploaded photo");
+const viewerItem = (api: FormFilesApi, id: string, note?: string): ViewerItem => {
+  const m = api.files[id];
+  return { url: api.urlFor(id), name: m?.original_name ?? "file", mime: m?.mime_type ?? "", kind: m?.kind ?? "", note };
+};
 
 export interface FormFileMeta {
   file_id: string;
@@ -98,6 +106,7 @@ export function FileAnswer({
   const max = f.max_files ?? 10;
   const maxMb = f.max_size_mb ?? 20;
   const [pending, setPending] = useState<Pending[]>([]);
+  const [viewing, setViewing] = useState<number | null>(null);
   const latest = useRef(ids);
   latest.current = ids;
 
@@ -150,8 +159,8 @@ export function FileAnswer({
     <div className="space-y-2">
       {(ids.length > 0 || pending.length > 0) && (
       <ul className="grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-        {ids.map((id) => (
-          <FileTile key={id} meta={api.files[id]} url={api.urlFor(id)} onRemove={api.readOnly ? undefined : () => remove(id)} />
+        {ids.map((id, i) => (
+          <FileTile key={id} meta={api.files[id]} url={api.urlFor(id)} onOpen={() => setViewing(i)} onRemove={api.readOnly ? undefined : () => remove(id)} />
         ))}
         {pending.map((p) => (
           <li key={p.id} className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-center text-[11px] text-slate-600">
@@ -165,6 +174,7 @@ export function FileAnswer({
       </ul>
       )}
       {!api.readOnly && <UploadField accept={accept} max={max} maxMb={maxMb} count={count} am={am} disabled={full} onPick={add} />}
+      <MediaViewer items={ids.map((id) => viewerItem(api, id))} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />
       {api.readOnly && !ids.length && <p className="text-xs text-slate-500">{am ? "ምንም ፋይል የለም።" : "No files."}</p>}
     </div>
   );
@@ -228,13 +238,13 @@ function UploadField({ accept, max, maxMb, count, am, disabled, onPick }: { acce
   );
 }
 
-function FileTile({ meta, url, onRemove }: { meta?: FormFileMeta; url?: string; onRemove?: () => void }) {
+function FileTile({ meta, url, onOpen, onRemove }: { meta?: FormFileMeta; url?: string; onOpen: () => void; onRemove?: () => void }) {
   const [confirming, setConfirming] = useState(false);
   if (!meta) return null;
   const isImage = meta.kind === "image" && !/hei[cf]/i.test(meta.mime_type);
   return (
     <li className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <a href={url} target="_blank" rel="noreferrer" className="flex h-full w-full flex-col items-center justify-center gap-1 p-1 text-center" title={meta.original_name}>
+      <button type="button" onClick={onOpen} className="flex h-full w-full flex-col items-center justify-center gap-1 p-1 text-center" title={`Open ${meta.original_name}`}>
         {isImage && url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={url} alt={meta.original_name} className="h-full w-full rounded object-cover" />
@@ -245,7 +255,7 @@ function FileTile({ meta, url, onRemove }: { meta?: FormFileMeta; url?: string; 
             <span className="text-[10px] text-slate-500">{formatBytes(meta.size_bytes)}</span>
           </>
         )}
-      </a>
+      </button>
       {onRemove && (
       <button
         type="button"
@@ -289,6 +299,7 @@ export function SignatureAnswerInput({ field: f, value, onChange }: { field: For
   const list: SignatureAnswer[] = Array.isArray(value) ? value : value ? [value] : [];
   const [drawing, setDrawing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
   const withName = f.with_name !== false;
 
@@ -338,8 +349,11 @@ export function SignatureAnswerInput({ field: f, value, onChange }: { field: For
     <div className="space-y-2">
       {list.map((s, i) => (
         <div key={s.file_id} className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {api.urlFor(s.file_id) ? <img src={api.urlFor(s.file_id)} alt={`Signature of ${s.name || "signer"}`} className="h-16 w-48 rounded bg-white object-contain" /> : <span className="h-16 w-48" />}
+          <button type="button" onClick={() => setViewing(i)} className="flex flex-col items-start gap-1 text-left" title="Open the signature">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {api.urlFor(s.file_id) ? <img src={api.urlFor(s.file_id)} alt={`Signature of ${s.name || "signer"}`} className="h-16 w-48 rounded bg-white object-contain" /> : <span className="h-16 w-48" />}
+            <span className="text-[11px] font-medium text-slate-500">{signatureSource(api.files[s.file_id])}</span>
+          </button>
           {withName && (
             <label className="min-w-40 flex-1 space-y-1 text-xs text-slate-600">
               Name of the person who signed
@@ -363,6 +377,7 @@ export function SignatureAnswerInput({ field: f, value, onChange }: { field: For
         </div>
       ))}
       {api.readOnly && !list.length && <p className="text-xs text-slate-500">Not signed.</p>}
+      <MediaViewer items={list.map((s) => viewerItem(api, s.file_id, [s.name, signatureSource(api.files[s.file_id])].filter(Boolean).join(" · ")))} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />
       {api.readOnly ? null : drawing ? (
         <SignaturePad onSave={save} onCancel={() => setDrawing(false)} />
       ) : (
@@ -410,6 +425,7 @@ export function SignatureCell({ fieldKey, value, onChange, signer }: { fieldKey:
   const api = useContext(FormFilesContext);
   const [drawing, setDrawing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [viewing, setViewing] = useState<number | null>(null);
   const photoInput = useRef<HTMLInputElement>(null);
 
   if (!api) return <span className="flex items-center gap-1 text-xs text-slate-400"><PenLine className="h-3.5 w-3.5" /> Signature</span>;
@@ -437,8 +453,12 @@ export function SignatureCell({ fieldKey, value, onChange, signer }: { fieldKey:
   if (value)
     return (
       <div className="flex items-center gap-1">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        {url ? <img src={url} alt={`Signature${signer ? ` of ${signer}` : ""}`} className="h-10 w-28 rounded border border-slate-200 bg-white object-contain" /> : <span className="h-10 w-28 rounded border border-slate-200 bg-slate-50" />}
+        <button type="button" onClick={() => setViewing(0)} className="flex flex-col items-start gap-0.5 text-left" title="Open the signature">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {url ? <img src={url} alt={`Signature${signer ? ` of ${signer}` : ""}`} className="h-10 w-28 rounded border border-slate-200 bg-white object-contain" /> : <span className="h-10 w-28 rounded border border-slate-200 bg-slate-50" />}
+          <span className="text-[10px] font-medium text-slate-500">{signatureSource(api.files[value])}</span>
+        </button>
+        <MediaViewer items={[viewerItem(api, value, [signer, signatureSource(api.files[value])].filter(Boolean).join(" · "))]} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} />
         {!api.readOnly && (
           <button
             type="button"

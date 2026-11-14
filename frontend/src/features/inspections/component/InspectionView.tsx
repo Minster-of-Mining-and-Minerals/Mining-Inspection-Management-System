@@ -279,7 +279,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
           </span>
         </p>
       )}
-      {task.status === "submitted" && <SubmittedSummary task={task} onReturn={task.can.return ? () => setReturning(true) : undefined} />}
+      {task.status === "submitted" && <SubmittedSummary task={task} onReturn={task.can.return ? () => setReturning(true) : undefined} onShowPlace={() => setView("site")} />}
       {office && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
           <span className="min-w-0 flex-1">
@@ -386,7 +386,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 }
 
 /* =================== after submitting =================== */
-function SubmittedSummary({ task, onReturn }: { task: TaskDetail; onReturn?: () => void }) {
+function SubmittedSummary({ task, onReturn, onShowPlace }: { task: TaskDetail; onReturn?: () => void; onShowPlace: () => void }) {
   const loc = task.submit_location;
   return (
     <section className="flex flex-wrap items-start gap-4 rounded-xl border border-green-200 bg-green-50/60 p-4 text-sm">
@@ -403,9 +403,10 @@ function SubmittedSummary({ task, onReturn }: { task: TaskDetail; onReturn?: () 
         <p className="text-xs text-slate-600">
           <MapPin className="mr-1 inline h-3.5 w-3.5" />
           {loc?.lat != null ? (
-            <a className="text-primary hover:underline" href={`https://www.openstreetmap.org/?mlat=${loc.lat}&mlon=${loc.lng}#map=15/${loc.lat}/${loc.lng}`} target="_blank" rel="noreferrer">
+            // Shown on the Site tab's map (inside the system)
+            <button type="button" className="text-primary hover:underline" onClick={onShowPlace} title="Show on the map">
               {loc.place?.label ?? `${loc.lat.toFixed(5)}, ${loc.lng!.toFixed(5)}`} (±{loc.accuracy} m)
-            </a>
+            </button>
           ) : (
             <span className="text-amber-700">No location: {loc?.error ?? "not shared"}</span>
           )}

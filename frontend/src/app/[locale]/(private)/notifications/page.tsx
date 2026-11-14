@@ -17,7 +17,6 @@ import {
     NotificationCategory as Category,
     getNotificationCategory as getCategory,
     getNotificationLink,
-    matchesNotificationCategory as matchesCategory,
 } from "@/utils/notificationCategories";
 
 type StatusFilter = "ALL" | "UNREAD" | "READ";
@@ -41,7 +40,8 @@ const typeLabel = (type: string) =>
 const Notifications = () => {
     const router = useRouter();
 
-    const [activeCategory, setActiveCategory] = useState<Category>("INSPECTION");
+    // "ALL" first, so every notification the bell counts is on the page
+    const [activeCategory, setActiveCategory] = useState<Category | "ALL">("ALL");
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
 
     const { data: notifications = [], isLoading } = useGetMyNotificationsQuery(undefined, {
@@ -90,12 +90,14 @@ const Notifications = () => {
                     statusFilter === "ALL" ||
                     (statusFilter === "UNREAD" && !n.is_read) ||
                     (statusFilter === "READ" && n.is_read);
-                return matchesCategory(activeCategory, n.type) && statusMatch;
+                // Each notification is on the tab of its category (unknown types: System), and on All
+                return (activeCategory === "ALL" || getCategory(n.type) === activeCategory) && statusMatch;
             })
             .sort((a, b) => compareUtcDates(b.created_at, a.created_at));
     }, [notifications, activeCategory, statusFilter]);
 
-    const ActiveIcon = CATEGORIES.find((c) => c.key === activeCategory)!.icon;
+    const TABS = [{ key: "ALL" as const, label: "All", icon: Bell }, ...CATEGORIES];
+    const ActiveIcon = TABS.find((c) => c.key === activeCategory)!.icon;
 
     return (
         <div className="w-full space-y-5">
@@ -126,9 +128,9 @@ const Notifications = () => {
                 {/* Toolbar: category tabs + status filter */}
                 <div className="flex flex-col gap-3 border-b border-slate-200 px-4 pt-3 sm:flex-row sm:items-end sm:justify-between sm:px-6">
                     <div className="-mb-px flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {CATEGORIES.map(({ key, label, icon: Icon }) => {
+                        {TABS.map(({ key, label, icon: Icon }) => {
                             const active = activeCategory === key;
-                            const count = unreadByCategory[key];
+                            const count = key === "ALL" ? totalUnread : unreadByCategory[key];
                             return (
                                 <button
                                     key={key}
@@ -190,7 +192,7 @@ const Notifications = () => {
                                 <ActiveIcon className="h-9 w-9 text-slate-300" />
                             </div>
                             <p className="font-semibold text-slate-600">No notifications here</p>
-                            <p className="text-sm text-slate-400">We'll let you know when something happens.</p>
+                            <p className="text-sm text-slate-400">We&apos;ll let you know when something happens.</p>
                         </div>
                     ) : (
                         filteredNotifications.map((n, index) => {

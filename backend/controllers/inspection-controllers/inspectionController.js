@@ -26,6 +26,7 @@ const fail = (res, status, message, extra) => res.status(status).json({ success:
 const { can, myTeamId, loadTask } = require("./inspectionAccess");
 const { listFiles, sanitizeFileRefs, removeUnusedFiles } = require("./inspectionFileController");
 const notify = require("../../services/inspectionNotifications");
+const exporter = require("../../services/inspectionExport");
 const { placeOf } = require("../../services/placeService");
 
 const LIST_INCLUDE = [
@@ -114,6 +115,27 @@ const getInspections = async (req, res) => {
     if (!where) return res.status(200).json({ success: true, data: [], meta: { totalItems: 0, totalPages: 0, currentPage: 1, itemsPerPage: 50 } });
     const limit = Math.min(200, Math.max(1, parseInt(q.limit, 10) || 50));
     const page = Math.max(1, parseInt(q.page, 10) || 1);
+
+    // In progress: the most advanced first. Progress is worked out from the answers, so all the
+    // in-progress tasks are ranked here, then the page is cut from that order.
+    if (q.status === "in_progress") {
+      const all = await Inspection.findAll({ where, include: LIST_INCLUDE, attributes: ["inspection_id", "status", "form_version_id", "due_at", "license_id"] });
+      const progressAll = await progressOf(all);
+      const pct = (id) => {
+        const p = progressAll.get(id);
+        return p?.total ? p.answered / p.total : 0;
+      };
+      const ranked = all.sort((a, b) => pct(b.inspection_id) - pct(a.inspection_id) || new Date(a.due_at) - new Date(b.due_at)).map((t) => t.inspection_id);
+      const pageIds = ranked.slice((page - 1) * limit, page * limit);
+      const rowsById = new Map((await Inspection.findAll({ where: { inspection_id: pageIds }, include: LIST_INCLUDE, attributes: LIST_ATTRS })).map((r) => [r.inspection_id, r]));
+      const pageRows = pageIds.map((id) => rowsById.get(id)).filter(Boolean);
+      return res.status(200).json({
+        success: true,
+        data: pageRows.map((r) => ({ ...summary(r), progress: progressAll.get(r.inspection_id) ?? null })),
+        meta: { totalItems: ranked.length, totalPages: Math.ceil(ranked.length / limit), currentPage: page, itemsPerPage: limit },
+      });
+    }
+
     const { rows, count } = await Inspection.findAndCountAll({
       where,
       include: LIST_INCLUDE,
@@ -140,6 +162,49 @@ const getInspections = async (req, res) => {
   } catch (error) {
     console.error("getInspections", error);
     return fail(res, 500, "Failed to fetch inspections.");
+  }
+};
+
+/**
+ * GET /api/inspections/export?format=csv|json&detail=summary|answers — the inspections matching the
+ * list's filters (all pages), as a file to download. See services/inspectionExport.js.
+ */
+const exportInspections = async (req, res) => {
+  try {
+    const q = req.query;
+    const format = q.format === "json" ? "json" : "csv";
+    const detail = q.detail === "answers" ? "answers" : "summary";
+    const where = await listWhere(req, q);
+    const tasks = where
+      ? await Inspection.findAll({
+          where,
+          include: LIST_INCLUDE,
+          attributes: detail === "answers" ? { exclude: ["submit_device", "submit_ip"] } : LIST_ATTRS,
+          order: [["occurrence_date", "DESC"], [{ model: Company, as: "company" }, "name", "ASC"]],
+        })
+      : [];
+    const areas = await areasOf(tasks.map((t) => t.license_id));
+    let rows;
+    if (detail === "summary") {
+      const progress = await progressOf(tasks);
+      rows = tasks.map((t) => exporter.summaryRow(t, areas.get(t.license_id), progress.get(t.inspection_id)));
+    } else {
+      const versionIds = [...new Set(tasks.map((t) => t.form_version_id).filter(Boolean))];
+      const defs = new Map((await FormVersion.findAll({ where: { version_id: versionIds }, attributes: ["version_id", "definition"] })).map((v) => [v.version_id, v.definition]));
+      rows = tasks.filter((t) => defs.has(t.form_version_id)).flatMap((t) => exporter.answerRows(t, defs.get(t.form_version_id), areas.get(t.license_id)));
+    }
+    const stamp = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Addis_Ababa" });
+    const name = `inspections-${detail}-${stamp}.${format}`;
+    res.setHeader("Content-Disposition", `attachment; filename="${name}"`);
+    if (format === "json") {
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      return res.status(200).send(JSON.stringify({ exported_at: new Date().toISOString(), detail, count: rows.length, rows }, null, 2));
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    return res.status(200).send(exporter.toCsv(rows));
+  } catch (error) {
+    console.error("exportInspections", error);
+    return fail(res, 500, "Failed to export the inspections.");
   }
 };
 
@@ -603,6 +668,7 @@ const updateAssignment = async (req, res) => {
 };
 
 module.exports = {
+  exportInspections,
   saveOfficeAnswers,
   getInspections,
   getTeamProgress,
