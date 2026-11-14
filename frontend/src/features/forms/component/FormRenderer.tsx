@@ -1,6 +1,7 @@
 "use client";
 
-import { Camera, PenLine, Plus, Trash2 } from "lucide-react";
+import { Camera, Check, PenLine, Plus, Trash2 } from "lucide-react";
+import { formatCalendarDate } from "@/utils/date";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { FormDefinition, FormField, FormSection, LicenseTypeKey, StatusOption } from "@/redux/types/form";
@@ -44,7 +45,7 @@ export function FormRenderer({ definition, licenseType, answers, onChange, probl
           <ol className="divide-y">
             {fields.map((f, i) => (
               <li key={f.key} className={problems[f.key] ? "bg-red-50/60" : ""}>
-                <QuestionBlock definition={definition} field={f} index={i + 1} value={answers[f.key]} onChange={(v) => onChange(f.key, v)} problem={problems[f.key]} language={language} previewMode={previewMode} />
+                <QuestionBlock definition={definition} field={f} index={i + 1} value={answers[f.key]} onChange={(v) => onChange(f.key, v)} problem={problems[f.key]} language={language} previewMode={previewMode} readOnly={readOnly} source={f.prefill ? "license" : undefined} />
               </li>
             ))}
           </ol>
@@ -79,6 +80,8 @@ export function QuestionBlock({
   language,
   previewMode,
   large,
+  readOnly,
+  source,
 }: {
   definition: FormDefinition;
   field: FormField;
@@ -89,9 +92,15 @@ export function QuestionBlock({
   language: FormLanguage;
   previewMode?: boolean;
   large?: boolean;
+  /** Shown, not filled in (a submitted inspection, the office's view) */
+  readOnly?: boolean;
+  /** Where the answer came from, when not from the inspector on site */
+  source?: "license" | "office";
 }) {
   const options = f.type === "status" ? statusOptionsFor(definition, f) : [];
-  const input = (part: InputPart) => <FieldInput field={f} options={options} value={value} onChange={onChange} language={language} previewMode={previewMode} large={large} part={part} />;
+  const input = (part: InputPart) => <FieldInput field={f} options={options} value={value} onChange={onChange} language={language} previewMode={previewMode} large={large} part={part} readOnly={readOnly} />;
+  // Only answers completed at the office are marked
+  const tag = readOnly && source === "office" && !isEmpty(value) ? source : undefined;
   const problemLine = problem && (
     <p role="alert" className="text-sm font-medium text-red-600">
       {problem}
@@ -103,7 +112,7 @@ export function QuestionBlock({
     return (
       <div id={`answer-${f.key}`} className="scroll-mt-36 space-y-3">
         <div className={`space-y-4 rounded-xl border bg-white p-4 shadow-sm sm:p-5 ${problem ? "border-red-300" : "border-slate-200"}`}>
-          <QuestionLabel field={f} index={index} language={language} large />
+          <QuestionLabel field={f} index={index} language={language} large tag={tag} />
           {input(f.type === "status" ? "main" : "all")}
         </div>
         {f.type === "status" && input("extra")}
@@ -113,14 +122,19 @@ export function QuestionBlock({
   }
   return (
     <div id={`answer-${f.key}`} className="scroll-mt-36 space-y-2 px-4 py-3">
-      <QuestionLabel field={f} index={index} language={language} />
+      <QuestionLabel field={f} index={index} language={language} tag={tag} />
       {input("all")}
       {problemLine}
     </div>
   );
 }
 
-function QuestionLabel({ field, index, language, large }: { field: FormField; index?: number; language: FormLanguage; large?: boolean }) {
+const isEmpty = (v: unknown) => v == null || v === "" || (Array.isArray(v) && !v.length);
+const SOURCE_TAG = {
+  office: { am: "በቢሮ የተሞላ", en: "Completed at the office", cls: "bg-sky-100 text-sky-800" },
+};
+
+function QuestionLabel({ field, index, language, large, tag }: { field: FormField; index?: number; language: FormLanguage; large?: boolean; tag?: "office" }) {
   const help = pickText(field.help, field.help_am, language);
   return (
     <div className={`flex gap-2 text-slate-900 ${large ? "text-base font-semibold leading-relaxed sm:text-lg" : "text-sm font-medium"}`}>
@@ -128,6 +142,9 @@ function QuestionLabel({ field, index, language, large }: { field: FormField; in
       <div className="min-w-0">
         {L(field.label, field.label_am, language)}
         {field.required && <span className="ml-1 text-red-500">*</span>}
+        {tag && (
+          <span className={`ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[11px] font-semibold ${SOURCE_TAG[tag].cls}`}>{language === "am" ? SOURCE_TAG[tag].am : SOURCE_TAG[tag].en}</span>
+        )}
         {help && <p className={`mt-0.5 font-normal text-slate-500 ${large ? "text-sm" : "text-xs"}`}>{help}</p>}
       </div>
     </div>
@@ -163,6 +180,7 @@ function FieldInput({
   previewMode,
   large,
   part = "all",
+  readOnly,
 }: {
   field: FormField;
   options: StatusOption[];
@@ -172,6 +190,7 @@ function FieldInput({
   previewMode?: boolean;
   large?: boolean;
   part?: InputPart;
+  readOnly?: boolean;
 }) {
   const optLabel = (o: { label: string; label_am?: string | null }) => pickText(o.label, o.label_am, language);
   const pad = large ? "" : "pl-8";
@@ -181,6 +200,27 @@ function FieldInput({
   // Big answer buttons (two per row) in the one-question view
   const choiceWrap = large ? "grid grid-cols-2 gap-2" : "flex flex-wrap gap-2";
   const choiceSize = large ? "justify-center rounded-lg px-3 py-3 text-base font-bold" : "rounded-lg px-3 py-1.5 text-sm font-semibold";
+
+  if (readOnly && ["text", "long_text", "number", "date"].includes(f.type)) {
+    if (isEmpty(value))
+      return (
+        <div className={pad}>
+          <div className={`h-11 rounded-lg border border-slate-200 bg-white ${f.type === "number" || f.type === "date" ? "max-w-xs" : ""}`} aria-label={am ? "አልተመለሰም" : "Not answered"} />
+        </div>
+      );
+    const shown = f.type === "date" ? formatCalendarDate(String(value)) : String(value);
+    return (
+      <div className={pad}>
+        <div className={`flex items-start gap-2.5 rounded-lg border border-[#C9DDF0] bg-[#EAF2FA] px-3 py-2.5 text-[#0B2C45] ${f.type === "number" || f.type === "date" ? "max-w-xs" : ""}`}>
+          <span className={`min-w-0 flex-1 break-words text-[15px] font-medium ${f.type === "long_text" ? "whitespace-pre-line leading-relaxed" : ""}`}>
+            {shown}
+            {f.type === "number" && f.unit && <span className="ml-1 font-normal text-slate-500">{f.unit}</span>}
+          </span>
+          <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-700" aria-label={am ? "ተመልሷል" : "Answered"} />
+        </div>
+      </div>
+    );
+  }
 
   switch (f.type) {
     case "status": {

@@ -238,6 +238,8 @@ export function InspectionStepper({
             problem={problems[here.field.key]}
             language={language}
             large
+            readOnly={readOnly && !openSections?.has(here.section.key)}
+            source={here.field.prefill ? "license" : here.section.after_submit ? "office" : undefined}
           />
         ) : (
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -245,7 +247,17 @@ export function InspectionStepper({
             <ol className="divide-y">
               {current.fields.map((f, i) => (
                 <li key={f.key} className={problems[f.key] ? "bg-red-50/60" : ""}>
-                  <QuestionBlock definition={definition} field={f} index={i + 1} value={answers[f.key]} onChange={(v) => onChange(f.key, v)} problem={problems[f.key]} language={language} />
+                  <QuestionBlock
+                    definition={definition}
+                    field={f}
+                    index={i + 1}
+                    value={answers[f.key]}
+                    onChange={(v) => onChange(f.key, v)}
+                    problem={problems[f.key]}
+                    language={language}
+                    readOnly={readOnly && !openSections?.has(current.section.key)}
+                    source={f.prefill ? "license" : current.section.after_submit ? "office" : undefined}
+                  />
                 </li>
               ))}
             </ol>
