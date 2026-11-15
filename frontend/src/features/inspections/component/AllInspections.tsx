@@ -13,9 +13,10 @@ import { Input } from "@/components/ui/input";
 import { TaskListParams, TeamProgress, useGetTasksQuery, useGetTeamProgressQuery } from "@/redux/api/inspectionApi";
 import type { TaskListItem } from "@/redux/types/inspection";
 import { useGetSubmissionMapOptionsQuery } from "@/redux/api/dashboardApi";
-import { formatCalendarDate, formatDateTime } from "@/utils/date";
-import { TaskStatusBadge, dueText } from "./taskUi";
+import { formatDateTime } from "@/utils/date";
+import { TaskStatusBadge } from "./taskUi";
 import { ExportMenu, FilterBar, FilterKey, FilterSheetButton } from "./InspectionFilters";
+import { distanceText } from "@/utils/licenseArea";
 import { SectorFilter } from "@/components/common/SectorFilter";
 
 const STATUSES: [NonNullable<TaskListParams["status"]> | "", string][] = [
@@ -142,22 +143,22 @@ export default function AllInspections() {
         <table className="w-full min-w-[900px] table-fixed text-sm">
           {/* Company gets the most room; the rest are sized to what they show */}
           <colgroup>
-            <col className="w-[30%]" />
-            <col className="w-[12%]" />
+            <col className="w-[27%]" />
+            <col className="w-[11%]" />
             <col className="w-[16%]" />
             <col className="w-[13%]" />
-            <col className="w-[12%]" />
-            <col className="w-[17%]" />
+            <col className="w-[11%]" />
+            <col className="w-[22%]" />
           </colgroup>
           {/* Navy header band, striped rows */}
           <thead className="bg-primary text-left text-xs uppercase tracking-wider text-white">
             <tr>
               <th className="px-4 py-3 font-bold">Company / license</th>
               <th className="px-4 py-3 font-bold">Team</th>
-              <th className="px-4 py-3 font-bold">Round · due</th>
+              <th className="px-4 py-3 font-bold">Submitted</th>
               <th className="px-4 py-3 font-bold">Status</th>
               <th className="px-4 py-3 font-bold">Progress</th>
-              <th className="px-4 py-3 font-bold">Submitted</th>
+              <th className="px-4 py-3 font-bold">Place of submission</th>
             </tr>
           </thead>
           <tbody className={isFetching ? "opacity-60" : ""}>
@@ -173,16 +174,6 @@ export default function AllInspections() {
                 </td>
                 <td className="truncate px-4 py-2.5 align-middle text-slate-700">{t.team?.name ?? <span className="font-medium text-amber-700">No team</span>}</td>
                 <td className="px-4 py-2.5 align-middle text-[13px] text-slate-700">
-                  {formatCalendarDate(t.occurrence_date)}
-                  <span className={`block text-xs ${t.is_overdue ? "font-semibold text-red-700" : "text-slate-500"}`}>due {dueText(t.due_at)}</span>
-                </td>
-                <td className="px-4 py-2.5 align-middle">
-                  <TaskStatusBadge task={t} dot />
-                </td>
-                <td className="px-4 py-2.5 align-middle">
-                  <TaskProgress task={t} />
-                </td>
-                <td className="px-4 py-2.5 align-middle text-[13px] text-slate-700">
                   {t.submitted_at ? (
                     <>
                       {formatDateTime(t.submitted_at)}
@@ -191,6 +182,15 @@ export default function AllInspections() {
                   ) : (
                     <span className="text-slate-300">—</span>
                   )}
+                </td>
+                <td className="px-4 py-2.5 align-middle">
+                  <TaskStatusBadge task={t} dot />
+                </td>
+                <td className="px-4 py-2.5 align-middle">
+                  <TaskProgress task={t} />
+                </td>
+                <td className="px-4 py-2.5 align-middle text-[13px] text-slate-700">
+                  <SubmitPlace task={t} />
                 </td>
               </tr>
             ))}
@@ -272,5 +272,25 @@ function TeamProgressStrip({ teams, teamId, noTeam, onPick }: { teams: TeamProgr
         })}
       </div>
     </section>
+  );
+}
+
+/** Where a submitted inspection was submitted: the place, and whether that was at the license area. */
+function SubmitPlace({ task: t }: { task: TaskListItem }) {
+  if (t.status !== "submitted") return <span className="text-slate-300">—</span>;
+  const loc = t.submit_location;
+  if (!loc || loc.lat == null || loc.lng == null) return <span className="text-xs text-slate-400">No location</span>;
+  const name = loc.place?.label ?? `${loc.lat.toFixed(4)}, ${loc.lng.toFixed(4)}`;
+  return (
+    <>
+      <span className="block truncate" title={name}>
+        {name}
+      </span>
+      {loc.site && (
+        <span className={`block truncate text-xs font-semibold ${loc.site.inside ? "text-green-700" : "text-orange-700"}`}>
+          {loc.site.inside ? "✓ Inside the license area" : `⚠ ${distanceText(loc.site.distance_m)} from the license area`}
+        </span>
+      )}
+    </>
   );
 }

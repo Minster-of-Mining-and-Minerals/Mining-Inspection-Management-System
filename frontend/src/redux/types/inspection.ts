@@ -72,6 +72,7 @@ export interface SchedulePreview {
 }
 
 export interface TaskListItem {
+  submit_location?: SubmitLocation;
   inspection_id: string;
   schedule_id: string | null;
   form_id: string;
@@ -121,6 +122,18 @@ export interface InspectionFile {
   created_at: string;
   uploader?: { user_id: string; full_name: string } | null;
 }
+
+/** Where an inspection was submitted (the phone's location when Submit was pressed) */
+export type SubmitLocation = {
+  lat?: number;
+  lng?: number;
+  accuracy?: number;
+  captured_at?: string;
+  error?: string;
+  place?: { label: string; woreda?: string | null; zone?: string | null; region?: string | null } | null;
+  /** Where the submission was relative to the license area (when the license has one) */
+  site?: { inside: boolean; distance_m: number } | null;
+} | null;
 
 export interface TaskDetail extends TaskListItem {
   files: InspectionFile[];

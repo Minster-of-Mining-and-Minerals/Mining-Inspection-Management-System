@@ -145,7 +145,15 @@ const getInspections = async (req, res) => {
           ? [[literal('"Inspection"."score" IS NULL'), "ASC"], ["score", "ASC"], ["submitted_at", "DESC"]]
           : q.status === "submitted" || q.status === "late" || q.status === "on_time"
             ? [["submitted_at", "DESC"]]
-            : [
+            : !q.status
+              ? // All: submitted ones first, the newest submission on top; then the rest, newest round first
+                [
+                  [literal(`"Inspection"."status" = 'submitted'`), "DESC"],
+                  ["submitted_at", "DESC NULLS LAST"],
+                  ["occurrence_date", "DESC"],
+                  [{ model: Company, as: "company" }, "name", "ASC"],
+                ]
+              : [
                 ["occurrence_date", "DESC"],
                 [{ model: Company, as: "company" }, "name", "ASC"],
               ],
