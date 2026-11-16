@@ -7,12 +7,13 @@
  */
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { Crosshair, MapPin, Plane, ShieldAlert } from "lucide-react";
+import { Crosshair, Locate, MapPin, Plane, ShieldAlert } from "lucide-react";
 import { usePosition } from "@/hooks/usePosition";
 import type { TaskDetail } from "@/redux/types/inspection";
 import { distanceText, positionInArea } from "@/utils/licenseArea";
 import { dueText } from "./taskUi";
 import { MapMaximizeButton, useMapMaximize } from "@/components/common/MapMaximize";
+import { CoordinatesSheet } from "./CoordinatesSheet";
 
 const LicenseMap = dynamic(() => import("@/features/my-work/component/LicenseMap"), {
   ssr: false,
@@ -32,6 +33,7 @@ export function SiteView({ task, onStart }: { task: TaskDetail; onStart?: () => 
   const live = usePosition(!submitted);
   const [recenter, setRecenter] = useState(0);
   const max = useMapMaximize();
+  const [coordsOpen, setCoordsOpen] = useState(false);
 
   // Submitted: where it was submitted; otherwise the phone's position now
   const sub = task.submit_location;
@@ -133,12 +135,33 @@ export function SiteView({ task, onStart }: { task: TaskDetail; onStart?: () => 
             </p>
           )}
         </div>
-        {onStart && (
-          <button type="button" onClick={onStart} className="flex min-h-12 w-full items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
-            {task.status === "todo" ? "Start inspection" : submitted ? "See the answers" : "Continue inspection"}
-          </button>
-        )}
+        <div className="flex gap-2.5">
+          {(boundary || me || (site?.center_lat != null && site?.center_lng != null)) && (
+            <button
+              type="button"
+              onClick={() => setCoordsOpen(true)}
+              className={`flex min-h-12 items-center justify-center gap-2 rounded-lg border-[1.5px] border-primary px-4 text-sm font-semibold text-primary ${onStart ? "shrink-0" : "flex-1"}`}
+            >
+              <Locate className="h-4 w-4" /> Coordinates
+            </button>
+          )}
+          {onStart && (
+            <button type="button" onClick={onStart} className="flex min-h-12 flex-1 items-center justify-center rounded-lg bg-primary text-sm font-semibold text-white">
+              {task.status === "todo" ? "Start inspection" : submitted ? "See the answers" : "Continue inspection"}
+            </button>
+          )}
+        </div>
       </div>
+
+      <CoordinatesSheet
+        open={coordsOpen}
+        onClose={() => setCoordsOpen(false)}
+        title={`${task.company?.name ?? "License"} · ${task.license?.license_number ?? ""}`}
+        me={me}
+        meLabel={submitted ? "Submitted from" : "My location"}
+        center={site?.center_lat != null && site?.center_lng != null ? { lat: site.center_lat, lng: site.center_lng } : null}
+        boundary={boundary}
+      />
     </div>
   );
 }
