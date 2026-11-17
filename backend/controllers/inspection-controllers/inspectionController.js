@@ -28,6 +28,7 @@ const { listFiles, sanitizeFileRefs, removeUnusedFiles } = require("./inspection
 const notify = require("../../services/inspectionNotifications");
 const exporter = require("../../services/inspectionExport");
 const { placeOf } = require("../../services/placeService");
+const { isComputer, phoneRequiredToSubmit } = require("../../utils/device");
 
 const LIST_INCLUDE = [
   { model: Company, as: "company", attributes: ["company_id", "name", "name_am"] },
@@ -547,7 +548,7 @@ const saveOfficeAnswers = async (req, res) => {
 };
 
 const LOCATION_KEYS = ["lat", "lng", "accuracy", "altitude", "captured_at", "error"];
-const DEVICE_KEYS = ["user_agent", "platform", "language", "screen", "timezone", "device_id"];
+const DEVICE_KEYS = ["user_agent", "platform", "language", "screen", "timezone", "device_id", "touch", "mobile"];
 const pick = (o, keys) => (o && typeof o === "object" ? Object.fromEntries(keys.filter((k) => o[k] != null).map((k) => [k, typeof o[k] === "string" ? o[k].slice(0, 500) : o[k]])) : null);
 
 /** Check the answers, score them, lock the task. Late if after the due time. */
@@ -558,6 +559,9 @@ const submitInspection = async (req, res) => {
     await task.reload({ transaction, lock: transaction.LOCK.UPDATE });
     if (task.status === "submitted") throw Object.assign(new Error("This inspection has already been submitted."), { status: 409 });
     if (!rights.fill) throw Object.assign(new Error("Only members of the assigned team can submit this inspection."), { status: 403 });
+    // Submitted from a phone or tablet only: a computer has no GPS, its location is a guess from the internet connection
+    if (phoneRequiredToSubmit() && isComputer(req))
+      throw Object.assign(new Error("Inspections can only be submitted from a phone. Your answers are saved: open this inspection on your phone to submit it."), { status: 403, extra: { code: "PHONE_REQUIRED" } });
     // Where it was submitted is required: the phone's GPS point
     const lat = Number(req.body.location?.lat);
     const lng = Number(req.body.location?.lng);

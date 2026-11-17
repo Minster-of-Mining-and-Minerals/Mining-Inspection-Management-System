@@ -23,7 +23,7 @@ import { SiteView } from "./SiteView";
 import { distanceText } from "@/utils/licenseArea";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
-import { deviceLabel } from "@/utils/device";
+import { deviceLabel, isComputer } from "@/utils/device";
 import { Answers, defaultTableRows, validateAnswers } from "@/features/forms/component/formLogic";
 import { useGetTaskQuery, useReturnTaskMutation, useSaveAnswersMutation, useSaveOfficeAnswersMutation, useSubmitTaskMutation } from "@/redux/api/inspectionApi";
 import type { AnswerProblem, TaskDetail } from "@/redux/types/inspection";
@@ -48,9 +48,11 @@ const deviceInfo = () => {
   } catch {
     /* private window: no id */
   }
-  const nav = navigator as Navigator & { userAgentData?: { platform?: string } };
+  const nav = navigator as Navigator & { userAgentData?: { platform?: string; mobile?: boolean } };
   return {
     user_agent: navigator.userAgent,
+    touch: navigator.maxTouchPoints || 0,
+    mobile: nav.userAgentData?.mobile,
     platform: nav.userAgentData?.platform || navigator.platform,
     language: navigator.language,
     screen: `${window.screen.width}x${window.screen.height}`,
@@ -179,6 +181,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
     router.back();
   };
 
+  const [phoneOnly, setPhoneOnly] = useState(false);
   const startSubmit = async () => {
     if (locating || submitting) return;
     const open = validateAnswers(def, licenseType, answers);
@@ -187,6 +190,11 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       setView("questions");
       toast.error(`${Object.keys(open).length} answer(s) need attention.`);
       setJumpKey(Object.keys(open)[0]);
+      return;
+    }
+    // A computer has no GPS: inspections are submitted from a phone (the server checks this too)
+    if (isComputer()) {
+      setPhoneOnly(true);
       return;
     }
     // Location already allowed: get it quietly and submit at once; otherwise show the location step
@@ -218,6 +226,9 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       } else if (e?.status === 409 && e?.data?.conflict) {
         setConflict(e.data.message);
         setSaveState("conflict");
+      } else if (e?.data?.code === "PHONE_REQUIRED") {
+        setPhoneOnly(true);
+        return;
       }
       toast.error(e?.data?.message || "Could not submit.");
     }
@@ -382,6 +393,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
         ))}
 
       {confirming && <SubmitFlow task={task} busy={submitting} onCancel={() => setConfirming(false)} onSubmit={submit} />}
+      {phoneOnly && <PhoneOnlyDialog onClose={() => setPhoneOnly(false)} />}
       {returning && <ReturnDialog task={task} onClose={() => setReturning(false)} onDone={reload} />}
     </div>
   );
@@ -462,6 +474,48 @@ function SubmittedSummary({ task, onReturn, onShowPlace }: { task: TaskDetail; o
         )}
       </div>
     </section>
+  );
+}
+
+/** Pressing Submit on a computer: inspections are submitted from a phone. */
+function PhoneOnlyDialog({ onClose }: { onClose: () => void }) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <div className="flex items-start gap-3.5">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E7EEF4] text-primary">
+              <Smartphone className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <div className="space-y-1.5 text-left">
+              <DialogTitle className="text-xl text-primary">Submit from your phone</DialogTitle>
+              <DialogDescription className="text-sm leading-relaxed text-slate-600">
+                Inspections can only be submitted from a phone. <b className="text-slate-800">Your answers are saved:</b> open this inspection on your phone to submit it.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5">
+          <p className="mb-1.5 font-semibold text-slate-900">On your phone</p>
+          <ol className="list-decimal space-y-1 pl-5 text-sm leading-relaxed text-slate-700">
+            <li>
+              Open the system on your <b>phone</b>.
+            </li>
+            <li>
+              Go to <b>My Tasks</b> and open this inspection.
+            </li>
+            <li>
+              Check the answers and tap <b>Submit</b>.
+            </li>
+          </ol>
+        </div>
+        <DialogFooter>
+          <Button className="h-11 px-6" onClick={onClose}>
+            OK
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

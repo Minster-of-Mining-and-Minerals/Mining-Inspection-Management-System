@@ -40,3 +40,18 @@ export function deviceLabel(userAgent?: string | null, platform?: string | null)
 /** Phone / tablet / computer, for an icon. */
 export const deviceKind = (userAgent?: string | null): "phone" | "tablet" | "computer" =>
   /iPad|Tablet/i.test(userAgent || "") || (/Android/i.test(userAgent || "") && !/Mobile/i.test(userAgent || "")) ? "tablet" : /Mobi|iPhone|Android/i.test(userAgent || "") ? "phone" : "computer";
+
+/**
+ * Is this browser a computer (Windows, Mac, Linux, Chromebook) rather than a phone or tablet?
+ * Computers have no GPS, so inspections are submitted from a phone. The server checks the same.
+ */
+const PHONE_OR_TABLET = /Android|iPhone|iPad|iPod|Mobile|Tablet|Silk|Kindle|Windows Phone/i;
+export const isComputer = () => {
+  if (typeof navigator === "undefined") return false;
+  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (nav.userAgentData?.mobile) return false;
+  const ua = navigator.userAgent || "";
+  if (PHONE_OR_TABLET.test(ua)) return false;
+  if (/Macintosh/i.test(ua) && navigator.maxTouchPoints > 1) return false; // iPad (iPadOS says Macintosh)
+  return true;
+};
