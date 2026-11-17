@@ -1,6 +1,6 @@
 const { Op, literal } = require("sequelize");
 const { validate: isUuid } = require("uuid");
-const { sequelize, Team, TeamMember, TeamLicense, User, Role, Company, CompanyLicense, SectorNode } = require("../../models");
+const { sequelize, Team, TeamMember, TeamLicense, User, Role, Company, CompanyLicense, SectorNode, InspectionEvent } = require("../../models");
 const { scopeWhere, inScope, findInScope, sectorForCreate } = require("../../services/sectorScope");
 const { licenseAreasInclude, licenseMineralsInclude, pageParams, pageMeta } = require("../../services/companyQueryService");
 const { addUserToTeam, ensureRole } = require("../../services/teamMembershipService");
@@ -227,6 +227,34 @@ const removeMember = async (req, res) => {
 };
 
 /* =================== Licenses the team covers =================== */
+/**
+ * A license's open (not submitted) inspections follow the license when its team changes, so the
+ * team that covers it now finds them in My Tasks. Submitted inspections stay with the team that
+ * did them. Each move is written to the inspection's history ("Given to another team").
+ *   where: which open inspections move (SQL on "i"), to: the new team (or null: no team)
+ */
+const moveOpenInspections = async ({ licenseIds, where, to, userId, transaction, replacements = {} }) => {
+  if (!licenseIds.length) return 0;
+  const moved = await sequelize.query(
+    `WITH picked AS (
+       SELECT i.inspection_id, i.team_id AS old_team
+         FROM inspections i
+        WHERE i.license_id IN (:licenseIds) AND i.status <> 'submitted' AND (${where})
+          AND i.team_id IS DISTINCT FROM :to
+        FOR UPDATE)
+     UPDATE inspections i SET team_id = :to, updated_at = NOW()
+       FROM picked WHERE i.inspection_id = picked.inspection_id
+     RETURNING i.inspection_id, picked.old_team`,
+    { replacements: { licenseIds, to, ...replacements }, type: sequelize.QueryTypes.SELECT, transaction },
+  );
+  if (moved.length)
+    await InspectionEvent.bulkCreate(
+      moved.map((m) => ({ inspection_id: m.inspection_id, type: "reassigned", user_id: userId, details: { from: m.old_team, to, reason: "license_team_changed" } })),
+      { transaction },
+    );
+  return moved.length;
+};
+
 const addTeamLicenses = async (req, res) => {
   try {
     if (!isUuid(req.params.id)) return fail(res, 400, "Invalid team id.");
@@ -236,11 +264,23 @@ const addTeamLicenses = async (req, res) => {
     // Only the team's own sector's licenses
     const found = await CompanyLicense.count({ where: { license_id: ids, sector_node_id: team.sector_node_id } });
     if (found !== ids.length) return fail(res, 400, "One or more licenses were not found.");
-    await TeamLicense.bulkCreate(
-      ids.map((license_id) => ({ team_id: team.team_id, license_id, created_by: req.user.user_id })),
-      { ignoreDuplicates: true },
-    );
-    return res.status(200).json({ success: true, message: "Licenses added to the team.", data: await loadTeam(team.team_id) });
+    let moved = 0;
+    await sequelize.transaction(async (transaction) => {
+      await TeamLicense.bulkCreate(
+        ids.map((license_id) => ({ team_id: team.team_id, license_id, created_by: req.user.user_id })),
+        { ignoreDuplicates: true, transaction },
+      );
+      // Their open inspections that have no team, or a team that no longer covers the license, come to this team
+      moved = await moveOpenInspections({
+        licenseIds: ids,
+        where: `i.team_id IS NULL OR NOT EXISTS (SELECT 1 FROM team_licenses tl WHERE tl.license_id = i.license_id AND tl.team_id = i.team_id)`,
+        to: team.team_id,
+        userId: req.user.user_id,
+        transaction,
+      });
+    });
+    const message = moved ? `Licenses added to the team. ${moved} open inspection${moved === 1 ? "" : "s"} moved to it.` : "Licenses added to the team.";
+    return res.status(200).json({ success: true, message, moved, data: await loadTeam(team.team_id) });
   } catch (error) {
     return handleError(res, error, "Failed to add licenses.");
   }
@@ -250,9 +290,36 @@ const removeTeamLicense = async (req, res) => {
   try {
     if (!isUuid(req.params.id) || !isUuid(req.params.licenseId)) return fail(res, 400, "Invalid id.");
     if (!(await findInScope(Team, req.params.id, req))) return fail(res, 404, "Team not found.");
-    const removed = await TeamLicense.destroy({ where: { team_id: req.params.id, license_id: req.params.licenseId } });
+    let moved = 0;
+    let to = null;
+    const removed = await sequelize.transaction(async (transaction) => {
+      const n = await TeamLicense.destroy({ where: { team_id: req.params.id, license_id: req.params.licenseId }, transaction });
+      if (!n) return 0;
+      // Its open inspections with this team go to the team that still covers the license (if any), else to no team
+      const other = await TeamLicense.findOne({
+        where: { license_id: req.params.licenseId },
+        include: [{ model: Team, as: "team", attributes: [], where: { is_active: true }, required: true }],
+        order: [["created_at", "DESC"]],
+        transaction,
+      }).catch(() => null);
+      to = other?.team_id ?? null;
+      moved = await moveOpenInspections({
+        licenseIds: [req.params.licenseId],
+        where: "i.team_id = :from",
+        replacements: { from: req.params.id },
+        to,
+        userId: req.user.user_id,
+        transaction,
+      });
+      return n;
+    });
     if (!removed) return fail(res, 404, "This license is not assigned to the team.");
-    return res.status(200).json({ success: true, message: "License removed from the team.", data: await loadTeam(req.params.id) });
+    const message = !moved
+      ? "License removed from the team."
+      : to
+        ? `License removed from the team. ${moved} open inspection${moved === 1 ? "" : "s"} moved to the team that covers it now.`
+        : `License removed from the team. ${moved} open inspection${moved === 1 ? " has" : "s have"} no team until the license is given to a team.`;
+    return res.status(200).json({ success: true, message, moved, data: await loadTeam(req.params.id) });
   } catch (error) {
     return handleError(res, error, "Failed to remove license.");
   }

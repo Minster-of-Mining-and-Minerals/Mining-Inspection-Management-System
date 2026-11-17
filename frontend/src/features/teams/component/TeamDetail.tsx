@@ -280,7 +280,7 @@ export default function TeamDetail() {
           </DialogHeader>
           {removingLicense?.latest_inspection && removingLicense.latest_inspection.status !== "submitted" && (
             <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              Its current inspection ({STATUS_TEXT[removingLicense.latest_inspection.status]}, due {formatCalendarDate(lastDay(removingLicense.latest_inspection.due_at))}) is not submitted. It stays with this team until you give it to another team on the Inspections page.
+              Its current inspection ({STATUS_TEXT[removingLicense.latest_inspection.status]}, due {formatCalendarDate(lastDay(removingLicense.latest_inspection.due_at))}) is not submitted. It moves with the license: to the team that covers it after this, or to the next team you add it to.
             </p>
           )}
           <DialogFooter>
@@ -293,7 +293,12 @@ export default function TeamDetail() {
               onClick={async () => {
                 if (!removingLicense) return;
                 setRemoveLicenseBusy(true);
-                await run(() => removeLicense({ teamId: team.team_id, licenseId: removingLicense.license_id }).unwrap(), "License removed from the team.");
+                try {
+                  const r = await removeLicense({ teamId: team.team_id, licenseId: removingLicense.license_id }).unwrap();
+                  toast.success(r.message || "License removed from the team.");
+                } catch (e) {
+                  toast.error((e as { data?: { message?: string } })?.data?.message || "Something went wrong.");
+                }
                 setRemoveLicenseBusy(false);
                 setRemovingLicense(null);
               }}

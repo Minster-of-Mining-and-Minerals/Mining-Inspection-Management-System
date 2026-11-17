@@ -243,8 +243,8 @@ export function AddLicensesDialog({
   const save = async () => {
     if (!selected.size) return toast.error("Choose at least one license.");
     try {
-      await addLicenses({ teamId, license_ids: [...selected] }).unwrap();
-      toast.success(`${selected.size} license${selected.size === 1 ? "" : "s"} added.`);
+      const r = await addLicenses({ teamId, license_ids: [...selected] }).unwrap();
+      toast.success(r.message || `${selected.size} license${selected.size === 1 ? "" : "s"} added.`);
       onClose();
     } catch (e: any) {
       toast.error(e?.data?.message || "Could not add the licenses.");

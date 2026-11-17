@@ -56,15 +56,15 @@ export const teamApi = baseApi.injectEndpoints({
       invalidatesTags: (_r, _e, { teamId }) => tags(teamId),
     }),
 
-    addTeamLicenses: builder.mutation<TeamResult, { teamId: string; license_ids: string[] }>({
+    addTeamLicenses: builder.mutation<TeamResult & { message?: string }, { teamId: string; license_ids: string[] }>({
       query: ({ teamId, license_ids }) => ({ url: `/teams/${teamId}/licenses`, method: "POST", body: { license_ids } }),
-      transformResponse: (response: any): TeamResult => response.data,
+      transformResponse: (response: any) => ({ ...response.data, message: response.message }),
       invalidatesTags: (_r, _e, { teamId }) => tags(teamId),
     }),
 
-    removeTeamLicense: builder.mutation<TeamResult, { teamId: string; licenseId: string }>({
+    removeTeamLicense: builder.mutation<TeamResult & { message?: string }, { teamId: string; licenseId: string }>({
       query: ({ teamId, licenseId }) => ({ url: `/teams/${teamId}/licenses/${licenseId}`, method: "DELETE" }),
-      transformResponse: (response: any): TeamResult => response.data,
+      transformResponse: (response: any) => ({ ...response.data, message: response.message }),
       invalidatesTags: (_r, _e, { teamId }) => tags(teamId),
     }),
   }),

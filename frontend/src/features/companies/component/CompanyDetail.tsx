@@ -350,7 +350,7 @@ function LicenseInspections({ license: l, go }: { license: CompanyLicense; go: (
                   <a {...link(`/inspections/${t.inspection_id}`)} className="group -mx-2 flex min-h-11 items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-white" title="Open the inspection">
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{label}</span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium text-slate-900">{t.team ? `Assigned to ${t.team.name}` : "Not assigned to a team"}</span>
+                      <span className="block truncate font-medium text-slate-900">{t.team ? `${t.status === "submitted" ? "Done by" : "Given to"} ${t.team.name}` : "Not given to a team"}</span>
                       <span className="block truncate text-xs text-slate-500">
                         {t.status === "submitted" && t.submitted_at ? `Submitted ${formatCalendarDate(localDay(t.submitted_at))}` : `Due ${formatCalendarDate(lastDay(t.due_at))}`}
                         {t.form_name ? ` · ${t.form_name}` : ""}
