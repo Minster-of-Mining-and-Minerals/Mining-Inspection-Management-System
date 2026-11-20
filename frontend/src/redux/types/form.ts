@@ -5,7 +5,8 @@ export type LicenseTypeKey = "exploration" | "mining";
 /** Kinds of file a question can take */
 export type FileKind = "image" | "document" | "video";
 /** Largest size an admin can allow per file (matches the server and nginx) */
-export const MAX_FILE_MB = 100;
+/** The largest file a question may allow, in MB (the server's MAX_UPLOAD_MB, 1 GB by default) */
+export const MAX_FILE_MB = 1024;
 
 export interface ChoiceOption {
   value: string;

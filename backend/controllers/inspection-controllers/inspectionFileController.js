@@ -10,7 +10,9 @@
  *
  * The question decides what is allowed: kinds (accept), how many (max_files) and the
  * size per file (max_size_mb, at most MAX_FILE_MB). Signatures are PNG/JPEG images up to 2 MB.
+ * Large files come in pieces through /uploads (see startUpload), so a dropped connection resumes.
  */
+const fs = require("fs");
 const fsp = require("fs/promises");
 const crypto = require("crypto");
 const path = require("path");
@@ -67,68 +69,191 @@ const listFiles = (inspectionId) =>
     order: [["created_at", "ASC"]],
   });
 
+/**
+ * Is this upload allowed? The task is open, the user is in its team, the question takes files of this
+ * kind, size and number. Throws { status, message }; returns what saving needs.
+ */
+const checkUpload = async (req, task, rights, { field_key, name, mimetype, size }) => {
+  const stop = (status, message) => Object.assign(new Error(message), { status });
+  if (task.status === "submitted") throw stop(409, "This inspection has been submitted; files can't be added.");
+  if (!rights.fill) throw stop(403, "Only members of the assigned team can add files.");
+  // The version answered: fixed when the first file or answer is saved
+  const version = task.form_version_id
+    ? await FormVersion.findByPk(task.form_version_id)
+    : await FormVersion.findOne({ where: { form_id: task.form_id, status: "published" } });
+  if (!version) throw stop(409, "The checklist has no published version.");
+  const field = findField(version.definition, String(field_key || ""));
+  // A table with a signature column takes signatures too
+  const signs = field?.type === "signature" || (field?.type === "table" && (field.columns || []).some((c) => c.type === "signature"));
+  if (!field || !(signs || ["photo", "status"].includes(field.type)) || (field.type === "status" && field.evidence === "none")) throw stop(400, "This question doesn't take files.");
+
+  const fileName = String(name || "file").slice(0, 255);
+  let kind = kindOf(mimetype, fileName);
+  if (signs) {
+    if (kind !== "image" || size > 2 * MB) throw stop(400, "A signature must be an image under 2 MB.");
+    kind = "signature";
+  } else {
+    const accept = field.accept?.length ? field.accept : ["image"];
+    if (!kind || !accept.includes(kind)) throw stop(400, `This question takes ${accept.map((k) => KIND_LABEL[k]).join(", ")} only.`);
+    const limitMb = Math.min(field.max_size_mb ?? 20, MAX_FILE_MB);
+    if (size > limitMb * MB) throw stop(413, `“${fileName}” is ${(size / MB).toFixed(1)} MB; the limit for this question is ${limitMb} MB.`);
+    const count = await InspectionFile.count({ where: { inspection_id: task.inspection_id, field_key: field.key } });
+    if (count >= (field.max_files ?? 10)) throw stop(409, `This question takes at most ${field.max_files ?? 10} files. Remove one first.`);
+  }
+  return { version, field, kind, name: fileName };
+};
+
+/** Move a received file into storage and record it (starts the task if it wasn't). */
+const storeFile = async (req, task, { version, field, kind, name }, { tempPath, mimetype, size }) => {
+  const ext = path.extname(name).toLowerCase().replace(/[^.a-z0-9]/g, "").slice(0, 10);
+  const created = await sequelize.transaction(async (transaction) => {
+    if (!task.form_version_id) {
+      const now = new Date();
+      await task.update({ form_version_id: version.version_id, status: "in_progress", started_at: now, started_by: req.user.user_id }, { transaction });
+      await InspectionEvent.create({ inspection_id: task.inspection_id, type: "started", user_id: req.user.user_id }, { transaction });
+    }
+    const row = InspectionFile.build({
+      inspection_id: task.inspection_id,
+      field_key: field.key,
+      kind,
+      original_name: name,
+      mime_type: mimetype || "application/octet-stream",
+      size_bytes: size,
+      uploaded_by: req.user.user_id,
+    });
+    row.storage_key = `inspections/${task.inspection_id}/${row.file_id}${ext}`;
+    await storage.put(tempPath, row.storage_key);
+    await row.save({ transaction });
+    return row;
+  });
+  const { storage_key, ...data } = created.get({ plain: true });
+  return { ...data, uploader: { user_id: req.user.user_id, full_name: req.user.full_name } };
+};
+
 const uploadFile = async (req, res) => {
   const file = req.file;
   try {
     if (!file) return fail(res, 400, "Choose a file to upload.");
     const { task, rights } = await loadTask(req, req.params.id);
-    if (task.status === "submitted") return cleanup(file), fail(res, 409, "This inspection has been submitted; files can't be added.");
-    if (!rights.fill) return cleanup(file), fail(res, 403, "Only members of the assigned team can add files.");
-
-    // The version answered: fix it now if the task wasn't started yet
-    const version = task.form_version_id
-      ? await FormVersion.findByPk(task.form_version_id)
-      : await FormVersion.findOne({ where: { form_id: task.form_id, status: "published" } });
-    if (!version) return cleanup(file), fail(res, 409, "The checklist has no published version.");
-    const field = findField(version.definition, String(req.body.field_key || ""));
-    // A table with a signature column takes signatures too
-    const signs = field?.type === "signature" || (field?.type === "table" && (field.columns || []).some((c) => c.type === "signature"));
-    if (!field || !(signs || ["photo", "status"].includes(field.type)) || (field.type === "status" && field.evidence === "none"))
-      return cleanup(file), fail(res, 400, "This question doesn't take files.");
-
-    const name = String(file.originalname || "file").slice(0, 255);
-    let kind = kindOf(file.mimetype, name);
-    if (signs) {
-      if (kind !== "image" || file.size > 2 * MB) return cleanup(file), fail(res, 400, "A signature must be an image under 2 MB.");
-      kind = "signature";
-    } else {
-      const accept = field.accept?.length ? field.accept : ["image"];
-      if (!kind || !accept.includes(kind))
-        return cleanup(file), fail(res, 400, `This question takes ${accept.map((k) => KIND_LABEL[k]).join(", ")} only.`);
-      const limitMb = Math.min(field.max_size_mb ?? 20, MAX_FILE_MB);
-      if (file.size > limitMb * MB) return cleanup(file), fail(res, 413, `“${name}” is ${(file.size / MB).toFixed(1)} MB; the limit for this question is ${limitMb} MB.`);
-      const count = await InspectionFile.count({ where: { inspection_id: task.inspection_id, field_key: field.key } });
-      if (count >= (field.max_files ?? 10)) return cleanup(file), fail(res, 409, `This question takes at most ${field.max_files ?? 10} files. Remove one first.`);
-    }
-
-    const ext = path.extname(name).toLowerCase().replace(/[^.a-z0-9]/g, "").slice(0, 10);
-    const created = await sequelize.transaction(async (transaction) => {
-      if (!task.form_version_id) {
-        const now = new Date();
-        await task.update({ form_version_id: version.version_id, status: "in_progress", started_at: now, started_by: req.user.user_id }, { transaction });
-        await InspectionEvent.create({ inspection_id: task.inspection_id, type: "started", user_id: req.user.user_id }, { transaction });
-      }
-      const row = InspectionFile.build({
-        inspection_id: task.inspection_id,
-        field_key: field.key,
-        kind,
-        original_name: name,
-        mime_type: file.mimetype || "application/octet-stream",
-        size_bytes: file.size,
-        uploaded_by: req.user.user_id,
-      });
-      row.storage_key = `inspections/${task.inspection_id}/${row.file_id}${ext}`;
-      await storage.put(file.path, row.storage_key);
-      await row.save({ transaction });
-      return row;
-    });
-    const { storage_key, ...data } = created.get({ plain: true });
-    return res.status(201).json({ success: true, data: { ...data, uploader: { user_id: req.user.user_id, full_name: req.user.full_name } } });
+    const ok = await checkUpload(req, task, rights, { field_key: req.body.field_key, name: file.originalname, mimetype: file.mimetype, size: file.size });
+    const data = await storeFile(req, task, ok, { tempPath: file.path, mimetype: file.mimetype, size: file.size });
+    return res.status(201).json({ success: true, data });
   } catch (error) {
     cleanup(file);
     if (error.status) return fail(res, error.status, error.message);
     console.error("uploadFile", error);
     return fail(res, 500, "Failed to upload the file.");
+  }
+};
+
+/* ---------- large files: sent in pieces, resumable ----------
+ *   POST   /api/inspections/:id/uploads                     { field_key, name, type, size } → { upload_id, received, chunk_size }
+ *   PUT    /api/inspections/:id/uploads/:uploadId?offset=N  the next piece (raw bytes) → { received }
+ *   POST   /api/inspections/:id/uploads/:uploadId/complete  → the saved file
+ *   DELETE /api/inspections/:id/uploads/:uploadId           cancel
+ * The same user, inspection, question, file name and size give the same upload id, so picking the
+ * file again after a dropped connection or a closed page continues where it stopped. Pieces wait in
+ * storage/tmp/uploads; unfinished ones are removed after 2 days (cleanOldUploads, hourly).
+ */
+const UPLOADS = path.join(storage.TMP, "uploads");
+fs.mkdirSync(UPLOADS, { recursive: true });
+const CHUNK_SIZE = 8 * MB;
+const uploadPaths = (id) => {
+  if (!/^[a-f0-9]{40}$/.test(id)) throw Object.assign(new Error("Unknown upload."), { status: 404 });
+  return { part: path.join(UPLOADS, `${id}.part`), meta: path.join(UPLOADS, `${id}.json`) };
+};
+const partSize = async (p) => (await fsp.stat(p).catch(() => null))?.size ?? 0;
+const readMeta = async (req, id) => {
+  const { meta } = uploadPaths(id);
+  const m = JSON.parse(await fsp.readFile(meta, "utf8").catch(() => "null"));
+  if (!m || m.user_id !== req.user.user_id || m.inspection_id !== req.params.id) throw Object.assign(new Error("Unknown upload."), { status: 404 });
+  return m;
+};
+
+const startUpload = async (req, res) => {
+  try {
+    const { task, rights } = await loadTask(req, req.params.id);
+    const size = Number(req.body?.size);
+    if (!Number.isFinite(size) || size <= 0) return fail(res, 400, "The file is empty.");
+    const info = { field_key: req.body?.field_key, name: req.body?.name, mimetype: String(req.body?.type || ""), size };
+    await checkUpload(req, task, rights, info);
+    const id = crypto.createHash("sha1").update([req.user.user_id, task.inspection_id, info.field_key, info.name, size].join("|")).digest("hex");
+    const { part, meta } = uploadPaths(id);
+    await fsp.writeFile(meta, JSON.stringify({ user_id: req.user.user_id, inspection_id: task.inspection_id, ...info, started_at: new Date().toISOString() }));
+    let received = await partSize(part);
+    if (received > size) {
+      await fsp.unlink(part).catch(() => {});
+      received = 0;
+    }
+    return res.status(200).json({ success: true, data: { upload_id: id, received, chunk_size: CHUNK_SIZE } });
+  } catch (error) {
+    if (error.status) return fail(res, error.status, error.message);
+    console.error("startUpload", error);
+    return fail(res, 500, "Failed to start the upload.");
+  }
+};
+
+const uploadChunk = async (req, res) => {
+  try {
+    const { task, rights } = await loadTask(req, req.params.id);
+    if (task.status === "submitted" || !rights.fill) return fail(res, 403, "Files can't be added to this inspection.");
+    const m = await readMeta(req, req.params.uploadId);
+    const { part } = uploadPaths(req.params.uploadId);
+    const received = await partSize(part);
+    const offset = Number(req.query.offset);
+    // A piece that was already received (a retry) or one sent too early: say where to continue
+    if (offset !== received) return res.status(409).json({ success: false, message: "Continue from the received size.", received });
+    const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+    if (!body.length) return fail(res, 400, "Empty piece.");
+    if (received + body.length > m.size) return fail(res, 400, "More data than the file's size.");
+    await fsp.appendFile(part, body);
+    return res.status(200).json({ success: true, data: { received: received + body.length } });
+  } catch (error) {
+    if (error.status) return fail(res, error.status, error.message);
+    console.error("uploadChunk", error);
+    return fail(res, 500, "Failed to receive the piece.");
+  }
+};
+
+const completeUpload = async (req, res) => {
+  const id = req.params.uploadId;
+  try {
+    const { task, rights } = await loadTask(req, req.params.id);
+    const m = await readMeta(req, id);
+    const { part, meta } = uploadPaths(id);
+    const received = await partSize(part);
+    if (received !== m.size) return res.status(409).json({ success: false, message: "The file isn't complete yet.", received });
+    const ok = await checkUpload(req, task, rights, m);
+    const data = await storeFile(req, task, ok, { tempPath: part, mimetype: m.mimetype, size: m.size });
+    await fsp.unlink(meta).catch(() => {});
+    return res.status(201).json({ success: true, data });
+  } catch (error) {
+    if (error.status) return fail(res, error.status, error.message);
+    console.error("completeUpload", error);
+    return fail(res, 500, "Failed to save the file.");
+  }
+};
+
+const cancelUpload = async (req, res) => {
+  try {
+    await readMeta(req, req.params.uploadId);
+    const { part, meta } = uploadPaths(req.params.uploadId);
+    await fsp.unlink(part).catch(() => {});
+    await fsp.unlink(meta).catch(() => {});
+    return res.status(200).json({ success: true, message: "Upload cancelled." });
+  } catch (error) {
+    if (error.status) return fail(res, error.status, error.message);
+    return fail(res, 500, "Failed to cancel the upload.");
+  }
+};
+
+/** Unfinished uploads older than 2 days are removed (runs with the hourly schedule job). */
+const cleanOldUploads = async () => {
+  const cutoff = Date.now() - 2 * 24 * 3600e3;
+  for (const name of await fsp.readdir(UPLOADS).catch(() => [])) {
+    const p = path.join(UPLOADS, name);
+    const st = await fsp.stat(p).catch(() => null);
+    if (st && st.mtimeMs < cutoff) await fsp.unlink(p).catch(() => {});
   }
 };
 
@@ -264,4 +389,9 @@ const removeUnusedFiles = async (inspection) => {
     }
 };
 
-module.exports = { uploadFile, downloadFile, getFileLinks, serveSignedFile, deleteFile, listFiles, sanitizeFileRefs, removeUnusedFiles, MIME_KINDS };
+module.exports = {
+  startUpload,
+  uploadChunk,
+  completeUpload,
+  cancelUpload,
+  cleanOldUploads, uploadFile, downloadFile, getFileLinks, serveSignedFile, deleteFile, listFiles, sanitizeFileRefs, removeUnusedFiles, MIME_KINDS };

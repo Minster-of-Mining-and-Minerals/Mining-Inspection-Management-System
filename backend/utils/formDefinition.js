@@ -60,7 +60,8 @@ const PREFILL_SOURCES = [
 
 /** Kinds of file a question can take, and the largest size an admin may allow per file (matches nginx). */
 const FILE_KINDS = ["image", "document", "video"];
-const MAX_FILE_MB = 100;
+// The largest file a question may allow (MB). MAX_UPLOAD_MB on the server, 1024 (1 GB) by default.
+const MAX_FILE_MB = Math.max(1, Math.min(4096, Number(process.env.MAX_UPLOAD_MB) || 1024));
 
 const KEY = Joi.string()
   .pattern(/^[a-z][a-z0-9_]{0,59}$/)

@@ -19,6 +19,16 @@ const { byNaturalName } = require("../../utils/naturalOrder");
 const { visibleStructure } = require("../../utils/formAnswers");
 const { statusOptionsFor, questionText } = require("../../utils/formDefinition");
 
+/** Free space where inspection files are kept (large videos fill a disk quickly). */
+const storageSpace = () => {
+  try {
+    const st = require("fs").statfsSync(require("../../services/fileStorage").ROOT);
+    return { free_bytes: st.bavail * st.bsize, total_bytes: st.blocks * st.bsize };
+  } catch {
+    return null;
+  }
+};
+
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 const q = (sql, replacements) => sequelize.query(sql, { replacements, type: QueryTypes.SELECT });
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
@@ -157,6 +167,8 @@ const getAnalytics = async (req, res) => {
                 COUNT(*) FILTER (WHERE i.status = 'submitted')::int AS submitted,
                 COUNT(*) FILTER (WHERE i.status <> 'submitted' AND i.due_at < NOW())::int AS overdue,
                 COUNT(*) FILTER (WHERE i.status <> 'submitted' AND i.due_at >= NOW())::int AS open,
+                COUNT(*) FILTER (WHERE i.status = 'in_progress')::int AS in_progress,
+                COUNT(*) FILTER (WHERE i.status = 'in_progress' AND i.due_at < NOW())::int AS in_progress_overdue,
                 COUNT(*) FILTER (WHERE i.team_id IS NULL AND i.status <> 'submitted')::int AS no_team
            ${FROM} ${tw}`,
         rr,
@@ -272,6 +284,7 @@ const getAnalytics = async (req, res) => {
         teams,
         lowest_companies: companies,
         by_sector: sectors,
+        storage: storageSpace(),
         answers: { distribution: dist, sections: sectionScores, top_not_met: topNotMet, scanned: rows.length, limited: rows.length >= MAX_ANSWER_SCAN },
       },
     });

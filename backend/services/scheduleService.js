@@ -131,7 +131,9 @@ const startScheduler = () => {
       // Reminders: due within 2 days, overdue (each task once)
       .then(() => notify.sendDueReminders())
       // Audit log rows past the retention time
-      .then(() => require("./auditService").removeOldEntries());
+      .then(() => require("./auditService").removeOldEntries())
+      // Unfinished large uploads older than 2 days
+      .then(() => require("../controllers/inspection-controllers/inspectionFileController").cleanOldUploads());
   setTimeout(run, 15 * 1000);
   setInterval(run, 60 * 60 * 1000).unref();
 };

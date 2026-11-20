@@ -123,6 +123,11 @@ inspectionRouter.put("/:id/answers", authorize("inspections", "conduct"), valida
 inspectionRouter.put("/:id/office-answers", authorize("inspections", "conduct"), validate(answersSchema), inspections.saveOfficeAnswers);
 // Files of answers (photos / documents / videos / signatures)
 inspectionRouter.post("/:id/files", authorize("inspections", "conduct"), receiveFile, files.uploadFile);
+// Large files in pieces (resumable): start, each piece, finish, cancel
+inspectionRouter.post("/:id/uploads", authorize("inspections", "conduct"), files.startUpload);
+inspectionRouter.put("/:id/uploads/:uploadId", authorize("inspections", "conduct"), express.raw({ type: () => true, limit: "16mb" }), files.uploadChunk);
+inspectionRouter.post("/:id/uploads/:uploadId/complete", authorize("inspections", "conduct"), files.completeUpload);
+inspectionRouter.delete("/:id/uploads/:uploadId", authorize("inspections", "conduct"), files.cancelUpload);
 inspectionRouter.get("/:id/files/links", readAny, files.getFileLinks);
 inspectionRouter.get("/:id/files/:fileId", readAny, files.downloadFile);
 inspectionRouter.delete("/:id/files/:fileId", authorize("inspections", "conduct"), files.deleteFile);

@@ -36,7 +36,8 @@ export interface FormFilesApi {
   files: Record<string, FormFileMeta>;
   /** A URL an <img>/<video>/<a> can open (signed, short-lived) */
   urlFor: (fileId: string) => string | undefined;
-  upload: (fieldKey: string, file: File | Blob, name: string, onProgress?: (fraction: number) => void) => Promise<FormFileMeta>;
+  /** signal: cancels the upload (large files go up in resumable pieces) */
+  upload: (fieldKey: string, file: File | Blob, name: string, onProgress?: (fraction: number) => void, signal?: AbortSignal) => Promise<FormFileMeta>;
   remove: (fileId: string) => Promise<void>;
   /** Submitted / not the user's team: show files, no adding or removing */
   readOnly?: boolean;
@@ -85,6 +86,8 @@ interface Pending {
   id: string;
   name: string;
   progress: number;
+  size: number;
+  cancel: () => void;
 }
 
 /** Files of one question (a file question, or a status question's evidence). `value` = file ids. */
@@ -136,11 +139,12 @@ export function FileAnswer({
       }
       room--;
       const tempId = `${Date.now()}-${Math.random()}`;
-      setPending((p) => [...p, { id: tempId, name, progress: 0 }]);
+      const stop = new AbortController();
+      setPending((p) => [...p, { id: tempId, name, progress: 0, size: blob.size, cancel: () => stop.abort() }]);
       api
-        .upload(f.key, blob, name, (x) => setPending((p) => p.map((it) => (it.id === tempId ? { ...it, progress: x } : it))))
+        .upload(f.key, blob, name, (x) => setPending((p) => p.map((it) => (it.id === tempId ? { ...it, progress: x } : it))), stop.signal)
         .then((meta) => onChange([...latest.current, meta.file_id]))
-        .catch((e: Error) => toast.error(e.message || `Could not upload “${name}”.`))
+        .catch((e: Error & { cancelled?: boolean }) => (e.cancelled ? toast.message(`Upload of “${name}” cancelled.`) : toast.error(e.message || `Could not upload “${name}”.`)))
         .finally(() => setPending((p) => p.filter((it) => it.id !== tempId)));
     }
   };
@@ -164,12 +168,20 @@ export function FileAnswer({
           <FileTile key={id} meta={api.files[id]} url={api.urlFor(id)} onOpen={() => setViewing(i)} onRemove={api.readOnly ? undefined : () => remove(id)} />
         ))}
         {pending.map((p) => (
-          <li key={p.id} className="flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-center text-[11px] text-slate-600">
+          <li key={p.id} className="relative flex aspect-square flex-col items-center justify-center gap-1 rounded-lg border border-slate-200 bg-slate-50 p-2 text-center text-[11px] text-slate-600">
             <Loader2 className="h-4 w-4 animate-spin text-primary" />
             <span className="line-clamp-1 break-all">{p.name}</span>
             <span className="h-1 w-full overflow-hidden rounded-full bg-slate-200">
               <span className="block h-full bg-primary" style={{ width: `${Math.round(p.progress * 100)}%` }} />
             </span>
+            <span className="tabular-nums text-[10px] text-slate-500">
+              {p.size > 15 * MB ? `${formatBytes(p.progress * p.size)} of ${formatBytes(p.size)}` : `${Math.round(p.progress * 100)}%`}
+            </span>
+            {!api.readOnly && (
+              <button type="button" aria-label={`Cancel uploading ${p.name}`} onClick={p.cancel} className="absolute right-1 top-1 rounded-full bg-white/90 p-1 text-slate-600 shadow hover:text-red-600">
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
           </li>
         ))}
       </ul>

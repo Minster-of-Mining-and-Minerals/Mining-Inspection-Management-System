@@ -16,7 +16,7 @@ import { baseApi } from "@/redux/baseApi";
 import { setSelectedSectorId } from "@/lib/sectorSelection";
 import { localizedName } from "@/utils/localizedName";
 import { AlertTriangle, ArrowDown, ArrowUp, MapPin, Minus, Table2 } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import Loading01 from "@/features/template/component/Loading/Loading01";
 import { useGetAnalyticsQuery, Analytics, MapFilters } from "@/redux/api/dashboardApi";
 import { formatCalendarDate } from "@/utils/date";
@@ -85,9 +85,15 @@ function Body({ data, base }: { data: Analytics; base: MapFilters }) {
   return (
     <>
       {/* Headline numbers */}
-      <section aria-label="Headline numbers" className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section aria-label="Headline numbers" className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         <Kpi label="Completed" value={pct(ratio(w.submitted, w.due))} note={`${w.submitted} of ${w.due} submitted`} bar={ratio(w.submitted, w.due)} href={go({ status: "submitted", date_field: "assigned" })} />
         <Kpi label="Overdue now" value={w.overdue} note={w.overdue ? "past due, not submitted" : "none"} alert={w.overdue > 0} href={go({ status: "overdue", date_field: "assigned" })} />
+        <Kpi
+          label="In progress"
+          value={w.in_progress}
+          note={w.in_progress ? `started, not submitted${w.in_progress_overdue ? ` · ${w.in_progress_overdue} overdue` : ""}` : "none started yet"}
+          href={go({ status: "in_progress", date_field: "assigned" })}
+        />
         <Kpi label="Submitted" value={r.submitted} note={prevLabel ?? "in the period"} delta={p ? r.submitted - p.submitted : undefined} href={go({ status: "submitted" })} />
         <Kpi label="On time" value={pct(ratio(r.on_time, r.submitted))} note={`${r.late} late — see them`} delta={p ? pctDelta(ratio(r.on_time, r.submitted), ratio(p.on_time, p.submitted)) : undefined} unit="pts" href={go({ status: "late" })} />
         <Kpi label="Companies inspected" value={r.companies} note={`${r.licenses} license${r.licenses === 1 ? "" : "s"}`} href={go({ status: "submitted" })} />
@@ -95,10 +101,29 @@ function Body({ data, base }: { data: Analytics; base: MapFilters }) {
       </section>
 
       {/* Central users, all sectors: the same numbers per sector */}
+      {data.storage && data.storage.total_bytes > 0 && data.storage.free_bytes / data.storage.total_bytes < 0.15 && (
+        <p role="alert" className="flex items-start gap-2 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <b>Server storage is running low:</b> {(data.storage.free_bytes / 1024 ** 3).toFixed(1)} GB free of {(data.storage.total_bytes / 1024 ** 3).toFixed(0)} GB. Large photos and videos may
+            fail to upload. Free up space or add more disk.
+          </span>
+        </p>
+      )}
       {data.by_sector && <BySector rows={data.by_sector} />}
 
-      {/* Over time */}
-      <div className="grid gap-4">
+      {/* Where the inspections stand, and over time */}
+      <div className="grid items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <RoundStatus
+          completed={w.submitted}
+          inProgress={w.in_progress}
+          pending={Math.max(0, w.due - w.submitted - w.in_progress)}
+          links={{
+            completed: go({ status: "submitted", date_field: "assigned" }),
+            inProgress: go({ status: "in_progress", date_field: "assigned" }),
+            pending: go({ status: "todo", date_field: "assigned" }),
+          }}
+        />
         <ChartCard
           title="Inspections submitted per day"
           subtitle={`${data.daily.reduce((n, x) => n + x.submitted, 0)} submitted over ${data.daily.length} day${data.daily.length === 1 ? "" : "s"} · click a day to see its inspections`}
@@ -133,15 +158,16 @@ function Body({ data, base }: { data: Analytics; base: MapFilters }) {
             <h2 id="teams-title" className="font-semibold text-slate-900">
               Team performance
             </h2>
-            <p className="text-xs text-slate-500">Assigned and overdue: tasks given to the team in the period. On time: inspections the team submitted in the period.</p>
+            <p className="text-xs text-slate-500">Assigned, remaining and overdue: tasks given to the team in the period. On time: inspections the team submitted in the period.</p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
+            <table className="w-full min-w-[720px] text-sm">
               <thead className="bg-slate-50 text-left text-xs text-slate-500">
                 <tr>
                   <th className="px-4 py-2 font-medium">Team</th>
                   <th className="px-3 py-2 text-right font-medium">Assigned</th>
                   <th className="px-3 py-2 font-medium">Completed</th>
+                  <th className="px-3 py-2 text-right font-medium">Remaining</th>
                   <th className="px-3 py-2 text-right font-medium">Overdue</th>
                   <th className="px-3 py-2 text-right font-medium">On time</th>
                 </tr>
@@ -170,6 +196,15 @@ function Body({ data, base }: { data: Analytics; base: MapFilters }) {
                           </span>
                           <span className="tabular-nums">{pct(done)}</span>
                         </span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums">
+                        {t.due - t.submitted > 0 ? (
+                          <Link href={go(t.team_id ? { team_id: t.team_id, status: "open", date_field: "assigned" } : { status: "no_team", date_field: "assigned" })} className="font-semibold text-slate-900 hover:underline">
+                            {t.due - t.submitted}
+                          </Link>
+                        ) : (
+                          <span className="text-green-700">0</span>
+                        )}
                       </td>
                       <td className={`px-3 py-2 text-right tabular-nums ${t.overdue ? "font-semibold text-red-700" : ""}`}>
                         {t.overdue && t.team_id ? (
@@ -347,6 +382,59 @@ function ChartCard({ title, subtitle, children, table, empty }: { title: string;
         </div>
       ) : (
         children
+      )}
+    </section>
+  );
+}
+
+/** Where the period's inspections stand: completed, in progress, pending (not started), as a donut. */
+function RoundStatus({ completed, inProgress, pending, links }: { completed: number; inProgress: number; pending: number; links: { completed: string; inProgress: string; pending: string } }) {
+  const total = completed + inProgress + pending;
+  const rows = [
+    { key: "completed", label: "Completed", value: completed, color: "#1B7A3E", href: links.completed },
+    { key: "inProgress", label: "In progress", value: inProgress, color: "#E0A23A", href: links.inProgress },
+    { key: "pending", label: "Pending", value: pending, color: "#94A3B8", href: links.pending },
+  ];
+  const share = (n: number) => (total ? `${Math.round((n / total) * 100)}%` : "0%");
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white p-4" aria-labelledby="round-title">
+      <h2 id="round-title" className="font-semibold text-slate-900">
+        Inspection status
+      </h2>
+      <p className="text-xs text-slate-500">Inspections given out in the period</p>
+      {total ? (
+        <>
+          <div className="relative mx-auto mt-2 h-48 w-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={rows} dataKey="value" nameKey="label" innerRadius="62%" outerRadius="100%" startAngle={90} endAngle={-270} stroke="#fff" strokeWidth={2} isAnimationActive={false}>
+                  {rows.map((r) => (
+                    <Cell key={r.key} fill={r.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v: number, name: string) => [`${v} (${share(v)})`, name]} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-2xl font-bold tabular-nums text-primary">{share(completed)}</span>
+              <span className="text-xs text-slate-500">completed</span>
+            </div>
+          </div>
+          <ul className="mt-3 space-y-1">
+            {rows.map((r) => (
+              <li key={r.key}>
+                <Link href={r.href} className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-slate-50">
+                  <span className="h-3 w-3 shrink-0 rounded-sm" style={{ background: r.color }} aria-hidden />
+                  <span className="flex-1 text-slate-700">{r.label}</span>
+                  <span className="font-semibold tabular-nums text-slate-900">{r.value}</span>
+                  <span className="w-10 text-right text-xs tabular-nums text-slate-500">{share(r.value)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="py-10 text-center text-sm text-slate-500">No inspections in this period.</p>
       )}
     </section>
   );

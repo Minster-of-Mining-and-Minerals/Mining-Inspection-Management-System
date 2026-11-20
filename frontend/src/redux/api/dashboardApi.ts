@@ -69,7 +69,7 @@ export interface ResultTotals {
 
 export interface Analytics {
   period: { from: string | null; to: string | null; previous: { from: string; to: string } | null };
-  workload: { due: number; submitted: number; overdue: number; open: number; no_team: number };
+  workload: { due: number; submitted: number; overdue: number; open: number; no_team: number; in_progress: number; in_progress_overdue: number };
   results: ResultTotals;
   previous: ResultTotals | null;
   /** Inspections submitted each day of the period (days without any as 0) */
@@ -78,6 +78,8 @@ export interface Analytics {
   teams: { team: string; team_id: string | null; due: number; submitted: number; overdue: number; submitted_in_period: number; on_time: number; avg_score: number | null }[];
   lowest_companies: { company_id: string; company: string; submitted: number; avg_score: number; last_score: number | null; scores: (number | null)[] }[];
   /** Central users looking at all sectors: headline numbers per sector (otherwise null) */
+  /** Free space where inspection files are kept */
+  storage?: { free_bytes: number; total_bytes: number } | null;
   by_sector: {
     sector_node_id: string;
     sector: string;
