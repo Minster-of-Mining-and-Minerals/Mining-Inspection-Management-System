@@ -1,5 +1,6 @@
 "use strict";
 const express = require("express");
+const { getLicenseArea, setLicenseArea } = require("../../controllers/company-controllers/licenseAreaController");
 
 const {
   getCompanies,
@@ -57,11 +58,16 @@ companies.post("/:id/licenses", authorize("companies", "update"), validateCreate
  *   GET    /map?…same filters…&team_id=&red_zone=true&overdue=true&is_active=   license areas for the map
  *   PUT    /:licenseId
  *   DELETE /:licenseId
+ *   GET    /:licenseId/area       its surveyed area (corner points)
+ *   PUT    /:licenseId/area       set it from typed points (Adindan or WGS84), or { clear: true }
  */
 const licenses = express.Router();
 licenses.get("/", authorize("companies", "read"), getLicenses);
 licenses.get("/map", authorize("companies", "read"), getLicenseMap);
 licenses.put("/:licenseId", authorize("companies", "update"), validateUpdateLicense, updateLicense);
+// The surveyed area (corner points), entered in the system
+licenses.get("/:licenseId/area", authorize("companies", "read"), getLicenseArea);
+licenses.put("/:licenseId/area", authorize("companies", "update"), setLicenseArea);
 licenses.delete("/:licenseId", authorize("companies", "delete"), deleteLicense);
 
 /**

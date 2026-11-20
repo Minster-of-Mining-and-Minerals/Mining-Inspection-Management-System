@@ -7,6 +7,8 @@
  * - After that every occurrence up to today is created, also ones missed while the server
  *   was down (at most 60 days back) — those are simply overdue and can be submitted late.
  * - The current occurrence is re-checked on every run so licenses added later still get a task.
+ * - A schedule ends when its last round's due time has passed ("once": its only round), so a
+ *   license added during that round still gets its task.
  * Runs when a schedule is saved and every hour (startScheduler).
  */
 const { QueryTypes } = require("sequelize");
@@ -89,7 +91,11 @@ const generateForSchedule = async (schedule, now = new Date()) => {
       }
     }
   }
-  const finished = (schedule.frequency === "once" && today >= String(schedule.start_date).slice(0, 10)) || (schedule.end_date && today >= String(schedule.end_date).slice(0, 10));
+  // A schedule ends when its last round is over (its due time has passed), not on the day that
+  // round starts: until then licenses added later still get a task for it (the re-check above).
+  const lastDay = schedule.frequency === "once" ? String(schedule.start_date).slice(0, 10) : schedule.end_date ? String(schedule.end_date).slice(0, 10) : null;
+  const lastRound = lastDay && today >= lastDay ? lastOccurrenceOnOrBefore(schedule, lastDay) : null;
+  const finished = !!lastDay && today >= lastDay && (!lastRound || now >= dueAtFor(schedule, lastRound));
   await schedule.update({ last_generated_on: today, ...(finished ? { status: "ended" } : {}) });
   return created;
 };

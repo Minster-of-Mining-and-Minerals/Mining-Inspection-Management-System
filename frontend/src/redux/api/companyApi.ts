@@ -6,6 +6,7 @@ import {
   CompanyListParams,
   CompanyPayload,
   CompanyStats,
+  LicenseArea,
   LicenseMapParams,
   LicensePayload,
   MapLicenseRow,
@@ -66,6 +67,20 @@ export const companyApi = baseApi.injectEndpoints({
       invalidatesTags: (_r, _e, { companyId }) => [{ type: "Company", id: companyId }, "Company", "Mineral"],
     }),
 
+    /** A license's surveyed area (corner points) */
+    getLicenseArea: builder.query<LicenseArea, string>({
+      query: (licenseId) => `/licenses/${licenseId}/area`,
+      transformResponse: (response: any): LicenseArea => response.data,
+      providesTags: (_r, _e, id) => [{ type: "Company", id: `area-${id}` }],
+    }),
+
+    /** Set it from typed points (Adindan or WGS84), or { clear: true } */
+    setLicenseArea: builder.mutation<{ data: LicenseArea; message: string }, { licenseId: string; companyId: string; body: { datum: "adindan" | "wgs84"; parts: { lat: number; lng: number }[][] } | { clear: true } }>({
+      query: ({ licenseId, body }) => ({ url: `/licenses/${licenseId}/area`, method: "PUT", body }),
+      transformResponse: (response: any) => ({ data: response.data, message: response.message }),
+      invalidatesTags: (_r, _e, { companyId, licenseId }) => [{ type: "Company", id: companyId }, { type: "Company", id: `area-${licenseId}` }, "Company", "Inspection"],
+    }),
+
     getLicenses: builder.query<{ data: CompanyLicense[]; meta: PaginationMeta }, CompanyListParams>({
       query: (params) => ({ url: "/licenses", params }),
       transformResponse: (response: any) => ({ data: response.data ?? [], meta: response.meta }),
@@ -123,6 +138,8 @@ export const companyApi = baseApi.injectEndpoints({
 });
 
 export const {
+  useGetLicenseAreaQuery,
+  useSetLicenseAreaMutation,
   useGetCompaniesQuery,
   useGetCompanyStatsQuery,
   useGetCompanyByIdQuery,

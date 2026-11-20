@@ -21,6 +21,7 @@ import { CompanyLicense, LICENSE_STATUS_LABEL, LICENSE_TYPE_LABEL, LicenseStatus
 import { formatCalendarDate } from "@/utils/date";
 import { CompanyDialog } from "./CompanyDialog";
 import { LicenseDialog } from "./LicenseDialog";
+import { LicenseAreaDialog } from "./LicenseAreaDialog";
 
 const STATUS_STYLE: Record<LicenseStatus, string> = {
   active: "bg-green-100 text-green-800",
@@ -45,6 +46,7 @@ export default function CompanyDetail() {
   const [licenseDialog, setLicenseDialog] = useState<{ open: boolean; license: CompanyLicense | null }>({ open: false, license: null });
   const [confirmDelete, setConfirmDelete] = useState<CompanyLicense | null>(null);
   const [showContact, setShowContact] = useState(false);
+  const [areaFor, setAreaFor] = useState<CompanyLicense | null>(null);
 
   if (isLoading) return <Loading01 />;
   if (isError || !company) return <div className="p-8 text-center text-red-600">Company not found.</div>;
@@ -206,6 +208,11 @@ export default function CompanyDetail() {
                   {(canUpdate || canDelete) && (
                     <span className="ml-auto flex gap-1">
                       {canUpdate && (
+                        <Button variant="ghost" size="sm" className="gap-1" onClick={() => setAreaFor(l)} title="Corner points of the license area">
+                          <MapPin className="h-3.5 w-3.5" /> Area
+                        </Button>
+                      )}
+                      {canUpdate && (
                         <Button variant="ghost" size="sm" className="gap-1" onClick={() => setLicenseDialog({ open: true, license: l })}>
                           <Edit className="h-3.5 w-3.5" /> Edit
                         </Button>
@@ -278,6 +285,7 @@ export default function CompanyDetail() {
         </main>
       </div>
 
+      {areaFor && <LicenseAreaDialog license={areaFor} companyId={company.company_id} onClose={() => setAreaFor(null)} />}
       <CompanyDialog open={editingCompany} company={company} onClose={() => setEditingCompany(false)} />
       <LicenseDialog
         open={licenseDialog.open}

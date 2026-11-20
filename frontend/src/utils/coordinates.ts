@@ -111,3 +111,66 @@ export const copyText = async (text: string) => {
     }
   }
 };
+
+/* ---------- Typing in a license area (the same conversion as the server: utils/geodesy.js) ---------- */
+
+const rad = (d: number) => (d * Math.PI) / 180;
+const deg = (r: number) => (r * 180) / Math.PI;
+const CLARKE_1880 = { a: 6378249.145, rf: 293.465 };
+const WGS84 = { a: 6378137, rf: 298.257223563 };
+const toEcef = (lat: number, lng: number, { a, rf }: { a: number; rf: number }) => {
+  const f = 1 / rf;
+  const e2 = f * (2 - f);
+  const p = rad(lat);
+  const l = rad(lng);
+  const N = a / Math.sqrt(1 - e2 * Math.sin(p) ** 2);
+  return [N * Math.cos(p) * Math.cos(l), N * Math.cos(p) * Math.sin(l), N * (1 - e2) * Math.sin(p)];
+};
+const fromEcef = ([x, y, z]: number[], { a, rf }: { a: number; rf: number }) => {
+  const f = 1 / rf;
+  const e2 = f * (2 - f);
+  const lng = Math.atan2(y, x);
+  const p = Math.hypot(x, y);
+  let lat = Math.atan2(z, p * (1 - e2));
+  for (let i = 0; i < 6; i++) {
+    const N = a / Math.sqrt(1 - e2 * Math.sin(lat) ** 2);
+    const h = p / Math.cos(lat) - N;
+    lat = Math.atan2(z, p * (1 - (e2 * N) / (N + h)));
+  }
+  return [deg(lat), deg(lng)];
+};
+/** [lat, lng] on Adindan (the license certificates) → [lat, lng] on WGS 84 (phones, maps). */
+export const adindanToWgs84 = (lat: number, lng: number) => {
+  const [x, y, z] = toEcef(lat, lng, CLARKE_1880);
+  return fromEcef([x - 165, y - 11, z + 206], WGS84);
+};
+export const inEthiopia = (lat: number, lng: number) => lat > 3.2 && lat < 15.1 && lng > 32.9 && lng < 48.1;
+
+/**
+ * Points pasted from Excel or a document, one per line. A line with 2 numbers is decimal
+ * (latitude, longitude); 6 numbers are degrees-minutes-seconds (lat d m s, lng d m s); 4 numbers
+ * are degrees-minutes. Other text on the line (N, E, °, ′, ″, point numbers before a tab) is ignored
+ * when the count fits. A blank line starts a new part.
+ */
+export const parsePointLines = (text: string): { parts: { lat: number; lng: number }[][]; bad: number[] } => {
+  const parts: { lat: number; lng: number }[][] = [[]];
+  const bad: number[] = [];
+  text.split(/\r?\n/).forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) {
+      if (parts[parts.length - 1].length) parts.push([]);
+      return;
+    }
+    let n = (line.match(/-?\d+(?:[.,]\d+)?/g) || []).map((x) => Number(x.replace(",", ".")));
+    // a leading point number ("1", "P1") before the coordinates
+    if (n.length === 3 || n.length === 5 || n.length === 7) n = n.slice(1);
+    let lat: number | null = null;
+    let lng: number | null = null;
+    if (n.length === 2) [lat, lng] = n;
+    else if (n.length === 4) [lat, lng] = [n[0] + n[1] / 60, n[2] + n[3] / 60];
+    else if (n.length === 6) [lat, lng] = [n[0] + n[1] / 60 + n[2] / 3600, n[3] + n[4] / 60 + n[5] / 3600];
+    if (lat == null || lng == null || !Number.isFinite(lat) || !Number.isFinite(lng)) bad.push(i + 1);
+    else parts[parts.length - 1].push({ lat, lng });
+  });
+  return { parts: parts.filter((p) => p.length), bad };
+};

@@ -207,3 +207,14 @@ export const regionsOf = (licenses: CompanyLicense[]) => {
     }
   return [...names].sort();
 };
+
+/** A license's surveyed area: GeoJSON in WGS 84, its centre, and the woredas it lies in */
+export interface LicenseArea {
+  license_id: string;
+  license_number: string;
+  boundary: LicenseBoundary | null;
+  center_lat: number | null;
+  center_lng: number | null;
+  location_source: "coordinates" | "list" | null;
+  areas: { area_id: string; name: string; level: string }[];
+}
