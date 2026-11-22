@@ -514,7 +514,7 @@ An admin can open one or more sections of a submitted inspection, so your team c
 1. You get a notification (the bell), and the task appears under **To update** in My Tasks. The card says, for example, *Submitted · Section 7 open to update until Dec 5*.
 2. Open the task. An orange message at the top shows **which sections are open, until when, and why**.
 3. Tap **Go to the section** and change what is needed. Only the open sections can be changed; the rest stays locked. Changes are saved as you type.
-4. When you finish, tap **Done updating**. If a required question in the open sections is still empty, the system takes you to it first.
+4. When you finish, tap **Done updating**. The system asks **"Finish updating?"** and lists the sections that will lock again: tap **Done updating** to confirm, or **Go back**. If a required question in the open sections is still empty, the system takes you to it first.
 5. After **Done updating**, the sections are locked again.
 
 Good to know:

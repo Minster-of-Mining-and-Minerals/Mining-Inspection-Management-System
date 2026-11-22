@@ -169,17 +169,22 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
   }, [canEdit, update, conflict, saveAnswers, saveUpdateAnswers, task.inspection_id, answers, reload]);
 
   /** "Done updating": required questions in the open sections must be answered; then they lock again */
+  const [askingDone, setAskingDone] = useState(false);
+  // The dialog stays open (with a spinner) until it is done or fails
   const finishUpdate = async () => {
     if (finishingUpdate) return;
     if (dirty && !(await saveNow())) {
       toast.error("Your changes aren't saved yet. Check your internet and try again.");
+      setAskingDone(false);
       return;
     }
     try {
       const r = await doneUpdating(task.inspection_id).unwrap();
       toast.success(r.message || "Done. Thank you.");
+      setAskingDone(false);
       reload();
     } catch (e: any) {
+      setAskingDone(false);
       if (e?.data?.problems?.length) {
         const p: Record<string, string> = {};
         (e.data.problems as AnswerProblem[]).forEach((x) => (p[x.key] = x.problem));
@@ -364,7 +369,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
             >
               Go to {updateSections.length === 1 ? "the section" : "the sections"}
             </Button>
-            <Button size="sm" className="gap-1.5" onClick={finishUpdate} disabled={finishingUpdate}>
+            <Button size="sm" className="gap-1.5" onClick={() => setAskingDone(true)} disabled={finishingUpdate}>
               {finishingUpdate ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Done updating
             </Button>
           </div>
@@ -439,7 +444,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
                     <span className="hidden sm:inline">{dirty ? "Save" : "Saved"}</span>
                   </Button>
                   {update && (
-                    <Button size="sm" className="gap-1.5" onClick={finishUpdate} disabled={finishingUpdate || !!conflict}>
+                    <Button size="sm" className="gap-1.5" onClick={() => setAskingDone(true)} disabled={finishingUpdate || !!conflict}>
                       {finishingUpdate ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                       <span>Done</span>
                     </Button>
@@ -462,6 +467,15 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 
       {confirming && <SubmitFlow task={task} busy={submitting} onCancel={() => setConfirming(false)} onSubmit={submit} />}
       {phoneOnly && <PhoneOnlyDialog onClose={() => setPhoneOnly(false)} />}
+      {askingDone && (
+        <DoneUpdatingDialog
+          sections={updateSections.map((s) => `${s.number ? `${s.number}. ` : ""}${s.title}`)}
+          unsaved={dirty}
+          busy={finishingUpdate}
+          onCancel={() => setAskingDone(false)}
+          onConfirm={finishUpdate}
+        />
+      )}
       {returning && <ReturnDialog task={task} onClose={() => setReturning(false)} onDone={reload} />}
       {opening && <OpenSectionsDialog inspectionId={task.inspection_id} scheduleId={task.schedule_id} occurrenceDate={task.occurrence_date} teamId={task.team_id} onClose={() => setOpening(false)} />}
     </div>
@@ -552,6 +566,47 @@ function SubmittedSummary({ task, onReturn, onOpenSections, onShowPlace }: { tas
         )}
       </div>
     </section>
+  );
+}
+
+/** "Done updating": the open sections lock again and can't be changed after this. */
+function DoneUpdatingDialog({ sections, unsaved, busy, onCancel, onConfirm }: { sections: string[]; unsaved: boolean; busy: boolean; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open onOpenChange={(o) => !o && !busy && onCancel()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <div className="flex items-start gap-3.5">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E7EEF4] text-primary">
+              <Lock className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <div className="space-y-1.5 text-left">
+              <DialogTitle className="text-xl text-primary">Finish updating?</DialogTitle>
+              <DialogDescription className="text-sm leading-relaxed text-slate-600">
+                {sections.length === 1 ? "This section" : "These sections"} will be <b className="text-slate-800">locked again</b>. After this, you can&apos;t change {sections.length === 1 ? "it" : "them"}. If
+                something still needs to change, an admin has to open {sections.length === 1 ? "it" : "them"} again.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+        <ul className="space-y-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800">
+          {sections.map((s) => (
+            <li key={s} className="flex items-start gap-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#1B7A3E]" aria-hidden="true" />
+              <span>{s}</span>
+            </li>
+          ))}
+        </ul>
+        {unsaved && <p className="text-xs text-slate-500">Your last changes are saved first.</p>}
+        <DialogFooter className="gap-2">
+          <Button variant="outline" className="h-11" onClick={onCancel} disabled={busy}>
+            Go back
+          </Button>
+          <Button className="h-11 gap-2 px-6" onClick={onConfirm} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Done updating
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
