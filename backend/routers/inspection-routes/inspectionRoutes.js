@@ -6,6 +6,7 @@ const inspections = require("../../controllers/inspection-controllers/inspection
 const { authorize, authorizeAny, authenticateToken } = require("../../middlewares/authMiddleware");
 const { getMyStats } = require("../../controllers/team-controllers/myTeamController");
 const files = require("../../controllers/inspection-controllers/inspectionFileController");
+const sectionOpenings = require("../../controllers/inspection-controllers/sectionOpeningController");
 const multer = require("multer");
 const crypto = require("crypto");
 const { TMP } = require("../../services/fileStorage");
@@ -104,6 +105,9 @@ scheduleRouter.delete("/:id", authorize("rounds", "delete"), schedules.deleteSch
  *   POST /:id/submit            submit (locks it; late after due)  conduct (team members)
  *   POST /:id/return            unlock for correction              review
  *   PUT /:id/assignment         other team / due time              assign
+ *   /openings…                  open sections of submitted inspections for update   review
+ *   PUT /:id/update-answers     save the open sections (any device)  conduct (team members)
+ *   POST /:id/done-updating     finish: the sections lock again      conduct (team members)
  */
 const inspectionRouter = express.Router();
 const readAny = authorizeAny([
@@ -117,10 +121,23 @@ inspectionRouter.get("/export", readAny, inspections.exportInspections);
 inspectionRouter.get("/my", authorizeAny([["inspections", "read_own"], ["inspections", "conduct"]]), inspections.getMyTasks);
 inspectionRouter.get("/my/stats", authenticateToken, getMyStats);
 inspectionRouter.get("/license/:licenseId", readAny, inspections.getLicenseHistory);
+// Open sections of submitted inspections for update (before "/:id")
+const readOpenings = authorizeAny([
+  ["inspections", "review"],
+  ["inspections", "read_all"],
+]);
+inspectionRouter.get("/openings/preview", authorize("inspections", "review"), sectionOpenings.previewOpening);
+inspectionRouter.get("/openings", readOpenings, sectionOpenings.listOpenings);
+inspectionRouter.post("/openings", authorize("inspections", "review"), sectionOpenings.createOpening);
+inspectionRouter.get("/openings/:openingId", readOpenings, sectionOpenings.getOpening);
+inspectionRouter.post("/openings/:openingId/close", authorize("inspections", "review"), sectionOpenings.closeOpening);
 inspectionRouter.get("/:id", readAny, inspections.getInspectionById);
 inspectionRouter.put("/:id/answers", authorize("inspections", "conduct"), validate(answersSchema), inspections.saveAnswers);
 // After submitting: only the sections filled in at the office (after_submit, e.g. 4.1)
 inspectionRouter.put("/:id/office-answers", authorize("inspections", "conduct"), validate(answersSchema), inspections.saveOfficeAnswers);
+// Sections opened for update after submitting
+inspectionRouter.put("/:id/update-answers", authorize("inspections", "conduct"), validate(answersSchema), inspections.saveUpdateAnswers);
+inspectionRouter.post("/:id/done-updating", authorize("inspections", "conduct"), inspections.doneUpdating);
 // Files of answers (photos / documents / videos / signatures)
 inspectionRouter.post("/:id/files", authorize("inspections", "conduct"), receiveFile, files.uploadFile);
 // Large files in pieces (resumable): start, each piece, finish, cancel

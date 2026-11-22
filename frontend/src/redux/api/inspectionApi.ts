@@ -1,6 +1,6 @@
 import { baseApi } from "../baseApi";
 import { PaginationMeta } from "../types/common";
-import { MyTasks, Schedule, ScheduleDetail, SchedulePayload, SchedulePreview, TaskDetail, TaskListItem } from "../types/inspection";
+import { MyTasks, OpeningPreview, OpeningScopeQuery, Schedule, ScheduleDetail, SchedulePayload, SchedulePreview, SectionOpening, SectionOpeningDetail, TaskDetail, TaskListItem } from "../types/inspection";
 
 export interface TaskListParams {
   schedule_id?: string;
@@ -117,6 +117,41 @@ export const inspectionApi = baseApi.injectEndpoints({
       query: ({ id, ...body }) => ({ url: `/inspections/${id}/assignment`, method: "PUT", body }),
       invalidatesTags: ["Inspection", "Schedule"],
     }),
+
+    /* ---- Sections of submitted inspections opened for update ---- */
+    /** Team: save the open sections (autosave, no reload) */
+    saveUpdateAnswers: builder.mutation<{ last_saved_at: string; status: string; changed: string[] }, { id: string; answers: Record<string, unknown>; base_saved_at: string | null }>({
+      query: ({ id, ...body }) => ({ url: `/inspections/${id}/update-answers`, method: "PUT", body }),
+      transformResponse: (response: { data: { last_saved_at: string; status: string; changed: string[] } }) => response.data,
+    }),
+    /** Team: finished; the sections lock again */
+    doneUpdating: builder.mutation<{ message: string }, string>({
+      query: (id) => ({ url: `/inspections/${id}/done-updating`, method: "POST" }),
+      invalidatesTags: ["Inspection", "Opening"],
+    }),
+    /** Reviewer: which submitted inspections a scope covers, and their sections */
+    previewOpening: builder.query<OpeningPreview, OpeningScopeQuery>({
+      query: ({ inspection_ids, ...q }) => ({ url: "/inspections/openings/preview", params: { ...q, ...(inspection_ids ? { inspection_ids: inspection_ids.join(",") } : {}) } }),
+      transformResponse: (response: { data: OpeningPreview }) => response.data,
+    }),
+    createOpening: builder.mutation<{ message: string }, OpeningScopeQuery & { section_keys: string[]; until: string; reason: string; region_name?: string }>({
+      query: (body) => ({ url: "/inspections/openings", method: "POST", body }),
+      invalidatesTags: ["Inspection", "Opening"],
+    }),
+    getOpenings: builder.query<SectionOpening[], { inspection_id?: string; schedule_id?: string; occurrence_date?: string; state?: "open" | "closed" }>({
+      query: (params) => ({ url: "/inspections/openings", params }),
+      transformResponse: (response: { data: SectionOpening[] }) => response.data,
+      providesTags: ["Opening"],
+    }),
+    getOpening: builder.query<SectionOpeningDetail, string>({
+      query: (id) => `/inspections/openings/${id}`,
+      transformResponse: (response: { data: SectionOpeningDetail }) => response.data,
+      providesTags: ["Opening"],
+    }),
+    closeOpening: builder.mutation<{ message: string }, string>({
+      query: (id) => ({ url: `/inspections/openings/${id}/close`, method: "POST" }),
+      invalidatesTags: ["Inspection", "Opening"],
+    }),
   }),
 });
 
@@ -137,4 +172,11 @@ export const {
   useSubmitTaskMutation,
   useReturnTaskMutation,
   useUpdateTaskAssignmentMutation,
+  useSaveUpdateAnswersMutation,
+  useDoneUpdatingMutation,
+  usePreviewOpeningQuery,
+  useCreateOpeningMutation,
+  useGetOpeningsQuery,
+  useGetOpeningQuery,
+  useCloseOpeningMutation,
 } = inspectionApi;

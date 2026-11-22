@@ -133,7 +133,10 @@ const startScheduler = () => {
       // Audit log rows past the retention time
       .then(() => require("./auditService").removeOldEntries())
       // Unfinished large uploads older than 2 days
-      .then(() => require("../controllers/inspection-controllers/inspectionFileController").cleanOldUploads());
+      .then(() => require("../controllers/inspection-controllers/inspectionFileController").cleanOldUploads())
+      // Sections opened for update whose deadline passed
+      .then(() => require("./sectionOpeningService").closeExpired())
+      .catch((e) => console.error("Hourly jobs:", e.message));
   setTimeout(run, 15 * 1000);
   setInterval(run, 60 * 60 * 1000).unref();
 };

@@ -14,10 +14,12 @@ import type { TaskDetail } from "@/redux/types/inspection";
 export type Located = { lat: number; lng: number; accuracy: number; altitude?: number | null; captured_at: string };
 type Failure = { error: "insecure" | "no_service" | "denied" | "timeout" | "unavailable"; detail?: string };
 
-/** Ask the browser for a fresh position; never throws. */
-export const locate = () =>
+/** iPhone / iPad (iPadOS says "Macintosh" but has touch), and which browser on it */
+const isIos = () => typeof navigator !== "undefined" && (/iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1));
+const iosBrowser = () => (/CriOS/.test(navigator.userAgent) ? "Chrome" : /FxiOS/.test(navigator.userAgent) ? "Firefox" : /EdgiOS/.test(navigator.userAgent) ? "Edge" : "Safari");
+
+const once = (options: PositionOptions) =>
   new Promise<Located | Failure>((resolve) => {
-    if (!("geolocation" in navigator)) return resolve({ error: window.isSecureContext ? "no_service" : "insecure" });
     navigator.geolocation.getCurrentPosition(
       (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, accuracy: Math.round(p.coords.accuracy), altitude: p.coords.altitude, captured_at: new Date(p.timestamp).toISOString() }),
       (e) =>
@@ -25,9 +27,22 @@ export const locate = () =>
           error: !window.isSecureContext && e.code === e.PERMISSION_DENIED ? "insecure" : e.code === e.PERMISSION_DENIED ? "denied" : e.code === e.TIMEOUT ? "timeout" : "unavailable",
           detail: e.message,
         }),
-      { enableHighAccuracy: true, timeout: 30000, maximumAge: 0 },
+      options,
     );
   });
+
+/**
+ * Ask the browser for the position; never throws. First a precise (GPS) fix; when that can't be had
+ * in time (indoors, iPhones often answer "unavailable"), the phone's normal location (Wi-Fi / mobile
+ * network, up to 2 minutes old) is accepted. Any current phone location is fine.
+ */
+export const locate = async (): Promise<Located | Failure> => {
+  if (!("geolocation" in navigator)) return { error: window.isSecureContext ? "no_service" : "insecure" };
+  const precise = await once({ enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  if ("lat" in precise || precise.error === "denied" || precise.error === "insecure") return precise;
+  const normal = await once({ enableHighAccuracy: false, timeout: 20000, maximumAge: 120000 });
+  return "lat" in normal ? normal : precise;
+};
 
 /** When location is already allowed for this site, get it without showing anything; else null. */
 export const quickLocation = async (): Promise<Located | null> => {
@@ -41,9 +56,40 @@ export const quickLocation = async (): Promise<Located | null> => {
   return "lat" in r ? r : null;
 };
 
+/** iPhone: the phone's Location being on isn't enough; the browser app needs it too */
+const IosSteps = () => {
+  const app = iosBrowser();
+  return (
+    <ol className="mt-1 list-decimal space-y-1 pl-5">
+      <li>
+        Open the iPhone <b>Settings</b> → <b>Privacy &amp; Security</b> → <b>Location Services</b> (it must be on).
+      </li>
+      <li>
+        {app === "Safari" ? (
+          <>
+            In the same list tap <b>Safari Websites</b> → choose <b>While Using the App</b>.
+          </>
+        ) : (
+          <>
+            In the same list tap <b>{app}</b> → choose <b>While Using the App</b>.
+          </>
+        )}
+      </li>
+      {app === "Safari" && (
+        <li>
+          Back in Safari, tap <b>aA</b> next to the address → <b>Website Settings</b> → <b>Location</b> → <b>Allow</b>.
+        </li>
+      )}
+      <li>
+        Come back to this page and tap <b>Try again</b>.
+      </li>
+    </ol>
+  );
+};
+
 const HELP: Record<Failure["error"], { title: string; text: React.ReactNode }> = {
   denied: {
-    title: "Location is blocked for this site",
+    title: "Location is blocked for this browser",
     text: (
       <>
         Tap the lock icon next to the address → <b>Permissions</b> (or Site settings) → <b>Location</b> → <b>Allow</b>, then tap <b>Try again</b>.
@@ -142,7 +188,14 @@ export function SubmitFlow({
               <p className="flex items-center gap-2 font-semibold">
                 <AlertTriangle className="h-4 w-4 shrink-0" /> {HELP[failure.error].title}
               </p>
-              <p className="leading-relaxed">{HELP[failure.error].text}</p>
+              {isIos() && (failure.error === "denied" || failure.error === "unavailable") ? (
+                <div className="leading-relaxed">
+                  The phone&apos;s Location may be on, but {iosBrowser()} is not allowed to use it:
+                  <IosSteps />
+                </div>
+              ) : (
+                <p className="leading-relaxed">{HELP[failure.error].text}</p>
+              )}
               {failure.detail && <p className="text-[11px] text-red-700/70">Browser says: {failure.detail}</p>}
             </div>
           ) : (
@@ -154,7 +207,15 @@ export function SubmitFlow({
                 Tap <b>Allow location</b>, then <b>Allow</b> when the phone asks.
               </li>
               <li>
-                Blocked before? Tap the lock icon by the address → <b>Location</b> → <b>Allow</b>.
+                {isIos() ? (
+                  <>
+                    iPhone: in <b>Settings → Privacy &amp; Security → Location Services → {iosBrowser() === "Safari" ? "Safari Websites" : iosBrowser()}</b>, choose <b>While Using the App</b>.
+                  </>
+                ) : (
+                  <>
+                    Blocked before? Tap the lock icon by the address → <b>Location</b> → <b>Allow</b>.
+                  </>
+                )}
               </li>
             </ol>
           )}

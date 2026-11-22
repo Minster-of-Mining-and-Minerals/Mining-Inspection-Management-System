@@ -20,6 +20,7 @@ const { sequelize, Inspection, InspectionFile, InspectionEvent, FormVersion } = 
 const storage = require("../../services/fileStorage");
 const { MAX_FILE_MB } = require("../../utils/formDefinition");
 const { loadTask } = require("./inspectionAccess");
+const { fieldKeysOf } = require("../../services/sectionOpeningService");
 
 const fail = (res, status, message) => res.status(status).json({ success: false, message });
 const MB = 1024 * 1024;
@@ -75,8 +76,9 @@ const listFiles = (inspectionId) =>
  */
 const checkUpload = async (req, task, rights, { field_key, name, mimetype, size }) => {
   const stop = (status, message) => Object.assign(new Error(message), { status });
-  if (task.status === "submitted") throw stop(409, "This inspection has been submitted; files can't be added.");
-  if (!rights.fill) throw stop(403, "Only members of the assigned team can add files.");
+  // Submitted: only to questions in sections opened for update
+  if (task.status === "submitted" && !rights.update) throw stop(409, "This inspection has been submitted; files can't be added.");
+  if (task.status !== "submitted" && !rights.fill) throw stop(403, "Only members of the assigned team can add files.");
   // The version answered: fixed when the first file or answer is saved
   const version = task.form_version_id
     ? await FormVersion.findByPk(task.form_version_id)
@@ -86,6 +88,7 @@ const checkUpload = async (req, task, rights, { field_key, name, mimetype, size 
   // A table with a signature column takes signatures too
   const signs = field?.type === "signature" || (field?.type === "table" && (field.columns || []).some((c) => c.type === "signature"));
   if (!field || !(signs || ["photo", "status"].includes(field.type)) || (field.type === "status" && field.evidence === "none")) throw stop(400, "This question doesn't take files.");
+  if (task.status === "submitted" && !fieldKeysOf(version.definition, rights.update_sections).has(field.key)) throw stop(409, "This question isn't in a section open for update.");
 
   const fileName = String(name || "file").slice(0, 255);
   let kind = kindOf(mimetype, fileName);
@@ -196,7 +199,7 @@ const startUpload = async (req, res) => {
 const uploadChunk = async (req, res) => {
   try {
     const { task, rights } = await loadTask(req, req.params.id);
-    if (task.status === "submitted" || !rights.fill) return fail(res, 403, "Files can't be added to this inspection.");
+    if (task.status === "submitted" ? !rights.update : !rights.fill) return fail(res, 403, "Files can't be added to this inspection.");
     const m = await readMeta(req, req.params.uploadId);
     const { part } = uploadPaths(req.params.uploadId);
     const received = await partSize(part);
@@ -320,10 +323,13 @@ const downloadFile = async (req, res) => {
 const deleteFile = async (req, res) => {
   try {
     const { task, rights } = await loadTask(req, req.params.id);
-    if (task.status === "submitted") return fail(res, 409, "This inspection has been submitted; its files can't be removed.");
-    if (!rights.fill) return fail(res, 403, "Only members of the assigned team can remove files.");
+    if (task.status === "submitted" && !rights.update) return fail(res, 409, "This inspection has been submitted; its files can't be removed.");
+    if (task.status !== "submitted" && !rights.fill) return fail(res, 403, "Only members of the assigned team can remove files.");
     const f = await InspectionFile.scope("withStorage").findOne({ where: { file_id: req.params.fileId, inspection_id: task.inspection_id } });
     if (!f) return fail(res, 404, "File not found.");
+    // Open for update: files added during the update can be removed; what was submitted is kept
+    if (task.status === "submitted" && (!task.submitted_at || new Date(f.created_at) <= new Date(task.submitted_at)))
+      return fail(res, 409, "Files sent with the submission are kept. Add a new file instead.");
     await f.destroy();
     await storage.remove(f.storage_key);
     return res.status(200).json({ success: true, message: "File removed." });

@@ -15,6 +15,7 @@ const {
   Mineral,
   AdminArea,
   SectorNode,
+  SectionOpeningItem,
 } = require("../../models");
 const { currentMembership } = require("../../services/teamMembershipService");
 const { validateAnswers, scoreOf, visibleStructure } = require("../../utils/formAnswers");
@@ -29,6 +30,7 @@ const notify = require("../../services/inspectionNotifications");
 const exporter = require("../../services/inspectionExport");
 const { placeOf } = require("../../services/placeService");
 const { isComputer, phoneRequiredToSubmit } = require("../../utils/device");
+const openings = require("../../services/sectionOpeningService");
 
 const LIST_INCLUDE = [
   { model: Company, as: "company", attributes: ["company_id", "name", "name_am"] },
@@ -314,27 +316,48 @@ const progressOf = async (tasks) => {
 const getMyTasks = async (req, res) => {
   try {
     const membership = await currentMembership(req.user.user_id);
-    const empty = { returned: 0, overdue: 0, in_progress: 0, todo: 0, open: 0, submitted: 0 };
-    if (!membership) return res.status(200).json({ success: true, data: { team: null, todo: [], submitted: [], counts: empty } });
+    const empty = { returned: 0, overdue: 0, in_progress: 0, todo: 0, open: 0, submitted: 0, to_update: 0 };
+    if (!membership) return res.status(200).json({ success: true, data: { team: null, todo: [], submitted: [], to_update: [], counts: empty } });
     const teamId = membership.team_id;
     const [open, submitted, submittedCount] = await Promise.all([
       Inspection.findAll({ where: { team_id: teamId, status: { [Op.ne]: "submitted" } }, include: LIST_INCLUDE, attributes: LIST_ATTRS, order: [["due_at", "ASC"]], limit: 500 }),
       Inspection.findAll({ where: { team_id: teamId, status: "submitted" }, include: LIST_INCLUDE, attributes: LIST_ATTRS, order: [["submitted_at", "DESC"]], limit: Math.min(500, parseInt(req.query.submitted_limit, 10) || 100) }),
       Inspection.count({ where: { team_id: teamId, status: "submitted" } }),
     ]);
-    const all = [...open, ...submitted];
+    // Submitted tasks with sections opened for update: { inspection_id → { until, section_keys, section_labels } }
+    const openUpdates = await sequelize.query(
+      `SELECT it.inspection_id, o.until, o.section_keys, o.section_labels
+         FROM section_opening_items it
+         JOIN section_openings o ON o.opening_id = it.opening_id
+         JOIN inspections i ON i.inspection_id = it.inspection_id
+        WHERE it.status = 'waiting' AND o.closed_at IS NULL AND o.until > NOW()
+          AND i.team_id = :teamId AND i.status = 'submitted'`,
+      { replacements: { teamId }, type: QueryTypes.SELECT },
+    );
+    const updates = new Map();
+    for (const r of openUpdates) {
+      const u = updates.get(r.inspection_id) || { until: r.until, section_keys: [], section_labels: [] };
+      if (new Date(r.until) > new Date(u.until)) u.until = r.until;
+      u.section_keys = [...new Set([...u.section_keys, ...(r.section_keys || [])])];
+      u.section_labels = [...new Set([...u.section_labels, ...(r.section_labels || [])])];
+      updates.set(r.inspection_id, u);
+    }
+    const toUpdate = updates.size
+      ? await Inspection.findAll({ where: { inspection_id: [...updates.keys()] }, include: LIST_INCLUDE, attributes: LIST_ATTRS, order: [["submitted_at", "DESC"]] })
+      : [];
+    const all = [...open, ...submitted, ...toUpdate];
     const [areas, progress] = await Promise.all([areasOf(all.map((t) => t.license_id)), progressOf(open)]);
     const enrich = (t) => {
       const s = summary(t);
       const group = s.status === "submitted" ? "submitted" : s.status === "in_progress" && s.return_count > 0 ? "returned" : s.is_overdue ? "overdue" : s.status;
-      return { ...s, group, area: areas.get(s.license_id) ?? null, progress: progress.get(s.inspection_id) ?? null };
+      return { ...s, group, area: areas.get(s.license_id) ?? null, progress: progress.get(s.inspection_id) ?? null, open_update: updates.get(s.inspection_id) ?? null };
     };
     const openRows = open.map(enrich);
-    const counts = { ...empty, open: openRows.length, submitted: submittedCount };
+    const counts = { ...empty, open: openRows.length, submitted: submittedCount, to_update: toUpdate.length };
     for (const t of openRows) counts[t.group]++;
     return res.status(200).json({
       success: true,
-      data: { team: membership.team, role: membership.role, todo: openRows, submitted: submitted.map(enrich), counts },
+      data: { team: membership.team, role: membership.role, todo: openRows, submitted: submitted.map(enrich), to_update: toUpdate.map(enrich), counts },
     });
   } catch (error) {
     console.error("getMyTasks", error);
@@ -414,7 +437,7 @@ const sendError = (res, error, fallback) => {
 
 const getInspectionById = async (req, res) => {
   try {
-    const { task, rights } = await loadTask(req, req.params.id);
+    const { task, rights, open } = await loadTask(req, req.params.id);
     const full = await Inspection.findByPk(task.inspection_id, {
       include: [
         ...LIST_INCLUDE,
@@ -440,6 +463,9 @@ const getInspectionById = async (req, res) => {
         // For tables with a row per team member (e.g. the signatures)
         team_member_names: task.status === "submitted" ? [] : await teamMemberNames(task),
         files: await listFiles(task.inspection_id),
+        // Sections opened for update after submitting (null when none), and the answers changed that way
+        open_update: open ? { section_keys: open.section_keys, section_labels: [...new Set(open.openings.flatMap((o) => o.section_labels))], until: open.until, openings: open.openings } : null,
+        updated_answers: task.status === "submitted" ? await openings.changedAnswers(task.inspection_id) : {},
         can: rights,
       },
     });
@@ -544,6 +570,91 @@ const saveOfficeAnswers = async (req, res) => {
   } catch (error) {
     if (!transaction.finished) await transaction.rollback();
     return sendError(res, error, "Failed to save the answers.");
+  }
+};
+
+/**
+ * PUT /:id/update-answers — sections a reviewer opened for update after submitting (see
+ * services/sectionOpeningService.js). Only those sections' answers change (plus after_submit sections);
+ * the inspection stays submitted: submitted_at, on time / late and the location don't change.
+ * Any device; no location. Each changed question is recorded for the "Updated after submitting" tag.
+ */
+const saveUpdateAnswers = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const { task, rights, open } = await loadTask(req, req.params.id);
+    await task.reload({ transaction, lock: transaction.LOCK.UPDATE });
+    if (!rights.update) throw Object.assign(new Error("These sections aren't open for update any more (closed, past the deadline, or marked done)."), { status: 409, extra: { closed: true } });
+    const version = await versionFor(task, transaction);
+    const def = version.definition;
+    const keys = new Set([
+      ...openings.fieldKeysOf(def, open.section_keys),
+      ...(def.sections || []).filter((s) => s.after_submit).flatMap((s) => (s.fields || []).map((f) => f.key)),
+    ]);
+    const base = req.body.base_saved_at ? new Date(req.body.base_saved_at) : null;
+    if (task.last_saved_at && task.last_saved_by !== req.user.user_id && (!base || task.last_saved_at > base)) {
+      const who = await User.findByPk(task.last_saved_by, { attributes: ["full_name"] });
+      throw Object.assign(new Error(`${who?.full_name ?? "A teammate"} saved changes to this inspection. Reload it to see their answers before you continue.`), { status: 409, extra: { conflict: true } });
+    }
+    const before = task.answers || {};
+    const picked = Object.fromEntries(Object.entries(req.body.answers || {}).filter(([k]) => keys.has(k)));
+    const clean = await sanitizeFileRefs(task.inspection_id, def, cleanAnswers(def, { ...before, ...picked }), transaction);
+    const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+    const changed = [...keys].filter((k) => !same(before[k], clean[k]));
+    if (changed.length) {
+      const now = new Date();
+      await task.update({ answers: clean, last_saved_at: now, last_saved_by: req.user.user_id }, { transaction });
+      const mark = Object.fromEntries(changed.map((k) => [k, { at: now, by: req.user.user_id }]));
+      for (const item of open.items) await item.update({ changed_answers: { ...(item.changed_answers || {}), ...mark } }, { transaction });
+      // One history line per person and day
+      const today = new Date(now.toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa" })).toDateString();
+      const last = await InspectionEvent.findOne({ where: { inspection_id: task.inspection_id, type: "update_saved", user_id: req.user.user_id }, order: [["created_at", "DESC"]], transaction });
+      const lastDay = last && new Date(new Date(last.created_at).toLocaleString("en-US", { timeZone: "Africa/Addis_Ababa" })).toDateString();
+      if (lastDay !== today)
+        await InspectionEvent.create(
+          { inspection_id: task.inspection_id, type: "update_saved", user_id: req.user.user_id, details: { sections: [...new Set(open.openings.flatMap((o) => o.section_labels))] } },
+          { transaction },
+        );
+    }
+    await transaction.commit();
+    return res.status(200).json({ success: true, data: { last_saved_at: task.last_saved_at, status: task.status, changed } });
+  } catch (error) {
+    if (!transaction.finished) await transaction.rollback();
+    return sendError(res, error, "Failed to save the answers.");
+  }
+};
+
+/**
+ * POST /:id/done-updating — the team finished the open sections. Required questions in them must be
+ * answered. The sections lock again for this inspection; the person who opened them is told.
+ */
+const doneUpdating = async (req, res) => {
+  try {
+    const { task, rights, open } = await loadTask(req, req.params.id);
+    if (!rights.update) throw Object.assign(new Error("These sections aren't open for update any more."), { status: 409, extra: { closed: true } });
+    const version = await versionFor(task);
+    const license = await CompanyLicense.findByPk(task.license_id, { attributes: ["license_type"] });
+    const keys = openings.fieldKeysOf(version.definition, open.section_keys);
+    const problems = validateAnswers(version.definition, license?.license_type, task.answers || {}).filter((p) => keys.has(p.key));
+    if (problems.length) return fail(res, 400, `${problems.length} answer(s) in the open sections need attention first.`, { problems });
+    const labels = [...new Set(open.openings.flatMap((o) => o.section_labels))];
+    const changed = new Set(open.items.flatMap((i) => Object.keys(i.changed_answers || {}))).size;
+    await sequelize.transaction(async (transaction) => {
+      await SectionOpeningItem.update(
+        { status: "done", done_at: new Date(), done_by: req.user.user_id },
+        { where: { item_id: open.items.map((i) => i.item_id), status: "waiting" }, transaction },
+      );
+      await InspectionEvent.create({ inspection_id: task.inspection_id, type: "update_done", user_id: req.user.user_id, details: { sections: labels, changed } }, { transaction });
+    });
+    for (const item of open.items) {
+      notify.sectionsUpdated(task.inspection_id, req.user.user_id, item.opening);
+      // Everyone done: the opening closes by itself
+      const waiting = await SectionOpeningItem.count({ where: { opening_id: item.opening_id, status: "waiting" } });
+      if (!waiting) await openings.closeOpenings([item.opening], { reason: "all_done" });
+    }
+    return res.status(200).json({ success: true, message: "Done. The sections are locked again." });
+  } catch (error) {
+    return sendError(res, error, "Failed to finish updating.");
   }
 };
 
@@ -682,6 +793,8 @@ const updateAssignment = async (req, res) => {
 module.exports = {
   exportInspections,
   saveOfficeAnswers,
+  saveUpdateAnswers,
+  doneUpdating,
   getInspections,
   getTeamProgress,
   getMyTasks,

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, History, Loader2, Lock, MapPin, RotateCcw, Save, Send, Smartphone } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, History, Loader2, Lock, MapPin, RotateCcw, Save, Send, Smartphone, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -25,7 +25,16 @@ import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel, isComputer } from "@/utils/device";
 import { Answers, defaultTableRows, validateAnswers } from "@/features/forms/component/formLogic";
-import { useGetTaskQuery, useReturnTaskMutation, useSaveAnswersMutation, useSaveOfficeAnswersMutation, useSubmitTaskMutation } from "@/redux/api/inspectionApi";
+import {
+  useDoneUpdatingMutation,
+  useGetTaskQuery,
+  useReturnTaskMutation,
+  useSaveAnswersMutation,
+  useSaveOfficeAnswersMutation,
+  useSaveUpdateAnswersMutation,
+  useSubmitTaskMutation,
+} from "@/redux/api/inspectionApi";
+import { OpenSectionsDialog, OpeningsPanel, sectionsText } from "./SectionOpenings";
 import type { AnswerProblem, TaskDetail } from "@/redux/types/inspection";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge, dueText } from "./taskUi";
@@ -85,7 +94,7 @@ export default function InspectionView() {
   if (!task.version) return <p className="p-8 text-center text-red-600">The checklist of this inspection has no published version.</p>;
   // Remount when the server copy changes underneath (reload after a conflict, return for correction).
   // Someone watching isn't remounted by each save (they keep their place); the answers just update.
-  return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.can.fill || task.can.fill_after_submit ? task.last_saved_at : ""}`} task={task} reload={refetch} />;
+  return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.can.fill || task.can.fill_after_submit || task.can.update ? task.last_saved_at : ""}-${task.can.update ? "u" : ""}`} task={task} reload={refetch} />;
 }
 
 function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void }) {
@@ -95,9 +104,16 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
   const editable = task.can.fill;
   // Submitted: the team can still fill the sections done at the office (after_submit, e.g. 4.1)
   const officeKeys = useMemo(() => new Set(def.sections.filter((s) => s.after_submit).map((s) => s.key)), [def]);
-  const office = !editable && !!task.can.fill_after_submit && officeKeys.size > 0;
-  const canEdit = editable || office;
-  const filesApi = useInspectionFiles(task.inspection_id, task.files ?? [], !editable);
+  // Submitted, with sections a reviewer opened for update: the team changes those (any device), then "Done updating"
+  const update = !editable && !!task.can.update;
+  const updateKeys = useMemo(
+    () => new Set([...(task.can.update_sections ?? []), ...(task.can.fill_after_submit ? [...officeKeys] : [])]),
+    [task.can.update_sections, task.can.fill_after_submit, officeKeys],
+  );
+  const updateSections = def.sections.filter((s) => task.can.update_sections?.includes(s.key));
+  const office = !editable && !update && !!task.can.fill_after_submit && officeKeys.size > 0;
+  const canEdit = editable || office || update;
+  const filesApi = useInspectionFiles(task.inspection_id, task.files ?? [], !(editable || update));
 
   // Ask for location permission when filling starts; nothing is shown here. Submitting asks again and records it.
   useEffect(() => {
@@ -130,6 +146,9 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 
   const [saveAnswers] = useSaveAnswersMutation();
   const [saveOfficeAnswers] = useSaveOfficeAnswersMutation();
+  const [saveUpdateAnswers] = useSaveUpdateAnswersMutation();
+  const [doneUpdating, { isLoading: finishingUpdate }] = useDoneUpdatingMutation();
+  const [opening, setOpening] = useState(false);
   const [submitTask, { isLoading: submitting }] = useSubmitTaskMutation();
 
   // ---------- autosave ----------
@@ -137,7 +156,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
     if (!canEdit || conflict) return false;
     setSaveState("saving");
     try {
-      const save = office ? saveOfficeAnswers : saveAnswers;
+      const save = update ? saveUpdateAnswers : office ? saveOfficeAnswers : saveAnswers;
       const r = await save({ id: task.inspection_id, answers, base_saved_at: baseSavedAt.current }).unwrap();
       baseSavedAt.current = r.last_saved_at;
       setDirty(false);
@@ -147,10 +166,39 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       if (e?.status === 409 && e?.data?.conflict) {
         setConflict(e.data.message);
         setSaveState("conflict");
+      } else if (e?.status === 409 && e?.data?.closed) {
+        // Closed by a reviewer, or the deadline passed meanwhile
+        toast.error(e.data.message);
+        setSaveState("error");
+        reload();
       } else setSaveState("error");
       return false;
     }
-  }, [canEdit, office, conflict, saveAnswers, saveOfficeAnswers, task.inspection_id, answers]);
+  }, [canEdit, update, office, conflict, saveAnswers, saveOfficeAnswers, saveUpdateAnswers, task.inspection_id, answers, reload]);
+
+  /** "Done updating": required questions in the open sections must be answered; then they lock again */
+  const finishUpdate = async () => {
+    if (finishingUpdate) return;
+    if (dirty && !(await saveNow())) {
+      toast.error("Your changes aren't saved yet. Check your internet and try again.");
+      return;
+    }
+    try {
+      const r = await doneUpdating(task.inspection_id).unwrap();
+      toast.success(r.message || "Done. Thank you.");
+      reload();
+    } catch (e: any) {
+      if (e?.data?.problems?.length) {
+        const p: Record<string, string> = {};
+        (e.data.problems as AnswerProblem[]).forEach((x) => (p[x.key] = x.problem));
+        setProblems(p);
+        setView("questions");
+        setJumpKey(e.data.problems[0].key);
+      }
+      toast.error(e?.data?.message || "Could not finish.");
+      if (e?.data?.closed) reload();
+    }
+  };
 
   useEffect(() => {
     if (!dirty) return;
@@ -292,7 +340,51 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
           </span>
         </p>
       )}
-      {task.status === "submitted" && <SubmittedSummary task={task} onReturn={task.can.return ? () => setReturning(true) : undefined} onShowPlace={() => setView("site")} />}
+      {task.status === "submitted" && (
+        <SubmittedSummary
+          task={task}
+          onReturn={task.can.return ? () => setReturning(true) : undefined}
+          onOpenSections={task.can.open_sections ? () => setOpening(true) : undefined}
+          onShowPlace={() => setView("site")}
+        />
+      )}
+      {update && task.open_update && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <p className="flex items-center gap-2 font-semibold">
+            <Unlock className="h-4 w-4 shrink-0" aria-hidden="true" /> Open to update until {formatDateTime(task.open_update.until)}
+          </p>
+          <p className="mt-1">{updateSections.map((s) => `${s.number ? `${s.number}. ` : ""}${s.title}`).join(", ")}</p>
+          {task.open_update.openings.map((o) => (
+            <p key={o.opening_id} className="mt-1 whitespace-pre-line text-amber-900">
+              “{o.reason}”{o.opened_by ? <span className="text-amber-800"> · {o.opened_by.full_name}</span> : null}
+            </p>
+          ))}
+          <p className="mt-1 text-xs text-amber-800">Changes are saved as you type. The inspection stays submitted. When you finish, tap Done updating.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setView("questions");
+                const first = updateSections[0]?.fields[0]?.key;
+                if (first) setJumpKey(first);
+              }}
+            >
+              Go to {updateSections.length === 1 ? "the section" : "the sections"}
+            </Button>
+            <Button size="sm" className="gap-1.5" onClick={finishUpdate} disabled={finishingUpdate}>
+              {finishingUpdate ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Done updating
+            </Button>
+          </div>
+        </div>
+      )}
+      {!update && task.open_update && !task.can.open_sections && (
+        <p className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <Unlock className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {sectionsText([...new Set(task.open_update.openings.flatMap((o) => o.section_labels))])} open for {task.team?.name ?? "the team"} to update until {formatDateTime(task.open_update.until)}.
+        </p>
+      )}
+      {task.status === "submitted" && task.can.open_sections && <OpeningsPanel inspectionId={task.inspection_id} canManage />}
       {office && (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
           <span className="min-w-0 flex-1">
@@ -354,7 +446,8 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
             onJumped={() => setJumpKey(null)}
             onFinish={editable ? startSubmit : undefined}
             onStepChange={() => dirty && canEdit && saveNow()}
-            openSections={office ? officeKeys : undefined}
+            openSections={update ? updateKeys : office ? officeKeys : undefined}
+            updated={task.updated_answers}
             resumeKey={task.inspection_id}
             title={task.company?.name ?? ""}
             finishing={submitting || locating}
@@ -376,6 +469,12 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
                     {saveState === "saving" ? <Loader2 className="h-4 w-4 animate-spin" /> : dirty ? <Save className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4 text-green-600" />}
                     <span className="hidden sm:inline">{dirty ? "Save" : "Saved"}</span>
                   </Button>
+                  {update && (
+                    <Button size="sm" className="gap-1.5" onClick={finishUpdate} disabled={finishingUpdate || !!conflict}>
+                      {finishingUpdate ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      <span>Done</span>
+                    </Button>
+                  )}
                 </div>
               ) : null
             }
@@ -395,12 +494,13 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       {confirming && <SubmitFlow task={task} busy={submitting} onCancel={() => setConfirming(false)} onSubmit={submit} />}
       {phoneOnly && <PhoneOnlyDialog onClose={() => setPhoneOnly(false)} />}
       {returning && <ReturnDialog task={task} onClose={() => setReturning(false)} onDone={reload} />}
+      {opening && <OpenSectionsDialog inspectionId={task.inspection_id} scheduleId={task.schedule_id} occurrenceDate={task.occurrence_date} teamId={task.team_id} onClose={() => setOpening(false)} />}
     </div>
   );
 }
 
 /* =================== after submitting =================== */
-function SubmittedSummary({ task, onReturn, onShowPlace }: { task: TaskDetail; onReturn?: () => void; onShowPlace: () => void }) {
+function SubmittedSummary({ task, onReturn, onOpenSections, onShowPlace }: { task: TaskDetail; onReturn?: () => void; onOpenSections?: () => void; onShowPlace: () => void }) {
   const loc = task.submit_location;
   const device = task.submit_device ? deviceLabel(task.submit_device.user_agent, task.submit_device.platform) : null;
   const tile = "min-w-0 rounded-xl border border-slate-200 bg-white p-3";
@@ -465,10 +565,19 @@ function SubmittedSummary({ task, onReturn, onShowPlace }: { task: TaskDetail; o
           )}
         </div>
 
-        {onReturn ? (
-          <Button variant="outline" className="h-12 w-full gap-2 border-primary text-primary sm:h-10 sm:w-auto" onClick={onReturn}>
-            <RotateCcw className="h-4 w-4" /> Return for correction
-          </Button>
+        {onReturn || onOpenSections ? (
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {onOpenSections && (
+              <Button variant="outline" className="h-12 w-full gap-2 border-amber-500 text-amber-900 sm:h-10 sm:w-auto" onClick={onOpenSections}>
+                <Unlock className="h-4 w-4" /> Open sections for update
+              </Button>
+            )}
+            {onReturn && (
+              <Button variant="outline" className="h-12 w-full gap-2 border-primary text-primary sm:h-10 sm:w-auto" onClick={onReturn}>
+                <RotateCcw className="h-4 w-4" /> Return for correction
+              </Button>
+            )}
+          </div>
         ) : (
           <p className="text-xs text-slate-500">Ask a supervisor if something needs correcting.</p>
         )}
@@ -563,6 +672,10 @@ const EVENT_LABEL: Record<string, string> = {
   reassigned: "Given to another team",
   due_changed: "Due date changed",
   office_update: "Completed at the office",
+  update_opened: "Opened for update",
+  update_saved: "Updated after submitting",
+  update_done: "Done updating",
+  update_closed: "Update closed",
 };
 
 function EventHistory({ task }: { task: TaskDetail }) {
@@ -583,6 +696,15 @@ function EventHistory({ task }: { task: TaskDetail }) {
             </span>
             {e.type === "returned" && e.details?.reason && <p className="text-xs text-slate-600">“{e.details.reason}”</p>}
             {e.type === "due_changed" && e.details?.to && <p className="text-xs text-slate-600">New due: end of {dueText(e.details.to)}</p>}
+            {e.type.startsWith("update_") && e.details?.sections?.length > 0 && (
+              <p className="text-xs text-slate-600">
+                {sectionsText(e.details?.sections ?? [])}
+                {e.type === "update_opened" && e.details?.until ? ` · until ${formatDateTime(e.details?.until)}` : ""}
+                {e.type === "update_done" && e.details?.changed != null ? ` · ${e.details?.changed} answer${e.details?.changed === 1 ? "" : "s"} changed` : ""}
+                {e.type === "update_closed" ? (e.details?.why === "deadline" ? " · deadline passed" : e.details?.why === "manual" ? " · closed by a reviewer" : "") : ""}
+              </p>
+            )}
+            {e.type === "update_opened" && e.details?.reason && <p className="text-xs text-slate-600">“{e.details.reason}”</p>}
           </li>
         ))}
       </ol>

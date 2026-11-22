@@ -498,7 +498,7 @@ The Ministry records **where** each inspection is submitted. Your location is ta
 - The task moves to the **Submitted** tab of My Tasks, and its status becomes **Submitted**.
 - The answers are **locked**. Nobody in the team can change them.
 - **Section 4.1 stays open** for your team: a blue message on the task says it is *filled in at the office* and can still be completed. Tap **Open it**, fill in section 4.1, and your changes are saved as you type.
-- The **History** tab (Figure 23) lists what happened to the task: started, submitted, completed at the office, and so on, with the date and the person.
+- The **History** tab (Figure 23) lists what happened to the task: started, submitted, completed at the office, opened for update, done updating, and so on, with the date and the person.
 
 ### If an inspection is returned for correction
 
@@ -507,6 +507,23 @@ A supervisor can send a submitted inspection back to your team. It then appears 
 1. Open the task. A purple message at the top shows **who returned it, when, and why**.
 2. Correct the answers as asked.
 3. Submit again (section 9).
+
+### If sections are opened for you to update
+
+A supervisor can open one or more sections of a submitted inspection, so your team can fill in what is missing or correct it. The inspection **stays submitted**: its submission time, on-time status and location do not change.
+
+1. You get a notification (the bell), and the task appears under **To update** in My Tasks. The card says, for example, *Submitted · Section 7 open to update until Dec 5*.
+2. Open the task. An orange message at the top shows **which sections are open, until when, and why**.
+3. Tap **Go to the section** and change what is needed. Only the open sections can be changed; the rest stays locked. Changes are saved as you type.
+4. When you finish, tap **Done updating**. If a required question in the open sections is still empty, the system takes you to it first.
+5. After **Done updating**, the sections are locked again.
+
+Good to know:
+
+- You can do this from a **phone or a computer**. No location is needed.
+- Do it **before the deadline**. After the deadline, or if the supervisor closes it early, the sections lock again. What you already saved is kept.
+- Photos sent with the submission are kept. You can add new ones, and remove only the ones you added during the update.
+- Every answer you change shows the tag **Updated after submitting** with the date, so supervisors can see what changed.
 
 <div align="center">
 <img src="images/23-history.png" width="300" alt="The History tab of a task">

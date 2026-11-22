@@ -56,6 +56,8 @@ interface Props {
   resumeKey?: string;
   /** Sections that can still be filled although readOnly (after submitting: the ones done at the office) */
   openSections?: Set<string>;
+  /** Answers changed after submitting (sections opened for update): question key → when */
+  updated?: Record<string, { at: string }>;
 }
 
 export function InspectionStepper({
@@ -76,6 +78,7 @@ export function InspectionStepper({
   onStepChange,
   resumeKey,
   openSections,
+  updated,
 }: Props) {
   // Navigation and menus in English; the questions, answers and section titles use `language` (Amharic)
   const am = false;
@@ -240,6 +243,7 @@ export function InspectionStepper({
             large
             readOnly={readOnly && !openSections?.has(here.section.key)}
             source={here.field.prefill ? "license" : here.section.after_submit ? "office" : undefined}
+            updatedAt={updated?.[here.field.key]?.at}
           />
         ) : (
           <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -257,6 +261,7 @@ export function InspectionStepper({
                     language={language}
                     readOnly={readOnly && !openSections?.has(current.section.key)}
                     source={f.prefill ? "license" : current.section.after_submit ? "office" : undefined}
+                    updatedAt={updated?.[f.key]?.at}
                   />
                 </li>
               ))}

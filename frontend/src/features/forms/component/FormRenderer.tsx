@@ -82,6 +82,7 @@ export function QuestionBlock({
   large,
   readOnly,
   source,
+  updatedAt,
 }: {
   definition: FormDefinition;
   field: FormField;
@@ -96,6 +97,8 @@ export function QuestionBlock({
   readOnly?: boolean;
   /** Where the answer came from, when not from the inspector on site */
   source?: "license" | "office";
+  /** When the answer was changed after submitting (a section opened for update) */
+  updatedAt?: string;
 }) {
   const options = f.type === "status" ? statusOptionsFor(definition, f) : [];
   const input = (part: InputPart) => <FieldInput field={f} options={options} value={value} onChange={onChange} language={language} previewMode={previewMode} large={large} part={part} readOnly={readOnly} />;
@@ -112,7 +115,7 @@ export function QuestionBlock({
     return (
       <div id={`answer-${f.key}`} className="scroll-mt-36 space-y-3">
         <div className={`space-y-4 rounded-xl border bg-white p-4 shadow-sm sm:p-5 ${problem ? "border-red-300" : "border-slate-200"}`}>
-          <QuestionLabel field={f} index={index} language={language} large tag={tag} />
+          <QuestionLabel field={f} index={index} language={language} large tag={tag} updatedAt={updatedAt} />
           {input(f.type === "status" ? "main" : "all")}
         </div>
         {f.type === "status" && input("extra")}
@@ -122,7 +125,7 @@ export function QuestionBlock({
   }
   return (
     <div id={`answer-${f.key}`} className="scroll-mt-36 space-y-2 px-4 py-3">
-      <QuestionLabel field={f} index={index} language={language} tag={tag} />
+      <QuestionLabel field={f} index={index} language={language} tag={tag} updatedAt={updatedAt} />
       {input("all")}
       {problemLine}
     </div>
@@ -134,7 +137,13 @@ const SOURCE_TAG = {
   office: { am: "በቢሮ የተሞላ", en: "Completed at the office", cls: "bg-sky-100 text-sky-800" },
 };
 
-function QuestionLabel({ field, index, language, large, tag }: { field: FormField; index?: number; language: FormLanguage; large?: boolean; tag?: "office" }) {
+/** "Updated after submitting · 5 Dec 2026" (a section opened for update after submitting) */
+const updatedText = (at: string, language: FormLanguage) => {
+  const d = new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "Africa/Addis_Ababa" });
+  return language === "am" ? `ከገባ በኋላ የተስተካከለ · ${d}` : `Updated after submitting · ${d}`;
+};
+
+function QuestionLabel({ field, index, language, large, tag, updatedAt }: { field: FormField; index?: number; language: FormLanguage; large?: boolean; tag?: "office"; updatedAt?: string }) {
   const help = pickText(field.help, field.help_am, language);
   return (
     <div className={`flex gap-2 text-slate-900 ${large ? "text-base font-semibold leading-relaxed sm:text-lg" : "text-sm font-medium"}`}>
@@ -144,6 +153,11 @@ function QuestionLabel({ field, index, language, large, tag }: { field: FormFiel
         {field.required && <span className="ml-1 text-red-500">*</span>}
         {tag && (
           <span className={`ml-2 inline-block rounded-full px-2 py-0.5 align-middle text-[11px] font-semibold ${SOURCE_TAG[tag].cls}`}>{language === "am" ? SOURCE_TAG[tag].am : SOURCE_TAG[tag].en}</span>
+        )}
+        {updatedAt && (
+          <span className="ml-2 inline-block rounded-full bg-amber-100 px-2 py-0.5 align-middle text-[11px] font-semibold text-amber-900" title="Changed after the inspection was submitted">
+            {updatedText(updatedAt, language)}
+          </span>
         )}
         {help && <p className={`mt-0.5 font-normal text-slate-500 ${large ? "text-sm" : "text-xs"}`}>{help}</p>}
       </div>

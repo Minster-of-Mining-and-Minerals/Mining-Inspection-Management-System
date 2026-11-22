@@ -4,7 +4,8 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, Edit, Pause, Play, Search, Square, Trash2, UserCog } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Edit, Pause, Play, Search, Square, Trash2, Unlock, UserCog } from "lucide-react";
+import { OpenSectionsDialog, OpeningsPanel } from "./SectionOpenings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -53,6 +54,9 @@ export default function ScheduleDetail() {
   const canUpdate = check({ allPermissions: ["ROUNDS:UPDATE"] });
   const canDelete = check({ allPermissions: ["ROUNDS:DELETE"] });
   const canAssign = check({ allPermissions: ["INSPECTIONS:ASSIGN"] });
+  // Open sections of the round's submitted inspections for update
+  const canOpen = check({ allPermissions: ["INSPECTIONS:REVIEW"] });
+  const [openingRound, setOpeningRound] = useState(false);
 
   const { data: s, isLoading, isError } = useGetScheduleByIdQuery(scheduleId, { skip: !scheduleId });
   useBreadcrumbTitleEffect(s?.name, scheduleId);
@@ -204,11 +208,18 @@ export default function ScheduleDetail() {
                 Round of {occurrence && formatCalendarDate(occurrence)}
                 {current && <span className="ml-2 text-sm font-normal text-slate-500">due by end of {dueText(current.due_at)}</span>}
               </h2>
+              {canOpen && occurrence && (current?.submitted ?? 1) > 0 && (
+                <Button variant="outline" size="sm" className="gap-1.5 border-amber-500 text-amber-900" onClick={() => setOpeningRound(true)}>
+                  <Unlock className="h-4 w-4" /> Open sections for update
+                </Button>
+              )}
               <div className="relative w-full sm:w-64">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <Input aria-label="Search company or license" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Company or license number" className="pl-9" />
               </div>
             </div>
+            {occurrence && <OpeningsPanel scheduleId={s.schedule_id} occurrenceDate={occurrence} canManage={canOpen} />}
+            {openingRound && occurrence && <OpenSectionsDialog scheduleId={s.schedule_id} occurrenceDate={occurrence} onClose={() => setOpeningRound(false)} />}
             <div className="flex flex-wrap gap-1">
               {FILTERS.map(([key, label]) => (
                 <button

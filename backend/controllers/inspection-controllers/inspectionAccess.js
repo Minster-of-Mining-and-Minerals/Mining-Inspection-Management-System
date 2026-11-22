@@ -3,6 +3,7 @@ const { validate: isUuid } = require("uuid");
 const { Inspection } = require("../../models");
 const { currentMembership } = require("../../services/teamMembershipService");
 const { findInScope } = require("../../services/sectorScope");
+const { openFor } = require("../../services/sectionOpeningService");
 
 const can = (req, action) => req.user.permissions.includes(`inspections:${action}`);
 
@@ -24,12 +25,19 @@ const loadTask = async (req, id) => {
   const team = await myTeamId(req);
   const inTeam = !!team && task.team_id === team;
   if (!can(req, "read_all") && !inTeam) throw Object.assign(new Error("This inspection belongs to another team."), { status: 403 });
+  // Sections a reviewer opened for update after submitting (any device, no location)
+  const open = task.status === "submitted" ? await openFor(task.inspection_id) : null;
   return {
+    open,
     task,
     rights: {
       fill: inTeam && can(req, "conduct") && task.status !== "submitted",
       // Sections marked after_submit (e.g. 4.1, filled in at the office) stay open to the team once submitted
       fill_after_submit: inTeam && can(req, "conduct") && task.status === "submitted",
+      // Open sections (see services/sectionOpeningService.js): the team may change only those, then taps "Done updating"
+      update: inTeam && can(req, "conduct") && !!open,
+      update_sections: inTeam && can(req, "conduct") && open ? open.section_keys : [],
+      open_sections: can(req, "review") && task.status === "submitted",
       return: can(req, "review") && task.status === "submitted",
       reassign: can(req, "assign") && task.status !== "submitted",
     },

@@ -78,6 +78,7 @@ export const baseApi = createApi({
     "Form",
     "Schedule",
     "Inspection",
+    "Opening",
     "Attachment",
     "Dashboard",
     "Notification",

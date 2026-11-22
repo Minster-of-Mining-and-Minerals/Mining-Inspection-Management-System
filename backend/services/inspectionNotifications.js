@@ -176,6 +176,79 @@ const officeCompleted = (inspectionId, actorId, sections) =>
     );
   });
 
+/* ---- Sections opened for update after submitting (services/sectionOpeningService.js) ---- */
+
+/** Teams of these inspections, each with its inspections: Map(team_id → [{ inspection_id, company, license_number }]). */
+const byTeam = async (inspectionIds) => {
+  if (!inspectionIds.length) return new Map();
+  const rows = await q(
+    `SELECT i.inspection_id, i.team_id, c.name AS company, l.license_number
+       FROM inspections i JOIN companies c ON c.company_id = i.company_id JOIN company_licenses l ON l.license_id = i.license_id
+      WHERE i.inspection_id IN (:ids) AND i.team_id IS NOT NULL`,
+    { ids: inspectionIds },
+  );
+  const out = new Map();
+  for (const r of rows) out.set(r.team_id, [...(out.get(r.team_id) || []), r]);
+  return out;
+};
+const sectionText = (labels) => (labels.length === 1 ? `Section ${labels[0]}` : `Sections ${labels.join(", ")}`);
+
+/** Each team hears which of its submitted inspections are open, until when, and why. */
+const sectionsOpened = (opening, inspectionIds, actorId) =>
+  safely("sections opened", async () => {
+    let n = 0;
+    for (const [teamId, list] of await byTeam(inspectionIds)) {
+      const one = list.length === 1;
+      n += await send(
+        await teamMembers(teamId),
+        {
+          type: "INSPECTION_SECTIONS_OPENED",
+          title: "Open to update",
+          message: `${sectionText(opening.section_labels)} of ${one ? what(list[0]) : `${list.length} submitted inspections`} ${one ? "is" : "are"} open for your team to update until ${day(opening.until)}. Tap "Done updating" when finished. Reason: ${String(opening.reason).slice(0, 400)}`,
+          entityType: one ? "inspection" : "tasks",
+          entityId: one ? list[0].inspection_id : null,
+        },
+        actorId,
+      );
+    }
+    return n;
+  });
+
+/** The person who opened it hears when a team is done. */
+const sectionsUpdated = (inspectionId, actorId, opening) =>
+  safely("sections updated", async () => {
+    const t = await taskInfo(inspectionId);
+    if (!t || !opening.opened_by) return 0;
+    const actor = await nameOf(actorId);
+    return send(
+      [opening.opened_by],
+      { type: "INSPECTION_SECTIONS_UPDATED", title: "Done updating", message: `${actor} finished updating ${sectionText(opening.section_labels).toLowerCase()} of ${what(t)}.`, entityId: t.inspection_id },
+      actorId,
+    );
+  });
+
+/** Teams still waiting hear that it closed (closed by someone, or the deadline passed). */
+const sectionsClosed = (opening, waitingIds, actorId) =>
+  safely("sections closed", async () => {
+    let n = 0;
+    const why = actorId ? "was closed" : "closed at its deadline";
+    for (const [teamId, list] of await byTeam(waitingIds)) {
+      const one = list.length === 1;
+      n += await send(
+        await teamMembers(teamId),
+        {
+          type: "INSPECTION_SECTIONS_CLOSED",
+          title: "Update closed",
+          message: `Updating ${sectionText(opening.section_labels).toLowerCase()} of ${one ? what(list[0]) : `${list.length} submitted inspections`} ${why}. Changes already saved are kept.`,
+          entityType: one ? "inspection" : "tasks",
+          entityId: one ? list[0].inspection_id : null,
+        },
+        actorId,
+      );
+    }
+    return n;
+  });
+
 /** New tasks of one round (scheduleService): one summary per team. createdSince: when the tasks were created. */
 const roundStarted = (scheduleId, occurrenceDate, createdSince) =>
   safely("round", async () => {
@@ -232,4 +305,4 @@ const sendDueReminders = (now = new Date()) =>
     return n;
   });
 
-module.exports = { inspectionSubmitted, inspectionReturned, inspectionReassigned, officeCompleted, roundStarted, sendDueReminders, teamMembers, reviewers };
+module.exports = { inspectionSubmitted, inspectionReturned, inspectionReassigned, officeCompleted, sectionsOpened, sectionsUpdated, sectionsClosed, roundStarted, sendDueReminders, teamMembers, reviewers };

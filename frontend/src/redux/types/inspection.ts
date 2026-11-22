@@ -100,11 +100,13 @@ export interface TaskListItem {
   group?: TaskGroup;
   area?: { region: string | null; zone: string | null; woreda: string | null } | null;
   progress?: { answered: number; total: number } | null;
+  /** My tasks only: sections opened for update after submitting */
+  open_update?: { until: string; section_keys: string[]; section_labels: string[] } | null;
 }
 
 export interface TaskEvent {
   event_id: string;
-  type: "started" | "submitted" | "returned" | "reassigned" | "due_changed";
+  type: "started" | "submitted" | "returned" | "reassigned" | "due_changed" | "office_update" | "update_opened" | "update_saved" | "update_done" | "update_closed";
   details: Record<string, any> | null;
   created_at: string;
   user?: { user_id: string; full_name: string } | null;
@@ -158,7 +160,15 @@ export interface TaskDetail extends TaskListItem {
   /** Current members of the team (not when submitted): rows of tables with team_rows */
   team_member_names?: string[];
   /** fill_after_submit: the team can still fill the sections marked after_submit (e.g. 4.1) once submitted */
-  can: { fill: boolean; return: boolean; reassign: boolean; fill_after_submit?: boolean };
+  /**
+   * update: sections opened for update after submitting (update_sections); the team saves them and taps "Done updating".
+   * open_sections: may open sections of this submitted inspection for update (reviewers).
+   */
+  can: { fill: boolean; return: boolean; reassign: boolean; fill_after_submit?: boolean; update?: boolean; update_sections?: string[]; open_sections?: boolean };
+  /** Sections open for update right now (null when none) */
+  open_update?: { section_keys: string[]; section_labels: string[]; until: string; openings: OpeningOfTask[] } | null;
+  /** Answers changed after submitting: question key → when and by whom */
+  updated_answers?: Record<string, { at: string; by: string }>;
   /** The license area for the site map */
   site: {
     boundary: LicenseBoundary | null;
@@ -178,7 +188,76 @@ export interface MyTasks {
   role?: "leader" | "member";
   todo: TaskListItem[];
   submitted: TaskListItem[];
-  counts: Record<TaskGroup | "open", number>;
+  /** Submitted tasks with sections open for update */
+  to_update?: TaskListItem[];
+  counts: Record<TaskGroup | "open" | "to_update", number>;
+}
+
+/* ---- Sections of submitted inspections opened for update ---- */
+
+export type OpeningScope = "inspection" | "licenses" | "round" | "team" | "region";
+
+export interface OpeningOfTask {
+  opening_id: string;
+  section_keys: string[];
+  section_labels: string[];
+  until: string;
+  reason: string;
+  opened_by: { user_id: string; full_name: string } | null;
+  opened_at: string;
+}
+
+export interface SectionOpening {
+  opening_id: string;
+  scope: OpeningScope;
+  scope_details: { schedule_id?: string | null; occurrence_date?: string | null; team_id?: string | null; region_id?: string | null; region_name?: string | null } | null;
+  schedule_id: string | null;
+  schedule?: { schedule_id: string; name: string } | null;
+  section_keys: string[];
+  section_labels: string[];
+  reason: string;
+  until: string;
+  created_at: string;
+  closed_at: string | null;
+  close_reason: "manual" | "deadline" | "all_done" | null;
+  opener?: { user_id: string; full_name: string } | null;
+  closer?: { user_id: string; full_name: string } | null;
+  is_open: boolean;
+  total: number;
+  done: number;
+}
+
+export interface OpeningItem {
+  inspection_id: string;
+  company: string | null;
+  license_number: string | null;
+  team: { team_id: string; name: string } | null;
+  submitted_at: string | null;
+  status: "waiting" | "done";
+  done_at: string | null;
+  done_by: { user_id: string; full_name: string } | null;
+  changed: number;
+}
+
+export interface SectionOpeningDetail extends SectionOpening {
+  items: OpeningItem[];
+}
+
+export interface OpeningPreview {
+  count: number;
+  too_many: boolean;
+  sections: { key: string; number: string | null; title: string; questions: number; required: number }[];
+  inspections: { inspection_id: string; company: string | null; license_number: string | null; team: { team_id: string; name: string } | null; submitted_at: string | null; open_now: boolean }[];
+}
+
+export interface OpeningScopeQuery {
+  scope: OpeningScope;
+  inspection_id?: string;
+  schedule_id?: string;
+  occurrence_date?: string;
+  inspection_ids?: string[];
+  team_id?: string;
+  region_id?: string;
 }
 
 export interface AnswerProblem {

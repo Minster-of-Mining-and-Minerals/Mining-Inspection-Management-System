@@ -15,7 +15,8 @@ import { useGetMyTasksQuery } from "@/redux/api/inspectionApi";
 import { FREQUENCY_LABEL, TaskGroup, TaskListItem } from "@/redux/types/inspection";
 import { formatCalendarDate, formatMonthYear } from "@/utils/date";
 
-type Tab = "open" | TaskGroup;
+/** to_update: submitted tasks with sections opened for update */
+type Tab = "open" | TaskGroup | "to_update";
 type GroupBy = "due" | "form" | "company" | "region";
 type Sort = "due" | "company" | "saved";
 type Lang = "am" | "en";
@@ -36,6 +37,7 @@ const T = {
   returned: { am: "ተመልሰዋል", en: "Returned" },
   overdue: { am: "ያለፈባቸው", en: "Overdue" },
   submitted: { am: "የገቡ", en: "Submitted" },
+  to_update: { am: "የሚስተካከሉ", en: "To update" },
   search: { am: "ኩባንያ፣ ፈቃድ፣ ቅጽ ወይም አካባቢ", en: "Company, license, checklist, area" },
   groupBy: { am: "በ…", en: "Group by" },
   company: { am: "ኩባንያ", en: "Company" },
@@ -58,6 +60,7 @@ const daysBetween = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00
 const chipFor = (t: TaskListItem, lang: Lang) => {
   const am = lang === "am";
   const pct = t.progress?.total ? Math.round((t.progress.answered / t.progress.total) * 100) : null;
+  if (t.open_update) return { text: am ? "ለማስተካከል ክፍት" : "Open to update", tone: "bg-amber-100 text-amber-900" };
   switch (t.group) {
     case "returned":
       return { text: am ? "ተመልሷል" : "Returned", tone: "bg-red-100 text-red-700" };
@@ -75,6 +78,10 @@ const chipFor = (t: TaskListItem, lang: Lang) => {
 /** "ቀነ ገደብ 25 Nov · 5 ቀን ቀርቷል", "ዛሬ", "ቀነ ገደቡ አልፏል · 2 ቀን" … */
 const dueLine = (t: TaskListItem, lang: Lang) => {
   const am = lang === "am";
+  if (t.status === "submitted" && t.open_update) {
+    const sec = t.open_update.section_labels.length === 1 ? `Section ${t.open_update.section_labels[0]}` : `Sections ${t.open_update.section_labels.join(", ")}`;
+    return { text: `Submitted · ${sec} open to update until ${formatCalendarDate(lastDay(t.open_update.until))}`, urgent: true };
+  }
   if (t.status === "submitted") return { text: am ? `ገብቷል ${formatCalendarDate((t.submitted_at ?? "").slice(0, 10))}${t.submitter ? ` · ${t.submitter.full_name}` : ""}` : `Submitted ${formatCalendarDate((t.submitted_at ?? "").slice(0, 10))}${t.submitter ? ` by ${t.submitter.full_name}` : ""}`, urgent: false };
   const last = lastDay(t.due_at);
   const left = daysBetween(todayLocal(), last);
@@ -181,14 +188,14 @@ export default function MyTasks() {
     }
   };
 
-  const allTasks = useMemo(() => [...(data?.todo ?? []), ...(data?.submitted ?? [])], [data]);
+  const allTasks = useMemo(() => [...(data?.todo ?? []), ...(data?.submitted ?? []), ...(data?.to_update ?? [])], [data]);
   const formOptions = useMemo(() => [...new Map(allTasks.map((x) => [x.form_id, x.form?.name ?? ""])).entries()].sort((a, b) => a[1].localeCompare(b[1])), [allTasks]);
   const regionOptions = useMemo(() => [...new Set(allTasks.map((x) => x.area?.region).filter(Boolean) as string[])].sort(), [allTasks]);
 
   const groups = useMemo(() => {
     if (!data) return [];
     const q = search.trim().toLowerCase();
-    let list = tab === "submitted" ? data.submitted : tab === "open" ? data.todo : data.todo.filter((x) => x.group === tab);
+    let list = tab === "to_update" ? (data.to_update ?? []) : tab === "submitted" ? data.submitted : tab === "open" ? data.todo : data.todo.filter((x) => x.group === tab);
     list = list.filter(
       (x) =>
         (!q || [x.company?.name, x.license?.license_number, x.form?.name, x.area?.region, x.area?.zone].some((v) => v?.toLowerCase().includes(q))) &&
@@ -209,7 +216,7 @@ export default function MyTasks() {
             ? (b.submitted_at ?? "").localeCompare(a.submitted_at ?? "")
             : a.due_at.localeCompare(b.due_at),
     );
-    return groupTasks(sorted, groupBy, tab === "submitted", lang);
+    return groupTasks(sorted, groupBy, tab === "submitted" || tab === "to_update", lang);
   }, [data, tab, groupBy, sort, search, formFilter, typeFilter, regionFilter, lang]);
 
   if (isLoading) return <Loading01 />;
@@ -237,7 +244,8 @@ export default function MyTasks() {
       return n;
     });
   // All, Submitted and In progress first, then the others
-  const tabs: Tab[] = ["open", "submitted", "in_progress", "todo", "overdue", "returned"];
+  // "To update" (sections opened after submitting) only when there are some
+  const tabs: Tab[] = [...((data.counts.to_update ?? 0) > 0 ? (["to_update"] as Tab[]) : []), "open", "submitted", "in_progress", "todo", "overdue", "returned"];
 
   return (
     <div className="w-full space-y-3">
@@ -268,7 +276,7 @@ export default function MyTasks() {
       <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1 sm:mx-0 sm:px-0" role="tablist" aria-label={am ? "ሁኔታ" : "Status"}>
         {tabs.map((k) => {
           const n = data.counts[k] ?? 0;
-          const urgent = (k === "overdue" || k === "returned") && n > 0;
+          const urgent = (k === "overdue" || k === "returned" || k === "to_update") && n > 0;
           return (
             <button
               key={k}
