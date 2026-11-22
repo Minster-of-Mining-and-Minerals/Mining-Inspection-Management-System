@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
-import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, History, Loader2, Lock, MapPin, RotateCcw, Save, Send, Smartphone, Unlock } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CheckCircle2, ChevronRight, History, Loader2, Lock, MapPin, RotateCcw, Save, Smartphone, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,7 +24,7 @@ import { distanceText } from "@/utils/licenseArea";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel, isComputer } from "@/utils/device";
-import { Answers, defaultTableRows, unfilledAnswers, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
+import { Answers, defaultTableRows, validateAnswers } from "@/features/forms/component/formLogic";
 import {
   useDoneUpdatingMutation,
   useGetTaskQuery,
@@ -35,7 +35,6 @@ import {
 } from "@/redux/api/inspectionApi";
 import { OpenSectionsDialog, OpeningsPanel, sectionsText } from "./SectionOpenings";
 import type { AnswerProblem, TaskDetail } from "@/redux/types/inspection";
-import type { FormDefinition, LicenseTypeKey } from "@/redux/types/form";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge, dueText } from "./taskUi";
 
@@ -238,13 +237,6 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       setPhoneOnly(true);
       return;
     }
-    // Submitting locks every answer: ask first
-    setAsking(true);
-  };
-
-  const [asking, setAsking] = useState(false);
-  const confirmedSubmit = async () => {
-    setAsking(false);
     // Location already allowed: get it quietly and submit at once; otherwise show the location step
     setLocating(true);
     const note = toast.loading("Getting your location…");
@@ -470,21 +462,6 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 
       {confirming && <SubmitFlow task={task} busy={submitting} onCancel={() => setConfirming(false)} onSubmit={submit} />}
       {phoneOnly && <PhoneOnlyDialog onClose={() => setPhoneOnly(false)} />}
-      {asking && (
-        <ConfirmSubmitDialog
-          def={def}
-          licenseType={licenseType}
-          answers={answers}
-          busy={submitting || locating}
-          onCancel={() => setAsking(false)}
-          onGoTo={(key) => {
-            setAsking(false);
-            setView("questions");
-            setJumpKey(key);
-          }}
-          onSubmit={confirmedSubmit}
-        />
-      )}
       {returning && <ReturnDialog task={task} onClose={() => setReturning(false)} onDone={reload} />}
       {opening && <OpenSectionsDialog inspectionId={task.inspection_id} scheduleId={task.schedule_id} occurrenceDate={task.occurrence_date} teamId={task.team_id} onClose={() => setOpening(false)} />}
     </div>
@@ -575,83 +552,6 @@ function SubmittedSummary({ task, onReturn, onOpenSections, onShowPlace }: { tas
         )}
       </div>
     </section>
-  );
-}
-
-/**
- * Pressing Submit: the answers lock and can't be changed afterwards (an admin can open a section
- * for update). Sections filled in at the office (e.g. 4.1) that aren't complete are pointed out.
- */
-function ConfirmSubmitDialog({
-  def,
-  licenseType,
-  answers,
-  busy,
-  onCancel,
-  onGoTo,
-  onSubmit,
-}: {
-  def: FormDefinition;
-  licenseType: LicenseTypeKey | null;
-  answers: Answers;
-  busy: boolean;
-  onCancel: () => void;
-  onGoTo: (key: string) => void;
-  onSubmit: () => void;
-}) {
-  const unfilled = unfilledAnswers(def, licenseType, answers);
-  // Office sections (after_submit) that still have unanswered questions
-  const office = visibleStructure(def, licenseType, answers)
-    .filter(({ section }) => section.after_submit && section.fields.length)
-    .map(({ section, fields }) => {
-      const open = unfilled.filter((u) => u.sectionKey === section.key);
-      const missing = new Set(open.map((u) => u.key)).size;
-      return { section, total: fields.length, answered: fields.length - missing, first: open[0]?.key };
-    })
-    .filter((x) => x.answered < x.total);
-  return (
-    <Dialog open onOpenChange={(o) => !o && !busy && onCancel()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <div className="flex items-start gap-3.5">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E7EEF4] text-primary">
-              <Lock className="h-6 w-6" aria-hidden="true" />
-            </span>
-            <div className="space-y-1.5 text-left">
-              <DialogTitle className="text-xl text-primary">Submit this inspection?</DialogTitle>
-              <DialogDescription className="text-sm leading-relaxed text-slate-600">
-                Your answers will be sent and <b className="text-slate-800">locked</b>. After submitting, you can&apos;t change them. If something needs to change later, an admin
-                has to open the section for you.
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-        {office.map(({ section, answered, total, first }) => (
-          <div key={section.key} className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert">
-            <p className="flex items-center gap-2 font-semibold">
-              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" /> Section {section.number || section.title} isn&apos;t complete
-            </p>
-            <p className="mt-1">
-              {section.number ? `${section.number}. ` : ""}
-              {section.title}: <b>{answered} of {total}</b> questions answered. It is filled in at the office; after submitting it is locked too.
-            </p>
-            {first && (
-              <Button size="sm" variant="outline" className="mt-2" onClick={() => onGoTo(first)} disabled={busy}>
-                Fill in {section.number || "it"} now
-              </Button>
-            )}
-          </div>
-        ))}
-        <DialogFooter className="gap-2">
-          <Button variant="outline" className="h-11" onClick={onCancel} disabled={busy}>
-            Go back
-          </Button>
-          <Button className="h-11 gap-2 px-6" onClick={onSubmit} disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {office.length ? "Submit anyway" : "Submit"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }
 

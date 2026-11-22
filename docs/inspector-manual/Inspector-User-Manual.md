@@ -382,7 +382,7 @@ Write a short, clear description for each question. In section 10, summarise the
 
 Section 4.1 (the license contract's annual work plan) is **optional** and is usually **filled in at the office**. You can leave it empty in the field, but **fill it in before you submit**.
 
-- When you press **Submit** and section 4.1 is not complete, the confirmation shows how many of its questions are answered and offers **Fill in 4.1 now**.
+- The check before submitting (section 9.1) lists the questions of section 4.1 that are not filled in, like the other sections.
 - After the inspection is submitted, section 4.1 is **locked like every other section**. If it must be filled in later, an admin opens it for your team (see section 10, *If sections are opened for you to update*).
 
 ### 7.9 Section 16: signatures
@@ -470,8 +470,6 @@ The page also remembers where you were. When you come back to the task, it opens
 
 **Figure 21.** Check before submitting: ① questions not filled in, ② go to a question, ③ Fill them in, ④ Submit anyway.
 </div>
-
-When you press **Submit**, the system asks **"Submit this inspection?"**. After you submit, the answers are locked and you can't change them. Tap **Go back** if you want to check something, or **Submit** to continue. If section 4.1 is not complete, the message says so and offers **Fill in 4.1 now**.
 
 ### 9.2 Share your location
 
