@@ -32,8 +32,6 @@ const loadTask = async (req, id) => {
     task,
     rights: {
       fill: inTeam && can(req, "conduct") && task.status !== "submitted",
-      // Sections marked after_submit (e.g. 4.1, filled in at the office) stay open to the team once submitted
-      fill_after_submit: inTeam && can(req, "conduct") && task.status === "submitted",
       // Open sections (see services/sectionOpeningService.js): the team may change only those, then taps "Done updating"
       update: inTeam && can(req, "conduct") && !!open,
       update_sections: inTeam && can(req, "conduct") && open ? open.section_keys : [],

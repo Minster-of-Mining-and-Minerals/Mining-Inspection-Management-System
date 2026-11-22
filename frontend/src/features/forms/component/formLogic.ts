@@ -97,8 +97,6 @@ export interface Unfilled {
 export const unfilledAnswers = (def: FormDefinition, licenseType: LicenseTypeKey | null, answers: Answers): Unfilled[] => {
   const out: Unfilled[] = [];
   for (const { section, fields } of visibleStructure(def, licenseType, answers)) {
-    // Filled in later, at the office (can still be done after submitting): not part of the check
-    if (section.after_submit) continue;
     for (const f of fields) {
       const a = answers[f.key];
       const add = (what: string) => out.push({ key: f.key, sectionKey: section.key, what });

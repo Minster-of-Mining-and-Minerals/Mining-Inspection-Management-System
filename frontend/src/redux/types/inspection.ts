@@ -159,7 +159,6 @@ export interface TaskDetail extends TaskListItem {
   prefill: Record<string, string>;
   /** Current members of the team (not when submitted): rows of tables with team_rows */
   team_member_names?: string[];
-  /** fill_after_submit: the team can still fill the sections marked after_submit (e.g. 4.1) once submitted */
   /**
    * update: sections opened for update after submitting (update_sections); the team saves them and taps "Done updating".
    * open_sections: may open sections of this submitted inspection for update (reviewers).

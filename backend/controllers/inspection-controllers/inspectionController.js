@@ -539,7 +539,8 @@ const saveOfficeAnswers = async (req, res) => {
   try {
     const { task, rights } = await loadTask(req, req.params.id);
     await task.reload({ transaction, lock: transaction.LOCK.UPDATE });
-    if (!rights.fill_after_submit) throw Object.assign(new Error("Only members of the assigned team can complete this after submitting."), { status: 403 });
+    // Sections filled in at the office (e.g. 4.1) lock at submit like the others; an admin opens them for update
+    if (!rights.fill_after_submit) throw Object.assign(new Error("This inspection is submitted. Ask an admin to open the section for update."), { status: 403 });
     const version = await versionFor(task, transaction);
     const open = (version?.definition.sections || []).filter((s) => s.after_submit);
     if (!open.length) throw Object.assign(new Error("Nothing in this checklist can be changed after submitting."), { status: 409 });
@@ -587,10 +588,7 @@ const saveUpdateAnswers = async (req, res) => {
     if (!rights.update) throw Object.assign(new Error("These sections aren't open for update any more (closed, past the deadline, or marked done)."), { status: 409, extra: { closed: true } });
     const version = await versionFor(task, transaction);
     const def = version.definition;
-    const keys = new Set([
-      ...openings.fieldKeysOf(def, open.section_keys),
-      ...(def.sections || []).filter((s) => s.after_submit).flatMap((s) => (s.fields || []).map((f) => f.key)),
-    ]);
+    const keys = openings.fieldKeysOf(def, open.section_keys);
     const base = req.body.base_saved_at ? new Date(req.body.base_saved_at) : null;
     if (task.last_saved_at && task.last_saved_by !== req.user.user_id && (!base || task.last_saved_at > base)) {
       const who = await User.findByPk(task.last_saved_by, { attributes: ["full_name"] });

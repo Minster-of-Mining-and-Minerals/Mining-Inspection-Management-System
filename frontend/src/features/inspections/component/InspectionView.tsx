@@ -24,18 +24,18 @@ import { distanceText } from "@/utils/licenseArea";
 import { FormFilesContext } from "@/features/forms/component/FormFiles";
 import { useInspectionFiles } from "./useInspectionFiles";
 import { deviceLabel, isComputer } from "@/utils/device";
-import { Answers, defaultTableRows, validateAnswers } from "@/features/forms/component/formLogic";
+import { Answers, defaultTableRows, unfilledAnswers, validateAnswers, visibleStructure } from "@/features/forms/component/formLogic";
 import {
   useDoneUpdatingMutation,
   useGetTaskQuery,
   useReturnTaskMutation,
   useSaveAnswersMutation,
-  useSaveOfficeAnswersMutation,
   useSaveUpdateAnswersMutation,
   useSubmitTaskMutation,
 } from "@/redux/api/inspectionApi";
 import { OpenSectionsDialog, OpeningsPanel, sectionsText } from "./SectionOpenings";
 import type { AnswerProblem, TaskDetail } from "@/redux/types/inspection";
+import type { FormDefinition, LicenseTypeKey } from "@/redux/types/form";
 import { formatCalendarDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge, dueText } from "./taskUi";
 
@@ -94,7 +94,7 @@ export default function InspectionView() {
   if (!task.version) return <p className="p-8 text-center text-red-600">The checklist of this inspection has no published version.</p>;
   // Remount when the server copy changes underneath (reload after a conflict, return for correction).
   // Someone watching isn't remounted by each save (they keep their place); the answers just update.
-  return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.can.fill || task.can.fill_after_submit || task.can.update ? task.last_saved_at : ""}-${task.can.update ? "u" : ""}`} task={task} reload={refetch} />;
+  return <InspectionBody key={`${task.inspection_id}-${task.status}-${task.can.fill || task.can.update ? task.last_saved_at : ""}-${task.can.update ? "u" : ""}`} task={task} reload={refetch} />;
 }
 
 function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void }) {
@@ -102,17 +102,11 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
   const def = task.version!.definition;
   const licenseType = task.license?.license_type ?? null;
   const editable = task.can.fill;
-  // Submitted: the team can still fill the sections done at the office (after_submit, e.g. 4.1)
-  const officeKeys = useMemo(() => new Set(def.sections.filter((s) => s.after_submit).map((s) => s.key)), [def]);
   // Submitted, with sections a reviewer opened for update: the team changes those (any device), then "Done updating"
   const update = !editable && !!task.can.update;
-  const updateKeys = useMemo(
-    () => new Set([...(task.can.update_sections ?? []), ...(task.can.fill_after_submit ? [...officeKeys] : [])]),
-    [task.can.update_sections, task.can.fill_after_submit, officeKeys],
-  );
+  const updateKeys = useMemo(() => new Set(task.can.update_sections ?? []), [task.can.update_sections]);
   const updateSections = def.sections.filter((s) => task.can.update_sections?.includes(s.key));
-  const office = !editable && !update && !!task.can.fill_after_submit && officeKeys.size > 0;
-  const canEdit = editable || office || update;
+  const canEdit = editable || update;
   const filesApi = useInspectionFiles(task.inspection_id, task.files ?? [], !(editable || update));
 
   // Ask for location permission when filling starts; nothing is shown here. Submitting asks again and records it.
@@ -145,7 +139,6 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 
 
   const [saveAnswers] = useSaveAnswersMutation();
-  const [saveOfficeAnswers] = useSaveOfficeAnswersMutation();
   const [saveUpdateAnswers] = useSaveUpdateAnswersMutation();
   const [doneUpdating, { isLoading: finishingUpdate }] = useDoneUpdatingMutation();
   const [opening, setOpening] = useState(false);
@@ -156,7 +149,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
     if (!canEdit || conflict) return false;
     setSaveState("saving");
     try {
-      const save = update ? saveUpdateAnswers : office ? saveOfficeAnswers : saveAnswers;
+      const save = update ? saveUpdateAnswers : saveAnswers;
       const r = await save({ id: task.inspection_id, answers, base_saved_at: baseSavedAt.current }).unwrap();
       baseSavedAt.current = r.last_saved_at;
       setDirty(false);
@@ -174,7 +167,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       } else setSaveState("error");
       return false;
     }
-  }, [canEdit, update, office, conflict, saveAnswers, saveOfficeAnswers, saveUpdateAnswers, task.inspection_id, answers, reload]);
+  }, [canEdit, update, conflict, saveAnswers, saveUpdateAnswers, task.inspection_id, answers, reload]);
 
   /** "Done updating": required questions in the open sections must be answered; then they lock again */
   const finishUpdate = async () => {
@@ -245,6 +238,13 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       setPhoneOnly(true);
       return;
     }
+    // Submitting locks every answer: ask first
+    setAsking(true);
+  };
+
+  const [asking, setAsking] = useState(false);
+  const confirmedSubmit = async () => {
+    setAsking(false);
     // Location already allowed: get it quietly and submit at once; otherwise show the location step
     setLocating(true);
     const note = toast.loading("Getting your location…");
@@ -385,29 +385,6 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
         </p>
       )}
       {task.status === "submitted" && task.can.open_sections && <OpeningsPanel inspectionId={task.inspection_id} canManage />}
-      {office && (
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          <span className="min-w-0 flex-1">
-            <strong>Filled in at the office:</strong>{" "}
-            {def.sections
-              .filter((s) => s.after_submit)
-              .map((s) => `${s.number ? `${s.number}. ` : ""}${s.title}`)
-              .join(", ")}{" "}
-            can still be completed. Changes are saved as you type.
-          </span>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              setView("questions");
-              const first = def.sections.find((s) => s.after_submit)?.fields[0]?.key;
-              if (first) setJumpKey(first);
-            }}
-          >
-            Open it
-          </Button>
-        </div>
-      )}
 
       {/* Tabs: the questions, and the task's history */}
       <div className="flex gap-1 border-b" role="tablist" aria-label="Inspection">
@@ -446,7 +423,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
             onJumped={() => setJumpKey(null)}
             onFinish={editable ? startSubmit : undefined}
             onStepChange={() => dirty && canEdit && saveNow()}
-            openSections={update ? updateKeys : office ? officeKeys : undefined}
+            openSections={update ? updateKeys : undefined}
             updated={task.updated_answers}
             resumeKey={task.inspection_id}
             title={task.company?.name ?? ""}
@@ -493,6 +470,21 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
 
       {confirming && <SubmitFlow task={task} busy={submitting} onCancel={() => setConfirming(false)} onSubmit={submit} />}
       {phoneOnly && <PhoneOnlyDialog onClose={() => setPhoneOnly(false)} />}
+      {asking && (
+        <ConfirmSubmitDialog
+          def={def}
+          licenseType={licenseType}
+          answers={answers}
+          busy={submitting || locating}
+          onCancel={() => setAsking(false)}
+          onGoTo={(key) => {
+            setAsking(false);
+            setView("questions");
+            setJumpKey(key);
+          }}
+          onSubmit={confirmedSubmit}
+        />
+      )}
       {returning && <ReturnDialog task={task} onClose={() => setReturning(false)} onDone={reload} />}
       {opening && <OpenSectionsDialog inspectionId={task.inspection_id} scheduleId={task.schedule_id} occurrenceDate={task.occurrence_date} teamId={task.team_id} onClose={() => setOpening(false)} />}
     </div>
@@ -579,10 +571,87 @@ function SubmittedSummary({ task, onReturn, onOpenSections, onShowPlace }: { tas
             )}
           </div>
         ) : (
-          <p className="text-xs text-slate-500">Ask a supervisor if something needs correcting.</p>
+          <p className="text-xs text-slate-500">Ask an admin if something needs correcting.</p>
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * Pressing Submit: the answers lock and can't be changed afterwards (an admin can open a section
+ * for update). Sections filled in at the office (e.g. 4.1) that aren't complete are pointed out.
+ */
+function ConfirmSubmitDialog({
+  def,
+  licenseType,
+  answers,
+  busy,
+  onCancel,
+  onGoTo,
+  onSubmit,
+}: {
+  def: FormDefinition;
+  licenseType: LicenseTypeKey | null;
+  answers: Answers;
+  busy: boolean;
+  onCancel: () => void;
+  onGoTo: (key: string) => void;
+  onSubmit: () => void;
+}) {
+  const unfilled = unfilledAnswers(def, licenseType, answers);
+  // Office sections (after_submit) that still have unanswered questions
+  const office = visibleStructure(def, licenseType, answers)
+    .filter(({ section }) => section.after_submit && section.fields.length)
+    .map(({ section, fields }) => {
+      const open = unfilled.filter((u) => u.sectionKey === section.key);
+      const missing = new Set(open.map((u) => u.key)).size;
+      return { section, total: fields.length, answered: fields.length - missing, first: open[0]?.key };
+    })
+    .filter((x) => x.answered < x.total);
+  return (
+    <Dialog open onOpenChange={(o) => !o && !busy && onCancel()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <div className="flex items-start gap-3.5">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[#E7EEF4] text-primary">
+              <Lock className="h-6 w-6" aria-hidden="true" />
+            </span>
+            <div className="space-y-1.5 text-left">
+              <DialogTitle className="text-xl text-primary">Submit this inspection?</DialogTitle>
+              <DialogDescription className="text-sm leading-relaxed text-slate-600">
+                Your answers will be sent and <b className="text-slate-800">locked</b>. After submitting, you can&apos;t change them. If something needs to change later, an admin
+                has to open the section for you.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
+        {office.map(({ section, answered, total, first }) => (
+          <div key={section.key} className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950" role="alert">
+            <p className="flex items-center gap-2 font-semibold">
+              <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" /> Section {section.number || section.title} isn&apos;t complete
+            </p>
+            <p className="mt-1">
+              {section.number ? `${section.number}. ` : ""}
+              {section.title}: <b>{answered} of {total}</b> questions answered. It is filled in at the office; after submitting it is locked too.
+            </p>
+            {first && (
+              <Button size="sm" variant="outline" className="mt-2" onClick={() => onGoTo(first)} disabled={busy}>
+                Fill in {section.number || "it"} now
+              </Button>
+            )}
+          </div>
+        ))}
+        <DialogFooter className="gap-2">
+          <Button variant="outline" className="h-11" onClick={onCancel} disabled={busy}>
+            Go back
+          </Button>
+          <Button className="h-11 gap-2 px-6" onClick={onSubmit} disabled={busy}>
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {office.length ? "Submit anyway" : "Submit"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

@@ -172,7 +172,7 @@ Each card (① in Figure 6) shows the company name, the license number and type 
 |---|---|
 | **Not started** | Nobody in your team has opened and saved this inspection yet. |
 | **In progress 40%** | Answers are saved; the percentage shows how much is answered. A bar under the card shows the same. |
-| **Returned** | A supervisor sent it back for correction. Open it, correct it and submit again. |
+| **Returned** | An admin sent it back for correction. Open it, correct it and submit again. |
 | **Overdue** | The due date has passed and it is not submitted. A red line shows how many days late it is. |
 | **Submitted** / **Submitted late** | It is done. |
 
@@ -380,10 +380,10 @@ Write a short, clear description for each question. In section 10, summarise the
 
 ### 7.8 Section 4.1: filled in at the office
 
-Section 4.1 (the license contract's annual work plan) is **optional** and is **filled in at the office** after you return from the field. You can leave it empty in the field.
+Section 4.1 (the license contract's annual work plan) is **optional** and is usually **filled in at the office**. You can leave it empty in the field, but **fill it in before you submit**.
 
-- Section 4.1 is not counted in the check before submitting.
-- After the inspection is submitted, your team can still open it and fill in section 4.1. All other sections stay locked.
+- When you press **Submit** and section 4.1 is not complete, the confirmation shows how many of its questions are answered and offers **Fill in 4.1 now**.
+- After the inspection is submitted, section 4.1 is **locked like every other section**. If it must be filled in later, an admin opens it for your team (see section 10, *If sections are opened for you to update*).
 
 ### 7.9 Section 16: signatures
 
@@ -471,6 +471,8 @@ The page also remembers where you were. When you come back to the task, it opens
 **Figure 21.** Check before submitting: ① questions not filled in, ② go to a question, ③ Fill them in, ④ Submit anyway.
 </div>
 
+When you press **Submit**, the system asks **"Submit this inspection?"**. After you submit, the answers are locked and you can't change them. Tap **Go back** if you want to check something, or **Submit** to continue. If section 4.1 is not complete, the message says so and offers **Fill in 4.1 now**.
+
 ### 9.2 Share your location
 
 The Ministry records **where** each inspection is submitted. Your location is taken once, at the moment you submit, and saved with this inspection only.
@@ -496,13 +498,12 @@ The Ministry records **where** each inspection is submitted. Your location is ta
 
 - The message **"Submitted. Thank you."** appears. After the due date it says **"Submitted (late). Thank you."**
 - The task moves to the **Submitted** tab of My Tasks, and its status becomes **Submitted**.
-- The answers are **locked**. Nobody in the team can change them.
-- **Section 4.1 stays open** for your team: a blue message on the task says it is *filled in at the office* and can still be completed. Tap **Open it**, fill in section 4.1, and your changes are saved as you type.
+- The answers are **locked**, including section 4.1. Nobody in the team can change them, unless an admin opens a section for update.
 - The **History** tab (Figure 23) lists what happened to the task: started, submitted, completed at the office, opened for update, done updating, and so on, with the date and the person.
 
 ### If an inspection is returned for correction
 
-A supervisor can send a submitted inspection back to your team. It then appears under **Returned** in My Tasks.
+An admin can send a submitted inspection back to your team. It then appears under **Returned** in My Tasks.
 
 1. Open the task. A purple message at the top shows **who returned it, when, and why**.
 2. Correct the answers as asked.
@@ -510,7 +511,7 @@ A supervisor can send a submitted inspection back to your team. It then appears 
 
 ### If sections are opened for you to update
 
-A supervisor can open one or more sections of a submitted inspection, so your team can fill in what is missing or correct it. The inspection **stays submitted**: its submission time, on-time status and location do not change.
+An admin can open one or more sections of a submitted inspection, so your team can fill in what is missing or correct it. The inspection **stays submitted**: its submission time, on-time status and location do not change.
 
 1. You get a notification (the bell), and the task appears under **To update** in My Tasks. The card says, for example, *Submitted · Section 7 open to update until Dec 5*.
 2. Open the task. An orange message at the top shows **which sections are open, until when, and why**.
@@ -521,9 +522,9 @@ A supervisor can open one or more sections of a submitted inspection, so your te
 Good to know:
 
 - You can do this from a **phone or a computer**. No location is needed.
-- Do it **before the deadline**. After the deadline, or if the supervisor closes it early, the sections lock again. What you already saved is kept.
+- Do it **before the deadline**. After the deadline, or if the admin closes it early, the sections lock again. What you already saved is kept.
 - Photos sent with the submission are kept. You can add new ones, and remove only the ones you added during the update.
-- Every answer you change shows the tag **Updated after submitting** with the date, so supervisors can see what changed.
+- Every answer you change shows the tag **Updated after submitting** with the date, so admins can see what changed.
 
 <div align="center">
 <img src="images/23-history.png" width="300" alt="The History tab of a task">
