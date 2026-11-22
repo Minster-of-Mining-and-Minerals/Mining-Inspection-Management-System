@@ -50,6 +50,7 @@ import {
   LicenseTypeKey,
   PREFILL_LABEL,
   StatusOption,
+  FILES_PER_QUESTION,
 } from "@/redux/types/form";
 import { FieldEditorDialog } from "./FieldEditorDialog";
 import { FormRenderer } from "./FormRenderer";
@@ -251,7 +252,7 @@ export function FormEditor({ form, mode, canPublish, onExit, onSwitchToDraft }: 
       label_am: "",
       required: type === "status",
       ...(type === "status" ? { evidence: "optional" as const, status_options: clone(def.status_options) } : {}),
-      ...(type === "photo" ? { max_files: 10 } : {}),
+      ...(type === "photo" ? { max_files: FILES_PER_QUESTION } : {}),
       ...(type === "signature" ? { multiple: false, with_name: true } : {}),
     };
     update((d) => d.sections[si].fields.push(field));

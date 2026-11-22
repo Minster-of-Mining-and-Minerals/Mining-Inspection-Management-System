@@ -1,4 +1,5 @@
 import type { FormDefinition, FormField, FormSection, LicenseTypeKey, ShowIf, StatusOption } from "@/redux/types/form";
+import { maxFilesOf } from "@/redux/types/form";
 
 /** Answer to a status (ሁኔታ) question. */
 export interface StatusAnswer {
@@ -135,7 +136,7 @@ export const validateAnswers = (def: FormDefinition, licenseType: LicenseTypeKey
       if (f.type === "photo") {
         const files = Array.isArray(a) ? a : [];
         if (f.required && !files.length) problems[f.key] = "Add at least one file.";
-        else if (files.length > (f.max_files ?? 10)) problems[f.key] = `At most ${f.max_files ?? 10} files.`;
+        else if (files.length > maxFilesOf(f)) problems[f.key] = `At most ${maxFilesOf(f)} files.`;
         continue;
       }
       if (f.type === "signature") {
@@ -155,7 +156,7 @@ export const validateAnswers = (def: FormDefinition, licenseType: LicenseTypeKey
         if (f.required && !s.note?.trim()) problems[f.key] = "Write a description of what you found.";
         else if (f.required && o?.action === "required" && !s.action?.trim()) problems[f.key] = "Describe the action needed.";
         else if (f.evidence === "required" && !s.files?.length) problems[f.key] = "Add at least one photo or file as evidence.";
-        else if ((s.files?.length ?? 0) > (f.max_files ?? 10)) problems[f.key] = `At most ${f.max_files ?? 10} files.`;
+        else if ((s.files?.length ?? 0) > maxFilesOf(f)) problems[f.key] = `At most ${maxFilesOf(f)} files.`;
         continue;
       }
       if (f.type === "table") {

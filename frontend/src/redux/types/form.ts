@@ -7,6 +7,10 @@ export type FileKind = "image" | "document" | "video";
 /** Largest size an admin can allow per file (matches the server and nginx) */
 /** The largest file a question may allow, in MB (the server's MAX_UPLOAD_MB, 1 GB by default) */
 export const MAX_FILE_MB = 1024;
+/** Files per question: new questions start at 50; older questions saved with less still allow 50 (as the server) */
+export const FILES_PER_QUESTION = 50;
+export const MAX_FILES = 100;
+export const maxFilesOf = (f: { max_files?: number }) => Math.max(FILES_PER_QUESTION, Number(f.max_files) || 0);
 
 export interface ChoiceOption {
   value: string;

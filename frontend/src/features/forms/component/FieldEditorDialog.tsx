@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ChoiceOption, FIELD_TYPE_LABEL, FieldType, FileKind, FormField, MAX_FILE_MB, PREFILL_LABEL, StatusOption, TableColumn } from "@/redux/types/form";
+import { ChoiceOption, FIELD_TYPE_LABEL, FieldType, FileKind, FormField, FILES_PER_QUESTION, MAX_FILES, MAX_FILE_MB, maxFilesOf, PREFILL_LABEL, StatusOption, TableColumn } from "@/redux/types/form";
 import { keyFromLabel } from "./formLogic";
 import { StatusOptionsEditor } from "./FormEditorParts";
 
@@ -93,10 +93,10 @@ export function FieldEditorDialog({ field, isNew, takenKeys, conditionSources, s
   const changeType = (type: FieldType) => {
     // Keep the shared parts; reset type options to sensible defaults
     const base: FormField = { key: f.key, type, label: f.label, label_am: f.label_am, help: f.help, help_am: f.help_am, required: f.required, show_if: f.show_if };
-    if (type === "status") Object.assign(base, { evidence: "optional", accept: ["image"], max_files: 10, max_size_mb: 20, status_options: statusOptions.map((o) => ({ ...o })) });
+    if (type === "status") Object.assign(base, { evidence: "optional", accept: ["image"], max_files: FILES_PER_QUESTION, max_size_mb: 20, status_options: statusOptions.map((o) => ({ ...o })) });
     if (type === "select" || type === "checkboxes") base.options = [{ value: "", label: "", label_am: "" }];
     if (type === "table") Object.assign(base, { columns: [{ key: "", label: "", label_am: "", type: "text" }], rows: [], allow_add_rows: true });
-    if (type === "photo") Object.assign(base, { accept: ["image"], max_files: 10, max_size_mb: 20 });
+    if (type === "photo") Object.assign(base, { accept: ["image"], max_files: FILES_PER_QUESTION, max_size_mb: 20 });
     if (type === "signature") Object.assign(base, { multiple: false, with_name: true });
     setF(base);
   };
@@ -421,11 +421,11 @@ function FileSettings({ field: f, set }: { field: FormField; set: (patch: Partia
           <Input
             id={`q-max-files-${f.key}`}
             type="number"
-            min={1}
-            max={30}
+            min={FILES_PER_QUESTION}
+            max={MAX_FILES}
             className="w-28"
-            value={f.max_files ?? 10}
-            onChange={(e) => set({ max_files: Math.min(30, Math.max(1, Number(e.target.value) || 1)) })}
+            value={maxFilesOf(f)}
+            onChange={(e) => set({ max_files: Math.min(MAX_FILES, Math.max(FILES_PER_QUESTION, Number(e.target.value) || FILES_PER_QUESTION)) })}
           />
         </div>
         <div className="space-y-1">

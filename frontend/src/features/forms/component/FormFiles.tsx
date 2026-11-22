@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { FileKind, FormField } from "@/redux/types/form";
+import { maxFilesOf } from "@/redux/types/form";
 import type { SignatureAnswer } from "./formLogic";
 import { MediaViewer, ViewerItem } from "./MediaViewer";
 import { asJpegIfHeic, isHeic, useHeicPreview } from "@/utils/heic";
@@ -107,7 +108,7 @@ export function FileAnswer({
   const api = useContext(FormFilesContext);
   const ids = value ?? [];
   const accept = f.accept?.length ? f.accept : (["image"] as FileKind[]);
-  const max = f.max_files ?? 10;
+  const max = maxFilesOf(f);
   const maxMb = f.max_size_mb ?? 20;
   const [pending, setPending] = useState<Pending[]>([]);
   const [viewing, setViewing] = useState<number | null>(null);

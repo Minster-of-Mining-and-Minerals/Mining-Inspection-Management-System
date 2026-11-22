@@ -18,7 +18,7 @@ const crypto = require("crypto");
 const path = require("path");
 const { sequelize, Inspection, InspectionFile, InspectionEvent, FormVersion } = require("../../models");
 const storage = require("../../services/fileStorage");
-const { MAX_FILE_MB } = require("../../utils/formDefinition");
+const { MAX_FILE_MB, maxFilesOf } = require("../../utils/formDefinition");
 const { loadTask } = require("./inspectionAccess");
 const { fieldKeysOf } = require("../../services/sectionOpeningService");
 
@@ -100,8 +100,12 @@ const checkUpload = async (req, task, rights, { field_key, name, mimetype, size 
     if (!kind || !accept.includes(kind)) throw stop(400, `This question takes ${accept.map((k) => KIND_LABEL[k]).join(", ")} only.`);
     const limitMb = Math.min(field.max_size_mb ?? 20, MAX_FILE_MB);
     if (size > limitMb * MB) throw stop(413, `“${fileName}” is ${(size / MB).toFixed(1)} MB; the limit for this question is ${limitMb} MB.`);
-    const count = await InspectionFile.count({ where: { inspection_id: task.inspection_id, field_key: field.key } });
-    if (count >= (field.max_files ?? 10)) throw stop(409, `This question takes at most ${field.max_files ?? 10} files. Remove one first.`);
+    // Count the files in the saved answer only. Files that reached the server but never made it into
+    // the answer (connection lost before saving, a teammate's save, a reload) don't take up room.
+    const a = (task.answers || {})[field.key];
+    const inAnswer = Array.isArray(a) ? a : Array.isArray(a?.files) ? a.files : [];
+    const max = maxFilesOf(field);
+    if (inAnswer.length >= max) throw stop(409, `This question takes at most ${max} files. Remove one first.`);
   }
   return { version, field, kind, name: fileName };
 };

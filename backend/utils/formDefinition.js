@@ -62,6 +62,13 @@ const PREFILL_SOURCES = [
 const FILE_KINDS = ["image", "document", "video"];
 // The largest file a question may allow (MB). MAX_UPLOAD_MB on the server, 1024 (1 GB) by default.
 const MAX_FILE_MB = Math.max(1, Math.min(4096, Number(process.env.MAX_UPLOAD_MB) || 1024));
+/**
+ * Files per question: new questions start at FILES_PER_QUESTION; a question can allow up to MAX_FILES.
+ * Older questions saved with a smaller number (10, 30) still allow FILES_PER_QUESTION (see maxFilesOf).
+ */
+const FILES_PER_QUESTION = 50;
+const MAX_FILES = 100;
+const maxFilesOf = (field) => Math.max(FILES_PER_QUESTION, Number(field?.max_files) || 0);
 
 const KEY = Joi.string()
   .pattern(/^[a-z][a-z0-9_]{0,59}$/)
@@ -135,7 +142,7 @@ const fieldSchema = Joi.object({
   }),
   // Files: a photo / file question, or the evidence of a status question
   accept: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.array().items(Joi.string().valid(...FILE_KINDS)).min(1).unique().default(["image"]), otherwise: Joi.forbidden() }),
-  max_files: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.number().integer().min(1).max(30).default(10), otherwise: Joi.forbidden() }),
+  max_files: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.number().integer().min(1).max(MAX_FILES).default(FILES_PER_QUESTION), otherwise: Joi.forbidden() }),
   max_size_mb: Joi.when("type", { is: Joi.valid("photo", "status"), then: Joi.number().min(1).max(MAX_FILE_MB).default(20), otherwise: Joi.forbidden() }),
   multiple: Joi.when("type", { is: "signature", then: Joi.boolean().default(false), otherwise: Joi.forbidden() }),
   with_name: Joi.when("type", { is: "signature", then: Joi.boolean().default(true), otherwise: Joi.forbidden() }),
@@ -256,6 +263,9 @@ module.exports = {
   FIELD_TYPES,
   FILE_KINDS,
   MAX_FILE_MB,
+  FILES_PER_QUESTION,
+  MAX_FILES,
+  maxFilesOf,
   PREFILL_SOURCES,
   DEFAULT_STATUS_OPTIONS,
   validateDefinition,

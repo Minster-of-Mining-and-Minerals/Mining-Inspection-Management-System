@@ -12,7 +12,7 @@
  *   others      string / number
  * File ids are checked against the inspection's files by the controller before this runs.
  */
-const { statusOptionsFor, questionText } = require("./formDefinition");
+const { statusOptionsFor, questionText, maxFilesOf } = require("./formDefinition");
 
 const answerValue = (answers, key) => {
   const a = answers?.[key];
@@ -40,7 +40,7 @@ const validateAnswers = (def, licenseType, answers = {}) => {
       if (f.type === "photo") {
         const files = Array.isArray(a) ? a : [];
         if (f.required && !files.length) add(f, "Add at least one file.");
-        else if (files.length > (f.max_files ?? 10)) add(f, "At most " + (f.max_files ?? 10) + " files.");
+        else if (files.length > maxFilesOf(f)) add(f, "At most " + maxFilesOf(f) + " files.");
         continue;
       }
       if (f.type === "signature") {
@@ -60,7 +60,7 @@ const validateAnswers = (def, licenseType, answers = {}) => {
         else if (f.required && isEmpty(s.note)) add(f, "Write a description of what you found.");
         else if (f.required && o.action === "required" && isEmpty(s.action)) add(f, "Describe the action needed.");
         else if (f.evidence === "required" && !(Array.isArray(s.files) && s.files.length)) add(f, "Add at least one photo or file as evidence.");
-        else if (Array.isArray(s.files) && s.files.length > (f.max_files ?? 10)) add(f, "At most " + (f.max_files ?? 10) + " files.");
+        else if (Array.isArray(s.files) && s.files.length > maxFilesOf(f)) add(f, "At most " + maxFilesOf(f) + " files.");
         continue;
       }
       if (f.type === "table") {
