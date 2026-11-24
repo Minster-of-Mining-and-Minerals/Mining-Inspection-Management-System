@@ -3,7 +3,8 @@
  * fill in or correct them until a deadline. The inspection stays submitted (submitted_at, on time / late,
  * location and counts don't change). No location is taken and any device may be used.
  *
- * An opening is open while closed_at is empty and `until` is in the future; for one inspection it stays
+ * An opening is open while closed_at is empty and `until` is in the future, or empty (no deadline: open until
+ * someone closes it or every team is done); for one inspection it stays
  * open until the team taps "Done updating" (its item becomes done). Closing: by a reviewer, by the
  * deadline (closeExpired, hourly) or when every inspection is done.
  */
@@ -11,7 +12,9 @@ const { Op } = require("sequelize");
 const { SectionOpening, SectionOpeningItem, InspectionEvent, User, sequelize } = require("../models");
 const notify = require("./inspectionNotifications");
 
-const openWhere = (now = new Date()) => ({ closed_at: null, until: { [Op.gt]: now } });
+const openWhere = (now = new Date()) => ({ closed_at: null, [Op.or]: [{ until: null }, { until: { [Op.gt]: now } }] });
+/** Open right now (an opening record) */
+const isOpenNow = (o, now = new Date()) => !o.closed_at && (!o.until || new Date(o.until) > now);
 
 /** Sections of a definition, as the dialog and history show them. */
 const sectionLabel = (s) => (s.number ? String(s.number) : s.title || s.key);
@@ -31,7 +34,8 @@ const openFor = async (inspectionId, { transaction } = {}) => {
   return {
     items,
     section_keys: [...new Set(openings.flatMap((o) => o.section_keys || []))],
-    until: new Date(Math.max(...openings.map((o) => new Date(o.until).getTime()))),
+    // The latest deadline; none when any of them has no deadline
+    until: openings.some((o) => !o.until) ? null : new Date(Math.max(...openings.map((o) => new Date(o.until).getTime()))),
     openings: openings.map((o) => ({
       opening_id: o.opening_id,
       section_keys: o.section_keys,
@@ -68,7 +72,7 @@ const closeOpenings = async (openings, { closedBy = null, reason = "manual", now
   for (const opening of openings) {
     const waiting = await sequelize.transaction(async (transaction) => {
       const [count] = await SectionOpening.update(
-        { closed_at: reason === "deadline" ? opening.until : now, closed_by: closedBy, close_reason: reason },
+        { closed_at: reason === "deadline" && opening.until ? opening.until : now, closed_by: closedBy, close_reason: reason },
         { where: { opening_id: opening.opening_id, closed_at: null }, transaction },
       );
       if (!count) return null; // closed meanwhile
@@ -90,8 +94,8 @@ const closeOpenings = async (openings, { closedBy = null, reason = "manual", now
 
 /** Hourly: openings whose deadline passed. (Saving already stops at the deadline; this records it.) */
 const closeExpired = async (now = new Date()) => {
-  const due = await SectionOpening.findAll({ where: { closed_at: null, until: { [Op.lte]: now } } });
+  const due = await SectionOpening.findAll({ where: { closed_at: null, until: { [Op.ne]: null, [Op.lte]: now } } });
   return closeOpenings(due, { reason: "deadline", now });
 };
 
-module.exports = { openWhere, sectionLabel, openFor, fieldKeysOf, changedAnswers, closeOpenings, closeExpired };
+module.exports = { openWhere, isOpenNow, sectionLabel, openFor, fieldKeysOf, changedAnswers, closeOpenings, closeExpired };

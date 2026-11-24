@@ -61,6 +61,7 @@ const chipFor = (t: TaskListItem, lang: Lang) => {
   const am = lang === "am";
   const pct = t.progress?.total ? Math.round((t.progress.answered / t.progress.total) * 100) : null;
   if (t.open_update) return { text: am ? "ለማስተካከል ክፍት" : "Open to update", tone: "bg-amber-100 text-amber-900" };
+  if (t.status === "submitted" && t.update_state?.state === "done") return { text: am ? "✓ ተስተካክሏል" : "✓ Updated", tone: "bg-green-100 text-green-800" };
   switch (t.group) {
     case "returned":
       return { text: am ? "ተመልሷል" : "Returned", tone: "bg-red-100 text-red-700" };
@@ -80,7 +81,15 @@ const dueLine = (t: TaskListItem, lang: Lang) => {
   const am = lang === "am";
   if (t.status === "submitted" && t.open_update) {
     const sec = t.open_update.section_labels.length === 1 ? `Section ${t.open_update.section_labels[0]}` : `Sections ${t.open_update.section_labels.join(", ")}`;
-    return { text: `Submitted · ${sec} open to update until ${formatCalendarDate(lastDay(t.open_update.until))}`, urgent: true };
+    return { text: `Submitted · ${sec} open to update ${t.open_update.until ? `until ${formatCalendarDate(lastDay(t.open_update.until))}` : "(no deadline)"}`, urgent: true };
+  }
+  // The team finished updating sections opened after submitting
+  if (t.status === "submitted" && t.update_state?.state === "done") {
+    const sec = t.update_state.sections.length === 1 ? `Section ${t.update_state.sections[0]}` : `Sections ${t.update_state.sections.join(", ")}`;
+    return {
+      text: `Submitted ${formatCalendarDate((t.submitted_at ?? "").slice(0, 10))}${t.submitter ? ` by ${t.submitter.full_name}` : ""} · ${sec} updated ${formatCalendarDate((t.update_state.done_at ?? "").slice(0, 10))}`,
+      urgent: false,
+    };
   }
   if (t.status === "submitted") return { text: am ? `ገብቷል ${formatCalendarDate((t.submitted_at ?? "").slice(0, 10))}${t.submitter ? ` · ${t.submitter.full_name}` : ""}` : `Submitted ${formatCalendarDate((t.submitted_at ?? "").slice(0, 10))}${t.submitter ? ` by ${t.submitter.full_name}` : ""}`, urgent: false };
   const last = lastDay(t.due_at);

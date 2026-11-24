@@ -101,12 +101,24 @@ export interface TaskListItem {
   area?: { region: string | null; zone: string | null; woreda: string | null } | null;
   progress?: { answered: number; total: number } | null;
   /** My tasks only: sections opened for update after submitting */
-  open_update?: { until: string; section_keys: string[]; section_labels: string[] } | null;
+  open_update?: { until: string | null; section_keys: string[]; section_labels: string[] } | null;
+  /** Submitted ones: the latest "open for update" (open, done, or closed before Done) */
+  update_state?: UpdateState | null;
+}
+
+/** until: null = no deadline */
+export interface UpdateState {
+  state: "open" | "done" | "closed";
+  until: string | null;
+  sections: string[];
+  done_at: string | null;
+  closed_at: string | null;
+  opening_id: string;
 }
 
 export interface TaskEvent {
   event_id: string;
-  type: "started" | "submitted" | "returned" | "reassigned" | "due_changed" | "office_update" | "update_opened" | "update_saved" | "update_done" | "update_closed";
+  type: "started" | "submitted" | "returned" | "reassigned" | "due_changed" | "office_update" | "update_opened" | "update_saved" | "update_done" | "update_closed" | "update_changed";
   details: Record<string, any> | null;
   created_at: string;
   user?: { user_id: string; full_name: string } | null;
@@ -165,7 +177,7 @@ export interface TaskDetail extends TaskListItem {
    */
   can: { fill: boolean; return: boolean; reassign: boolean; fill_after_submit?: boolean; update?: boolean; update_sections?: string[]; open_sections?: boolean };
   /** Sections open for update right now (null when none) */
-  open_update?: { section_keys: string[]; section_labels: string[]; until: string; openings: OpeningOfTask[] } | null;
+  open_update?: { section_keys: string[]; section_labels: string[]; until: string | null; openings: OpeningOfTask[] } | null;
   /** Answers changed after submitting: question key → when and by whom */
   updated_answers?: Record<string, { at: string; by: string }>;
   /** The license area for the site map */
@@ -200,7 +212,7 @@ export interface OpeningOfTask {
   opening_id: string;
   section_keys: string[];
   section_labels: string[];
-  until: string;
+  until: string | null;
   reason: string;
   opened_by: { user_id: string; full_name: string } | null;
   opened_at: string;
@@ -215,7 +227,8 @@ export interface SectionOpening {
   section_keys: string[];
   section_labels: string[];
   reason: string;
-  until: string;
+  /** null = no deadline */
+  until: string | null;
   created_at: string;
   closed_at: string | null;
   close_reason: "manual" | "deadline" | "all_done" | null;
@@ -240,13 +253,46 @@ export interface OpeningItem {
 
 export interface SectionOpeningDetail extends SectionOpening {
   items: OpeningItem[];
+  /** Sections that can be chosen when editing */
+  sections: OpeningPreview["sections"];
+}
+
+/** An open opening the same inspections could be added to (merge) */
+export interface MergeCandidate {
+  opening_id: string;
+  section_keys: string[];
+  section_labels: string[];
+  until: string | null;
+  reason: string;
+  total: number;
+  done: number;
+}
+
+/** The numbers on the "Opened for update" page */
+export interface OpeningTotals {
+  open_openings: number;
+  waiting: number;
+  done: number;
+  total: number;
+  closed_not_done: number;
+  tabs: { open: number; closed: number; all: number };
 }
 
 export interface OpeningPreview {
   count: number;
   too_many: boolean;
   sections: { key: string; number: string | null; title: string; questions: number; required: number }[];
-  inspections: { inspection_id: string; company: string | null; license_number: string | null; team: { team_id: string; name: string } | null; submitted_at: string | null; open_now: boolean }[];
+  inspections: {
+    inspection_id: string;
+    company: string | null;
+    license_number: string | null;
+    team: { team_id: string; name: string } | null;
+    submitted_at: string | null;
+    open_now: boolean;
+    /** Sections open for update right now */
+    open_sections: string[];
+  }[];
+  openings: MergeCandidate[];
 }
 
 export interface OpeningScopeQuery {

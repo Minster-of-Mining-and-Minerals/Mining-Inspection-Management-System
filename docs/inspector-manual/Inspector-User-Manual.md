@@ -521,6 +521,8 @@ Good to know:
 
 - You can do this from a **phone or a computer**. No location is needed.
 - Do it **before the deadline**. After the deadline, or if the admin closes it early, the sections lock again. What you already saved is kept.
+- The admin can change the sections, the deadline or the reason while it is open. You get a notification when that happens.
+- After **Done updating**, the task card in My Tasks shows **✓ Updated** with the date.
 - Photos sent with the submission are kept. You can add new ones, and remove only the ones you added during the update.
 - Every answer you change shows the tag **Updated after submitting** with the date, so admins can see what changed.
 

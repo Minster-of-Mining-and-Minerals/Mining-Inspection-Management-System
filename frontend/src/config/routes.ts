@@ -47,6 +47,10 @@ export const routePermissions: RouteConfig[] = [
     },
   },
   {
+    path: "/opened-for-update",
+    permissions: { anyPermissions: ["INSPECTIONS:REVIEW", "INSPECTIONS:READ_ALL"] },
+  },
+  {
     path: "/inspections",
     permissions: {
       anyPermissions: ["INSPECTIONS:READ_ALL", "INSPECTIONS:READ_OWN"],

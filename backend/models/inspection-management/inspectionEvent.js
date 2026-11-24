@@ -11,7 +11,7 @@ module.exports = (sequelize, DataTypes) => {
   }
 
   // update_*: sections opened after submitting (services/sectionOpeningService.js)
-  InspectionEvent.TYPES = ["started", "submitted", "returned", "reassigned", "due_changed", "office_update", "update_opened", "update_saved", "update_done", "update_closed"];
+  InspectionEvent.TYPES = ["started", "submitted", "returned", "reassigned", "due_changed", "office_update", "update_opened", "update_saved", "update_done", "update_closed", "update_changed"];
 
   InspectionEvent.init(
     {

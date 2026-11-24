@@ -348,7 +348,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       {update && task.open_update && (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           <p className="flex items-center gap-2 font-semibold">
-            <Unlock className="h-4 w-4 shrink-0" aria-hidden="true" /> Open to update until {formatDateTime(task.open_update.until)}
+            <Unlock className="h-4 w-4 shrink-0" aria-hidden="true" /> {task.open_update.until ? `Open to update until ${formatDateTime(task.open_update.until)}` : "Open to update (no deadline)"}
           </p>
           <p className="mt-1">{updateSections.map((s) => `${s.number ? `${s.number}. ` : ""}${s.title}`).join(", ")}</p>
           {task.open_update.openings.map((o) => (
@@ -378,7 +378,7 @@ function InspectionBody({ task, reload }: { task: TaskDetail; reload: () => void
       {!update && task.open_update && !task.can.open_sections && (
         <p className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           <Unlock className="h-4 w-4 shrink-0" aria-hidden="true" />
-          {sectionsText([...new Set(task.open_update.openings.flatMap((o) => o.section_labels))])} open for {task.team?.name ?? "the team"} to update until {formatDateTime(task.open_update.until)}.
+          {sectionsText([...new Set(task.open_update.openings.flatMap((o) => o.section_labels))])} open for {task.team?.name ?? "the team"} to update {task.open_update.until ? `until ${formatDateTime(task.open_update.until)}` : "(no deadline)"}.
         </p>
       )}
       {task.status === "submitted" && task.can.open_sections && <OpeningsPanel inspectionId={task.inspection_id} canManage />}
@@ -700,6 +700,7 @@ const EVENT_LABEL: Record<string, string> = {
   update_saved: "Updated after submitting",
   update_done: "Done updating",
   update_closed: "Update closed",
+  update_changed: "Update changed",
 };
 
 function EventHistory({ task }: { task: TaskDetail }) {
@@ -723,7 +724,7 @@ function EventHistory({ task }: { task: TaskDetail }) {
             {e.type.startsWith("update_") && e.details?.sections?.length > 0 && (
               <p className="text-xs text-slate-600">
                 {sectionsText(e.details?.sections ?? [])}
-                {e.type === "update_opened" && e.details?.until ? ` · until ${formatDateTime(e.details?.until)}` : ""}
+                {(e.type === "update_opened" || e.type === "update_changed") && e.details && "until" in e.details ? (e.details.until ? ` · until ${formatDateTime(e.details.until)}` : " · no deadline") : ""}
                 {e.type === "update_done" && e.details?.changed != null ? ` · ${e.details?.changed} answer${e.details?.changed === 1 ? "" : "s"} changed` : ""}
                 {e.type === "update_closed" ? (e.details?.why === "deadline" ? " · deadline passed" : e.details?.why === "manual" ? " · closed by a reviewer" : "") : ""}
               </p>

@@ -94,6 +94,17 @@ const listWhere = async (req, q, ignore = []) => {
                  WHERE la.license_id = "Inspection"."license_id" AND '${q.region_id}' IN (a.area_id, p.area_id, g.area_id))`),
       );
     }
+    // Sections opened for update after submitting: still open / the team tapped Done
+    if (!ignore.includes("status") && q.status === "open_update") {
+      where.status = "submitted";
+      and.push(literal(`EXISTS (SELECT 1 FROM section_opening_items it JOIN section_openings o ON o.opening_id = it.opening_id
+               WHERE it.inspection_id = "Inspection"."inspection_id" AND it.status = 'waiting'
+                 AND o.closed_at IS NULL AND (o.until IS NULL OR o.until > NOW()))`));
+    }
+    if (!ignore.includes("status") && q.status === "updated") {
+      where.status = "submitted";
+      and.push(literal(`EXISTS (SELECT 1 FROM section_opening_items it WHERE it.inspection_id = "Inspection"."inspection_id" AND it.status = 'done')`));
+    }
     const dayCol = q.date_field === "assigned" ? null : "submitted_at";
     for (const [param, op] of [
       ["from", ">="],
@@ -108,6 +119,34 @@ const listWhere = async (req, q, ignore = []) => {
       where[Op.or] = [{ "$company.name$": { [Op.iLike]: term } }, { "$license.license_number$": { [Op.iLike]: term } }];
     }
     return where;
+};
+
+/**
+ * The latest "open for update" of each inspection: Map(inspection_id → { state, until, sections, done_at, opening_id }).
+ * state: open (waiting, still open) · done (the team tapped Done updating) · closed (closed or past the deadline before Done)
+ */
+const updateStatesOf = async (ids) => {
+  const out = new Map();
+  if (!ids.length) return out;
+  const rows = await sequelize.query(
+    `SELECT DISTINCT ON (it.inspection_id) it.inspection_id, it.status, it.done_at, o.opening_id, o.until, o.closed_at, o.section_labels
+       FROM section_opening_items it JOIN section_openings o ON o.opening_id = it.opening_id
+      WHERE it.inspection_id IN (:ids)
+      ORDER BY it.inspection_id, (it.status = 'waiting' AND o.closed_at IS NULL AND (o.until IS NULL OR o.until > NOW())) DESC, it.created_at DESC`,
+    { replacements: { ids }, type: QueryTypes.SELECT },
+  );
+  for (const r of rows) {
+    const open = !r.closed_at && (!r.until || new Date(r.until) > new Date());
+    out.set(r.inspection_id, {
+      state: r.status === "done" ? "done" : open ? "open" : "closed",
+      until: r.until,
+      sections: r.section_labels || [],
+      done_at: r.done_at,
+      closed_at: r.closed_at ?? (r.until && !open ? r.until : null),
+      opening_id: r.opening_id,
+    });
+  }
+  return out;
 };
 
 /** All tasks (inspections:read_all), or the user's team's tasks (read_own). Open ones carry how much is answered. */
@@ -165,9 +204,10 @@ const getInspections = async (req, res) => {
       distinct: true,
     });
     const progress = await progressOf(rows);
+    const updates = await updateStatesOf(rows.filter((r) => r.status === "submitted").map((r) => r.inspection_id));
     return res.status(200).json({
       success: true,
-      data: rows.map((r) => ({ ...summary(r), progress: progress.get(r.inspection_id) ?? null })),
+      data: rows.map((r) => ({ ...summary(r), progress: progress.get(r.inspection_id) ?? null, update_state: updates.get(r.inspection_id) ?? null })),
       meta: { totalItems: count, totalPages: Math.ceil(count / limit), currentPage: page, itemsPerPage: limit },
     });
   } catch (error) {
@@ -330,14 +370,16 @@ const getMyTasks = async (req, res) => {
          FROM section_opening_items it
          JOIN section_openings o ON o.opening_id = it.opening_id
          JOIN inspections i ON i.inspection_id = it.inspection_id
-        WHERE it.status = 'waiting' AND o.closed_at IS NULL AND o.until > NOW()
+        WHERE it.status = 'waiting' AND o.closed_at IS NULL AND (o.until IS NULL OR o.until > NOW())
           AND i.team_id = :teamId AND i.status = 'submitted'`,
       { replacements: { teamId }, type: QueryTypes.SELECT },
     );
     const updates = new Map();
     for (const r of openUpdates) {
       const u = updates.get(r.inspection_id) || { until: r.until, section_keys: [], section_labels: [] };
-      if (new Date(r.until) > new Date(u.until)) u.until = r.until;
+      // The latest deadline; none when one of them has no deadline
+      if (!r.until || !u.until) u.until = null;
+      else if (new Date(r.until) > new Date(u.until)) u.until = r.until;
       u.section_keys = [...new Set([...u.section_keys, ...(r.section_keys || [])])];
       u.section_labels = [...new Set([...u.section_labels, ...(r.section_labels || [])])];
       updates.set(r.inspection_id, u);
@@ -346,11 +388,15 @@ const getMyTasks = async (req, res) => {
       ? await Inspection.findAll({ where: { inspection_id: [...updates.keys()] }, include: LIST_INCLUDE, attributes: LIST_ATTRS, order: [["submitted_at", "DESC"]] })
       : [];
     const all = [...open, ...submitted, ...toUpdate];
-    const [areas, progress] = await Promise.all([areasOf(all.map((t) => t.license_id)), progressOf(open)]);
+    const [areas, progress, updateStates] = await Promise.all([
+      areasOf(all.map((t) => t.license_id)),
+      progressOf(open),
+      updateStatesOf([...submitted, ...toUpdate].map((t) => t.inspection_id)),
+    ]);
     const enrich = (t) => {
       const s = summary(t);
       const group = s.status === "submitted" ? "submitted" : s.status === "in_progress" && s.return_count > 0 ? "returned" : s.is_overdue ? "overdue" : s.status;
-      return { ...s, group, area: areas.get(s.license_id) ?? null, progress: progress.get(s.inspection_id) ?? null, open_update: updates.get(s.inspection_id) ?? null };
+      return { ...s, group, area: areas.get(s.license_id) ?? null, progress: progress.get(s.inspection_id) ?? null, open_update: updates.get(s.inspection_id) ?? null, update_state: updateStates.get(s.inspection_id) ?? null };
     };
     const openRows = open.map(enrich);
     const counts = { ...empty, open: openRows.length, submitted: submittedCount, to_update: toUpdate.length };

@@ -14,6 +14,7 @@ import {
   ClipboardList,
   ClipboardCheck,
   CalendarClock,
+  Unlock,
   ScrollText,
 } from "lucide-react";
 
@@ -92,6 +93,13 @@ export const NAVIGATION: NavItem[] = [
     icon: ClipboardCheck,
     section: "Inspections",
     anyPermissions: ["INSPECTIONS:READ_ALL"],
+  },
+  {
+    title: "Opened for update",
+    url: "/opened-for-update",
+    icon: Unlock,
+    section: "Inspections",
+    anyPermissions: ["INSPECTIONS:REVIEW", "INSPECTIONS:READ_ALL"],
   },
   {
     title: "Schedules",

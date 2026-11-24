@@ -11,9 +11,9 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TaskListParams, TeamProgress, useGetTasksQuery, useGetTeamProgressQuery } from "@/redux/api/inspectionApi";
-import type { TaskListItem } from "@/redux/types/inspection";
+import type { TaskListItem, UpdateState } from "@/redux/types/inspection";
 import { useGetSubmissionMapOptionsQuery } from "@/redux/api/dashboardApi";
-import { formatDateTime } from "@/utils/date";
+import { formatDate, formatDateTime } from "@/utils/date";
 import { TaskStatusBadge } from "./taskUi";
 import { ExportMenu, FilterBar, FilterKey, FilterSheetButton } from "./InspectionFilters";
 import { distanceText } from "@/utils/licenseArea";
@@ -26,10 +26,26 @@ const STATUSES: [NonNullable<TaskListParams["status"]> | "", string][] = [
   ["in_progress", "In progress"],
   ["open", "Not submitted"],
   ["returned", "Returned for correction"],
+  // Sections opened after submitting: still open / the team tapped Done
+  ["open_update", "Open for update"],
+  ["updated", "Updated after submit"],
 ];
 const KEYS = ["status", "team_id", "submitted_by", "form_id", "schedule_id", "company_id", "region_id", "license_type", "from", "to", "date_field", "sort", "search"] as const;
 type Key = (typeof KEYS)[number];
 const FILTER_KEYS: FilterKey[] = ["region_id", "team_id", "submitted_by", "company_id", "license_type", "form_id", "schedule_id", "date_field", "from", "to"];
+
+/** Under "Submitted": sections opened for update after submitting */
+function UpdateTag({ state }: { state?: UpdateState | null }) {
+  if (!state) return null;
+  const sec = state.sections.join(", ");
+  const [text, cls] =
+    state.state === "open"
+      ? [`🔓 ${sec} open to update · ${state.until ? `until ${formatDate(state.until)}` : "no deadline"}`, "bg-amber-100 text-amber-900"]
+      : state.state === "done"
+        ? [`✓ Updated · ${formatDate(state.done_at)} · ${sec}`, "bg-[#E3F4E8] text-[#145C2F]"]
+        : [`Update closed, not done${state.closed_at ? ` · ${formatDate(state.closed_at)}` : ""}`, "bg-slate-100 text-slate-700"];
+  return <span className={`mt-1 inline-block max-w-full truncate rounded-full px-2 py-0.5 text-[11px] font-semibold ${cls}`} title={text}>{text}</span>;
+}
 
 export default function AllInspections() {
   const router = useRouter();
@@ -185,6 +201,7 @@ export default function AllInspections() {
                 </td>
                 <td className="px-4 py-2.5 align-middle">
                   <TaskStatusBadge task={t} dot />
+                  <UpdateTag state={t.update_state} />
                 </td>
                 <td className="px-4 py-2.5 align-middle">
                   <TaskProgress task={t} />

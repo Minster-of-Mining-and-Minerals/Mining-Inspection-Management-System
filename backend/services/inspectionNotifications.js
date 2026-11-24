@@ -191,6 +191,7 @@ const byTeam = async (inspectionIds) => {
   for (const r of rows) out.set(r.team_id, [...(out.get(r.team_id) || []), r]);
   return out;
 };
+const untilText = (until) => (until ? `until ${day(until)}` : "with no deadline");
 const sectionText = (labels) => (labels.length === 1 ? `Section ${labels[0]}` : `Sections ${labels.join(", ")}`);
 
 /** Each team hears which of its submitted inspections are open, until when, and why. */
@@ -204,7 +205,32 @@ const sectionsOpened = (opening, inspectionIds, actorId) =>
         {
           type: "INSPECTION_SECTIONS_OPENED",
           title: "Open to update",
-          message: `${sectionText(opening.section_labels)} of ${one ? what(list[0]) : `${list.length} submitted inspections`} ${one ? "is" : "are"} open for your team to update until ${day(opening.until)}. Tap "Done updating" when finished. Reason: ${String(opening.reason).slice(0, 400)}`,
+          message: `${sectionText(opening.section_labels)} of ${one ? what(list[0]) : `${list.length} submitted inspections`} ${one ? "is" : "are"} open for your team to update ${untilText(opening.until)}. Tap "Done updating" when finished. Reason: ${String(opening.reason).slice(0, 400)}`,
+          entityType: one ? "inspection" : "tasks",
+          entityId: one ? list[0].inspection_id : null,
+        },
+        actorId,
+      );
+    }
+    return n;
+  });
+
+/** Teams still updating hear what changed (sections, deadline or reason). */
+const sectionsChanged = (opening, waitingIds, actorId, changes) =>
+  safely("sections changed", async () => {
+    let n = 0;
+    const parts = [];
+    if (changes.section_labels) parts.push(`now covers ${sectionText(changes.section_labels).toLowerCase()}`);
+    if (changes.until !== undefined) parts.push(`is open ${untilText(changes.until)}`);
+    if (changes.reason) parts.push(`has a new note: ${String(changes.reason).slice(0, 300)}`);
+    for (const [teamId, list] of await byTeam(waitingIds)) {
+      const one = list.length === 1;
+      n += await send(
+        await teamMembers(teamId),
+        {
+          type: "INSPECTION_SECTIONS_CHANGED",
+          title: "Update changed",
+          message: `Updating ${one ? what(list[0]) : `${list.length} submitted inspections`} ${parts.join("; ")}.`,
           entityType: one ? "inspection" : "tasks",
           entityId: one ? list[0].inspection_id : null,
         },
@@ -305,4 +331,4 @@ const sendDueReminders = (now = new Date()) =>
     return n;
   });
 
-module.exports = { inspectionSubmitted, inspectionReturned, inspectionReassigned, officeCompleted, sectionsOpened, sectionsUpdated, sectionsClosed, roundStarted, sendDueReminders, teamMembers, reviewers };
+module.exports = { inspectionSubmitted, inspectionReturned, inspectionReassigned, officeCompleted, sectionsOpened, sectionsChanged, sectionsUpdated, sectionsClosed, roundStarted, sendDueReminders, teamMembers, reviewers };

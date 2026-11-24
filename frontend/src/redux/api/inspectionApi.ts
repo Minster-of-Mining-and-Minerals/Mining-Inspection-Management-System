@@ -1,11 +1,11 @@
 import { baseApi } from "../baseApi";
 import { PaginationMeta } from "../types/common";
-import { MyTasks, OpeningPreview, OpeningScopeQuery, Schedule, ScheduleDetail, SchedulePayload, SchedulePreview, SectionOpening, SectionOpeningDetail, TaskDetail, TaskListItem } from "../types/inspection";
+import { MyTasks, OpeningPreview, OpeningScopeQuery, OpeningTotals, Schedule, ScheduleDetail, SchedulePayload, SchedulePreview, SectionOpening, SectionOpeningDetail, TaskDetail, TaskListItem } from "../types/inspection";
 
 export interface TaskListParams {
   schedule_id?: string;
   occurrence_date?: string;
-  status?: "todo" | "in_progress" | "open" | "submitted" | "late" | "on_time" | "overdue" | "no_team" | "returned";
+  status?: "todo" | "in_progress" | "open" | "submitted" | "late" | "on_time" | "overdue" | "no_team" | "returned" | "open_update" | "updated";
   form_id?: string;
   submitted_by?: string;
   license_type?: string;
@@ -134,7 +134,11 @@ export const inspectionApi = baseApi.injectEndpoints({
       query: ({ inspection_ids, ...q }) => ({ url: "/inspections/openings/preview", params: { ...q, ...(inspection_ids ? { inspection_ids: inspection_ids.join(",") } : {}) } }),
       transformResponse: (response: { data: OpeningPreview }) => response.data,
     }),
-    createOpening: builder.mutation<{ message: string }, OpeningScopeQuery & { section_keys: string[]; until: string; reason: string; region_name?: string }>({
+    /** until: end of a day; only_not_open skips those already open; merge_into adds to an open opening */
+    createOpening: builder.mutation<
+      { message: string },
+      OpeningScopeQuery & { section_keys: string[]; until?: string; reason?: string; region_name?: string; only_not_open?: boolean; merge_into?: string }
+    >({
       query: (body) => ({ url: "/inspections/openings", method: "POST", body }),
       invalidatesTags: ["Inspection", "Opening"],
     }),
@@ -147,6 +151,21 @@ export const inspectionApi = baseApi.injectEndpoints({
       query: (id) => `/inspections/openings/${id}`,
       transformResponse: (response: { data: SectionOpeningDetail }) => response.data,
       providesTags: ["Opening"],
+    }),
+    /** The "Opened for update" page: openings with filters, and the totals */
+    getOpeningsPage: builder.query<{ data: SectionOpening[]; totals: OpeningTotals }, { state?: "open" | "closed"; team_id?: string; search?: string }>({
+      query: (params) => ({ url: "/inspections/openings", params: { ...params, totals: 1 } }),
+      transformResponse: (response: { data: SectionOpening[]; totals: OpeningTotals }) => ({ data: response.data, totals: response.totals }),
+      providesTags: ["Opening"],
+    }),
+    updateOpening: builder.mutation<{ message: string }, { id: string; section_keys?: string[]; until?: string; reason?: string }>({
+      query: ({ id, ...body }) => ({ url: `/inspections/openings/${id}`, method: "PUT", body }),
+      invalidatesTags: ["Inspection", "Opening"],
+    }),
+    /** Every open opening of a round, or of one inspection */
+    closeAllOpenings: builder.mutation<{ message: string }, { schedule_id?: string; occurrence_date?: string; inspection_id?: string; all?: boolean }>({
+      query: (body) => ({ url: "/inspections/openings/close-all", method: "POST", body }),
+      invalidatesTags: ["Inspection", "Opening"],
     }),
     closeOpening: builder.mutation<{ message: string }, string>({
       query: (id) => ({ url: `/inspections/openings/${id}/close`, method: "POST" }),
@@ -179,4 +198,7 @@ export const {
   useGetOpeningsQuery,
   useGetOpeningQuery,
   useCloseOpeningMutation,
+  useGetOpeningsPageQuery,
+  useUpdateOpeningMutation,
+  useCloseAllOpeningsMutation,
 } = inspectionApi;

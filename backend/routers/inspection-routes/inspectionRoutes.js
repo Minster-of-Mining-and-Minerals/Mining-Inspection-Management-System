@@ -129,7 +129,9 @@ const readOpenings = authorizeAny([
 inspectionRouter.get("/openings/preview", authorize("inspections", "review"), sectionOpenings.previewOpening);
 inspectionRouter.get("/openings", readOpenings, sectionOpenings.listOpenings);
 inspectionRouter.post("/openings", authorize("inspections", "review"), sectionOpenings.createOpening);
+inspectionRouter.post("/openings/close-all", authorize("inspections", "review"), sectionOpenings.closeAllOpenings);
 inspectionRouter.get("/openings/:openingId", readOpenings, sectionOpenings.getOpening);
+inspectionRouter.put("/openings/:openingId", authorize("inspections", "review"), sectionOpenings.updateOpening);
 inspectionRouter.post("/openings/:openingId/close", authorize("inspections", "review"), sectionOpenings.closeOpening);
 inspectionRouter.get("/:id", readAny, inspections.getInspectionById);
 inspectionRouter.put("/:id/answers", authorize("inspections", "conduct"), validate(answersSchema), inspections.saveAnswers);
