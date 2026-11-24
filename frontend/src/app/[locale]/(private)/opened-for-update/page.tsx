@@ -1,16 +1,14 @@
 "use client";
 
-import { Suspense } from "react";
-import { PermissionGuard } from "@/components/auth/PermissionGuard";
-import OpenedForUpdate from "@/features/inspections/component/OpenedForUpdate";
+/** The page moved under Inspections; saved links to the old address still work. */
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Loading01 from "@/features/template/component/Loading/Loading01";
 
 export default function Page() {
-  return (
-    <PermissionGuard anyPermissions={["INSPECTIONS:REVIEW", "INSPECTIONS:READ_ALL"]}>
-      <Suspense fallback={<Loading01 />}>
-        <OpenedForUpdate />
-      </Suspense>
-    </PermissionGuard>
-  );
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/inspections/opened-for-update");
+  }, [router]);
+  return <Loading01 />;
 }

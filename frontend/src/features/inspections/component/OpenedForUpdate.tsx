@@ -5,7 +5,8 @@
  * filters (open / closed / all, team, company or license), Edit, Close now and Close all.
  */
 import { useEffect, useState } from "react";
-import { Loader2, Search, Unlock } from "lucide-react";
+import Link from "next/link";
+import { ChevronLeft, Loader2, Search, Unlock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useGetOpeningsPageQuery } from "@/redux/api/inspectionApi";
 import { useGetSubmissionMapOptionsQuery } from "@/redux/api/dashboardApi";
@@ -42,6 +43,9 @@ export default function OpenedForUpdate() {
     <div className="w-full space-y-4">
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-0 flex-1 basis-72">
+          <Link href="/inspections" className="mb-1 inline-flex items-center gap-0.5 text-sm text-primary hover:underline">
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Inspections
+          </Link>
           <h1 className="flex items-center gap-2 text-xl font-bold text-primary sm:text-2xl">
             <Unlock className="h-6 w-6" aria-hidden="true" /> Opened for update
           </h1>

@@ -52,7 +52,10 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         { title: "Schedule", path: "/schedules/[scheduleId]" },
     ],
     "/inspections": [{ title: "Inspections", path: "/inspections" }],
-    "/opened-for-update": [{ title: "Opened for update", path: "/opened-for-update" }],
+    "/inspections/opened-for-update": [
+        { title: "Inspections", path: "/inspections" },
+        { title: "Opened for update", path: "/inspections/opened-for-update" },
+    ],
     "/inspections/[inspectionId]": [
         { title: "Inspections", path: "/inspections" },
         { title: "Inspection", path: "/inspections/[inspectionId]" },

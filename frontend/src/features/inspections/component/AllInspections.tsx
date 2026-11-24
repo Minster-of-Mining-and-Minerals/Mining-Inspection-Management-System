@@ -7,10 +7,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, ChevronLeft, ChevronRight, Search, X } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Search, Unlock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { TaskListParams, TeamProgress, useGetTasksQuery, useGetTeamProgressQuery } from "@/redux/api/inspectionApi";
+import { TaskListParams, TeamProgress, useGetOpeningsQuery, useGetTasksQuery, useGetTeamProgressQuery } from "@/redux/api/inspectionApi";
+import { usePermissions } from "@/hooks/usePermissions";
 import type { TaskListItem, UpdateState } from "@/redux/types/inspection";
 import { useGetSubmissionMapOptionsQuery } from "@/redux/api/dashboardApi";
 import { formatDate, formatDateTime } from "@/utils/date";
@@ -33,6 +34,25 @@ const STATUSES: [NonNullable<TaskListParams["status"]> | "", string][] = [
 const KEYS = ["status", "team_id", "submitted_by", "form_id", "schedule_id", "company_id", "region_id", "license_type", "from", "to", "date_field", "sort", "search"] as const;
 type Key = (typeof KEYS)[number];
 const FILTER_KEYS: FilterKey[] = ["region_id", "team_id", "submitted_by", "company_id", "license_type", "form_id", "schedule_id", "date_field", "from", "to"];
+
+/** To the "Opened for update" page, with how many openings are open right now (admins and supervisors). */
+function OpenedForUpdateButton() {
+  const { check } = usePermissions();
+  const allowed = check({ anyPermissions: ["INSPECTIONS:REVIEW", "INSPECTIONS:READ_ALL"] });
+  const { data } = useGetOpeningsQuery({ state: "open" }, { skip: !allowed });
+  if (!allowed) return null;
+  const open = data?.length ?? 0;
+  return (
+    <Link
+      href="/inspections/opened-for-update"
+      className="order-last flex h-11 w-full items-center gap-2 rounded-lg border border-amber-400 bg-amber-50 px-4 text-sm font-semibold text-amber-900 hover:bg-amber-100 sm:order-none sm:h-10 sm:w-auto"
+    >
+      <Unlock className="h-4 w-4" aria-hidden="true" /> Opened for update
+      {open > 0 && <span className="rounded-full bg-amber-500 px-2 text-xs text-white">{open} open</span>}
+      <ChevronRight className="ml-auto h-4 w-4 sm:ml-0" aria-hidden="true" />
+    </Link>
+  );
+}
 
 /** Under "Submitted": sections opened for update after submitting */
 function UpdateTag({ state }: { state?: UpdateState | null }) {
@@ -102,6 +122,7 @@ export default function AllInspections() {
         </div>
         <SectorFilter className="hidden h-10 lg:block" />
         <ExportMenu query={exportQuery} />
+        <OpenedForUpdateButton />
       </div>
 
       <div className="min-w-0 space-y-4">
