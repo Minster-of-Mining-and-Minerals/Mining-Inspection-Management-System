@@ -1,5 +1,6 @@
 "use client";
 
+import { useLayoutEffect, useRef } from "react";
 import { Camera, Check, PenLine, Plus, Trash2 } from "lucide-react";
 import { formatCalendarDate } from "@/utils/date";
 import { Input } from "@/components/ui/input";
@@ -373,7 +374,7 @@ function FieldInput({
     case "table":
       return (
         <div className={pad}>
-          <TableInput field={f} value={value} onChange={onChange} language={language} />
+          <TableInput field={f} value={value} onChange={onChange} language={language} readOnly={readOnly} />
         </div>
       );
     case "photo":
@@ -393,10 +394,35 @@ function FieldInput({
   }
 }
 
-function TableInput({ field: f, value, onChange, language }: { field: FormField; value: any; onChange: (v: any) => void; language: FormLanguage }) {
+/** A text cell that wraps and grows with its text, so the whole answer is always visible. */
+function GrowingCell({ value, onChange, type, label }: { value: string; onChange: (v: string) => void; type: "text" | "number" | "date"; label: string }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [value]);
+  if (type !== "text")
+    return <Input aria-label={label} className="h-9 border-0 px-1.5 shadow-none" type={type} value={value} onChange={(e) => onChange(e.target.value)} />;
+  return (
+    <textarea
+      ref={ref}
+      aria-label={label}
+      rows={1}
+      className="block w-full resize-none overflow-hidden whitespace-pre-wrap break-words rounded bg-transparent px-1.5 py-1.5 text-sm leading-snug outline-none focus:ring-2 focus:ring-ring/40"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    />
+  );
+}
+
+function TableInput({ field: f, value, onChange, language, readOnly }: { field: FormField; value: any; onChange: (v: any) => void; language: FormLanguage; readOnly?: boolean }) {
   const columns = f.columns || [];
   // A first column with the row names (contract years, "Team member 1", "Company lead" …)
   const hasLabels = (f.rows?.length ?? 0) > 0 || !!f.team_rows;
+  // Fixed row names ("Year 1"…) are shown as text; rows the inspector adds can be named
+  const labelsEditable = !readOnly && (!!f.allow_add_rows || !!f.team_rows);
   const current = ((value || {}) as TableAnswer).rows;
   const rows: TableAnswer["rows"] = current && current.length ? current : defaultTableRows(f, language);
   const set = (next: TableAnswer["rows"]) => onChange({ rows: next });
@@ -419,53 +445,74 @@ function TableInput({ field: f, value, onChange, language }: { field: FormField;
       }),
     );
   const header = f.row_header ? (language === "en" ? f.row_header : f.row_header_am || f.row_header) : "";
+  const colLabel = (c: NonNullable<FormField["columns"]>[number]) => (language === "en" ? c.label : c.label_am || c.label);
+  const optionLabel = (c: NonNullable<FormField["columns"]>[number], v: string) => {
+    const o = (c.options || []).find((x) => x.value === v);
+    return o ? (language === "en" ? o.label : o.label_am || o.label) : v;
+  };
+  // Widths: row names narrow, choices and dates medium, text columns share the rest
+  const widthOf = (c: NonNullable<FormField["columns"]>[number]) =>
+    c.type === "select" ? "w-44" : c.type === "date" ? "w-36" : c.type === "number" ? "w-28" : c.type === "signature" ? "w-48" : "";
+  const shownText = (c: NonNullable<FormField["columns"]>[number], v: string) => (c.type === "select" ? optionLabel(c, v) : c.type === "date" ? formatCalendarDate(v) : v);
 
   return (
     <div className="space-y-2 overflow-x-auto">
-      <table className="w-full min-w-[640px] border-collapse text-sm">
+      <table className="w-full min-w-[560px] table-fixed border-collapse text-sm">
+        <colgroup>
+          {hasLabels && <col className={f.team_rows ? "w-56" : "w-28"} />}
+          {columns.map((c) => (
+            <col key={c.key} className={widthOf(c)} />
+          ))}
+          {f.allow_add_rows && !readOnly && <col className="w-9" />}
+        </colgroup>
         <thead>
-          <tr className="bg-slate-50 text-left text-xs text-slate-600">
-            {hasLabels && <th className={`border px-2 py-1.5 font-medium ${f.team_rows ? "w-56" : "w-24"}`}>{header}</th>}
+          <tr className="bg-slate-50 text-left align-bottom text-xs text-slate-600">
+            {hasLabels && <th className="border px-2 py-1.5 font-medium">{header}</th>}
             {columns.map((c) => (
-              <th key={c.key} className="border px-2 py-1.5 font-medium">
-                <span lang="am">{language === "en" ? c.label : c.label_am || c.label}</span>
+              <th key={c.key} className="break-words border px-2 py-1.5 font-medium">
+                <span lang="am">{colLabel(c)}</span>
               </th>
             ))}
-            {f.allow_add_rows && <th className="w-8 border" />}
+            {f.allow_add_rows && !readOnly && <th className="border" />}
           </tr>
         </thead>
         <tbody>
           {rows.map((r, i) => (
-            <tr key={i}>
+            <tr key={i} className="align-top">
               {hasLabels && (
-                <td className="border px-2 py-1 text-xs text-slate-600">
-                  <Input className="h-8 border-0 px-1 shadow-none" value={r.label ?? ""} onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
-                </td>
-              )}
-              {columns.map((c) => (
-                <td key={c.key} className="border p-1">
-                  {c.type === "signature" ? (
-                    <SignatureCell fieldKey={f.key} value={r.cells[c.key] || undefined} onChange={(id) => setSignature(i, c.key, id)} signer={r.cells.full_name || r.label} />
-                  ) : c.type === "select" ? (
-                    <select className="h-8 w-full rounded border-0 bg-transparent text-sm" value={r.cells[c.key] ?? ""} onChange={(e) => setCell(i, c.key, e.target.value)}>
-                      <option value="" />
-                      {(c.options || []).map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {language === "en" ? o.label : o.label_am || o.label}
-                        </option>
-                      ))}
-                    </select>
+                <td className="break-words border px-2 py-1.5 text-xs font-medium text-slate-700">
+                  {labelsEditable ? (
+                    <Input aria-label={header || "Row"} className="h-8 border-0 px-1 shadow-none" value={r.label ?? ""} onChange={(e) => set(rows.map((x, j) => (j === i ? { ...x, label: e.target.value } : x)))} />
                   ) : (
-                    <Input
-                      className="h-8 border-0 px-1 shadow-none"
-                      type={c.type === "number" ? "number" : c.type === "date" ? "date" : "text"}
-                      value={r.cells[c.key] ?? ""}
-                      onChange={(e) => setCell(i, c.key, e.target.value)}
-                    />
+                    r.label
                   )}
                 </td>
-              ))}
-              {f.allow_add_rows && (
+              )}
+              {columns.map((c) => {
+                const v = r.cells[c.key] ?? "";
+                return (
+                  <td key={c.key} className={`border p-1 ${readOnly && v && c.type !== "signature" ? "bg-[#EAF2FA]" : ""}`}>
+                    {c.type === "signature" ? (
+                      <SignatureCell fieldKey={f.key} value={v || undefined} onChange={(id) => setSignature(i, c.key, id)} signer={r.cells.full_name || r.label} />
+                    ) : readOnly ? (
+                      // The whole answer, wrapped onto as many lines as it needs
+                      <span className="block min-h-[1.5rem] whitespace-pre-wrap break-words px-1.5 py-1 text-sm text-[#0B2C45]">{v ? shownText(c, v) : ""}</span>
+                    ) : c.type === "select" ? (
+                      <select aria-label={colLabel(c)} className="h-9 w-full rounded border-0 bg-transparent text-sm" value={v} onChange={(e) => setCell(i, c.key, e.target.value)}>
+                        <option value="" />
+                        {(c.options || []).map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {language === "en" ? o.label : o.label_am || o.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <GrowingCell label={colLabel(c)} type={c.type === "number" ? "number" : c.type === "date" ? "date" : "text"} value={v} onChange={(x) => setCell(i, c.key, x)} />
+                    )}
+                  </td>
+                );
+              })}
+              {f.allow_add_rows && !readOnly && (
                 <td className="border text-center">
                   <button type="button" aria-label="Remove row" className="p-1 text-slate-400 hover:text-red-600" onClick={() => set(rows.filter((_, j) => j !== i))}>
                     <Trash2 className="h-3.5 w-3.5" />
@@ -476,7 +523,7 @@ function TableInput({ field: f, value, onChange, language }: { field: FormField;
           ))}
         </tbody>
       </table>
-      {f.allow_add_rows && (
+      {f.allow_add_rows && !readOnly && (
         <Button type="button" variant="outline" size="sm" className="gap-1" onClick={() => set([...rows, { label: newRowLabel(f, rows, language), cells: {} }])}>
           <Plus className="h-3.5 w-3.5" /> {f.new_row_label ? `Add ${language === "en" ? f.new_row_label.toLowerCase() : f.new_row_label_am || f.new_row_label.toLowerCase()}` : "Add row"}
         </Button>
