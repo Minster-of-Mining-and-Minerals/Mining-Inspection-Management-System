@@ -233,11 +233,30 @@ const createOpening = async (req, res) => {
         const target = await SectionOpening.findOne({ where: { opening_id: b.merge_into, ...svc.openWhere() }, transaction, lock: transaction.LOCK.UPDATE });
         if (!target || !inScope(req, target.sector_node_id)) throw bad("That opening is closed or no longer exists. Open the sections separately.", 409);
         if (!sameSet(target.section_keys || [], chosenKeys)) throw bad("That opening has other sections. Open these separately.", 409);
-        const inIt = new Set((await SectionOpeningItem.findAll({ where: { opening_id: target.opening_id }, attributes: ["inspection_id"], transaction })).map((i) => i.inspection_id));
-        const adding = covered.filter((t) => !inIt.has(t.inspection_id));
-        if (!adding.length) throw bad("All of them are already in that opening.", 409);
-        await addItems(target, adding, req.user.user_id, transaction);
-        return { opening: target, added: adding, merged: true };
+        // Only inspections still waiting count as "in it". One the team already finished (Done updating) is
+        // opened again in the same opening: back to waiting, with a new history line (the earlier Done stays).
+        const items = await SectionOpeningItem.findAll({ where: { opening_id: target.opening_id }, attributes: ["item_id", "inspection_id", "status"], transaction });
+        const statusOf = new Map(items.map((i) => [i.inspection_id, i]));
+        const again = covered.filter((t) => statusOf.get(t.inspection_id)?.status === "done");
+        const adding = covered.filter((t) => !statusOf.has(t.inspection_id));
+        if (!again.length && !adding.length) throw bad("All of them are already waiting in that opening.", 409);
+        if (again.length) {
+          await SectionOpeningItem.update(
+            { status: "waiting", done_at: null, done_by: null },
+            { where: { item_id: again.map((t) => statusOf.get(t.inspection_id).item_id) }, transaction },
+          );
+          await InspectionEvent.bulkCreate(
+            again.map((t) => ({
+              inspection_id: t.inspection_id,
+              type: "update_opened",
+              user_id: req.user.user_id,
+              details: { opening_id: target.opening_id, sections: target.section_labels, until: target.until, reason: target.reason, again: true },
+            })),
+            { transaction },
+          );
+        }
+        if (adding.length) await addItems(target, adding, req.user.user_id, transaction);
+        return { opening: target, added: [...again, ...adding], again: again.length, merged: true };
       }
 
       const reason = String(b.reason || "").trim();
@@ -270,12 +289,13 @@ const createOpening = async (req, res) => {
       return { opening: o, added: covered, merged: false };
     });
 
-    const { opening, added, merged } = result;
+    const { opening, added, merged, again = 0 } = result;
     notify.sectionsOpened(opening, added.map((t) => t.inspection_id), req.user.user_id);
+    const fresh = added.length - again;
     return res.status(201).json({
       success: true,
       message: merged
-        ? `${plural(added.length, "inspection")} added to “${sectionsWord(opening.section_labels)}”.`
+        ? `${[again ? `${plural(again, "inspection")} opened again` : "", fresh ? `${plural(fresh, "inspection")} added` : ""].filter(Boolean).join(", ")} in “${sectionsWord(opening.section_labels)}”.`
         : `${sectionsWord(opening.section_labels)} opened for ${plural(added.length, "inspection")}.`,
       data: { opening_id: opening.opening_id, count: added.length, merged },
     });

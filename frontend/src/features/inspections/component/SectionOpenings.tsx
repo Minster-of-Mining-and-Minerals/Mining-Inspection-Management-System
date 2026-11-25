@@ -313,7 +313,7 @@ export function OpenSectionsDialog({ inspectionId, scheduleId, occurrenceDate, t
                 <label className="flex items-start gap-2">
                   <input type="radio" className="mt-1" name="merge" checked={!separate} onChange={() => setSeparate(false)} />
                   <span>
-                    <b>Add to that opening</b> <span className="text-xs text-sky-800">(recommended): same deadline and reason; the ones already in it are skipped</span>
+                    <b>Add to that opening</b> <span className="text-xs text-sky-800">(recommended): same deadline and reason; ones that finished there are opened again, ones still waiting are skipped</span>
                   </span>
                 </label>
                 <label className="flex items-start gap-2">

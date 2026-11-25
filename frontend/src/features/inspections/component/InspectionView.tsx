@@ -712,7 +712,7 @@ function EventHistory({ task }: { task: TaskDetail }) {
       <ol className="space-y-1.5 border-l-2 border-slate-200 pl-4 text-sm">
         {task.events.map((e) => (
           <li key={e.event_id}>
-            <span className="font-medium text-slate-800">{EVENT_LABEL[e.type] ?? e.type}</span>
+            <span className="font-medium text-slate-800">{e.type === "update_opened" && e.details?.again ? "Opened for update again" : (EVENT_LABEL[e.type] ?? e.type)}</span>
             {e.type === "submitted" && e.details?.late && <span className="ml-1 text-amber-700">(late)</span>}
             <span className="text-slate-500">
               {" "}
