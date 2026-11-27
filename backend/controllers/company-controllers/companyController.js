@@ -13,7 +13,7 @@ const {
 } = require("../../services/companyQueryService");
 const { likeContains } = require("../../utils/search");
 
-const fail = (res, status, message) => res.status(status).json({ success: false, message });
+const fail = (res, status, message, extra) => res.status(status).json({ success: false, message, ...extra });
 
 const handleError = (res, error, fallback) => {
   if (error.status) return fail(res, error.status, error.message);
@@ -237,18 +237,105 @@ const updateLicense = async (req, res) => {
   }
 };
 
-const deleteLicense = async (req, res) => {
+/**
+ * What deleting a license would remove: its inspection tasks. Submitted inspections block the delete
+ * (their records are kept: set the license to revoked or expired instead); tasks never submitted can go with it.
+ */
+const deleteCheckOf = async (licenseId, transaction) => {
+  const db = require("../../models");
+  const tasks = await db.Inspection.findAll({
+    where: { license_id: licenseId },
+    attributes: ["inspection_id", "status", "occurrence_date", "answers"],
+    include: [
+      { model: db.Team, as: "team", attributes: ["name"] },
+      { model: db.InspectionSchedule, as: "schedule", attributes: ["name"] },
+    ],
+    order: [["occurrence_date", "DESC"]],
+    transaction,
+  });
+  const ids = tasks.map((t) => t.inspection_id);
+  const files = ids.length
+    ? await db.InspectionFile.findAll({ where: { inspection_id: ids }, attributes: ["inspection_id"], transaction })
+    : [];
+  const filesOf = (id) => files.filter((f) => f.inspection_id === id).length;
+  const answered = (a) =>
+    Object.values(a || {}).filter((v) => v != null && v !== "" && !(Array.isArray(v) && !v.length) && !(typeof v === "object" && !Array.isArray(v) && !Object.keys(v).length)).length;
+  const open = tasks.filter((t) => t.status !== "submitted");
+  return {
+    submitted: tasks.length - open.length,
+    tasks: open.map((t) => ({
+      inspection_id: t.inspection_id,
+      status: t.status,
+      occurrence_date: t.occurrence_date,
+      team: t.team?.name ?? null,
+      schedule: t.schedule?.name ?? null,
+      answers: answered(t.answers),
+      files: filesOf(t.inspection_id),
+    })),
+  };
+};
+
+/** GET /licenses/:licenseId/delete-check */
+const licenseDeleteCheck = async (req, res) => {
   try {
     if (!isUuid(req.params.licenseId)) return fail(res, 400, "Invalid license id.");
     const license = await findInScope(CompanyLicense, req.params.licenseId, req);
     if (!license) return fail(res, 404, "License not found.");
-    // Once inspections exist they will reference licenses; deleting will then be refused
-    await license.destroy();
-    return res.status(200).json({ success: true, message: "License deleted.", data: await loadCompany(license.company_id) });
+    return res.status(200).json({ success: true, data: await deleteCheckOf(license.license_id) });
   } catch (error) {
-    if (error.name === "SequelizeForeignKeyConstraintError") {
-      return fail(res, 409, "This license has inspections. Set its status to revoked or expired instead.");
+    return handleError(res, error, "Failed to check the license.");
+  }
+};
+
+/**
+ * DELETE /licenses/:licenseId — ?with_tasks=1 also deletes its inspection tasks that were never submitted
+ * (with their history, answers and files); ?with_answers=1 is needed when some of them have saved answers or files.
+ * A license with a submitted inspection can't be deleted.
+ */
+const deleteLicense = async (req, res) => {
+  const t = await sequelize.transaction();
+  let storageKeys = [];
+  try {
+    if (!isUuid(req.params.licenseId)) throw Object.assign(new Error("Invalid license id."), { status: 400 });
+    const license = await findInScope(CompanyLicense, req.params.licenseId, req);
+    if (!license) throw Object.assign(new Error("License not found."), { status: 404 });
+    const check = await deleteCheckOf(license.license_id, t);
+    if (check.submitted)
+      throw Object.assign(new Error(`This license has ${check.submitted} submitted inspection${check.submitted === 1 ? "" : "s"}. Set its status to revoked or expired instead.`), {
+        status: 409,
+        extra: { code: "HAS_SUBMITTED", ...check },
+      });
+    if (check.tasks.length && req.query.with_tasks !== "1")
+      throw Object.assign(new Error("This license has inspection tasks. Confirm that they are deleted with it."), { status: 409, extra: { code: "HAS_TASKS", ...check } });
+    const saved = check.tasks.some((x) => x.answers || x.files);
+    if (saved && req.query.with_answers !== "1")
+      throw Object.assign(new Error("Some of its tasks have saved answers or files. Confirm that they are deleted too."), { status: 409, extra: { code: "HAS_ANSWERS", ...check } });
+
+    if (check.tasks.length) {
+      const db = require("../../models");
+      const ids = check.tasks.map((x) => x.inspection_id);
+      const files = await db.InspectionFile.scope("withStorage").findAll({ where: { inspection_id: ids }, attributes: ["file_id", "storage_key"], transaction: t });
+      storageKeys = files.map((f) => f.storage_key).filter(Boolean);
+      // Notifications about these tasks; the tasks' history, files and openings go with them (cascade)
+      await db.Notification.destroy({ where: { related_entity_type: "inspection", related_entity_id: ids }, transaction: t });
+      await db.Inspection.destroy({ where: { inspection_id: ids }, transaction: t });
     }
+    const companyId = license.company_id;
+    await license.destroy({ transaction: t });
+    await t.commit();
+    // Stored files of the deleted tasks (after the database change is saved)
+    const storage = require("../../services/fileStorage");
+    for (const key of storageKeys) await storage.remove(key).catch(() => {});
+    const n = check.tasks.length;
+    return res.status(200).json({
+      success: true,
+      message: n ? `License deleted, with ${n} inspection task${n === 1 ? "" : "s"} that ${n === 1 ? "was" : "were"} never submitted.` : "License deleted.",
+      data: await loadCompany(companyId),
+    });
+  } catch (error) {
+    if (!t.finished) await t.rollback();
+    if (error.status) return fail(res, error.status, error.message, error.extra);
+    if (error.name === "SequelizeForeignKeyConstraintError") return fail(res, 409, "This license is still used elsewhere. Set its status to revoked or expired instead.");
     return handleError(res, error, "Failed to delete license.");
   }
 };
@@ -367,6 +454,7 @@ module.exports = {
   addLicense,
   updateLicense,
   deleteLicense,
+  licenseDeleteCheck,
   getLicenses,
   getLicenseMap,
   getCompanyStats,

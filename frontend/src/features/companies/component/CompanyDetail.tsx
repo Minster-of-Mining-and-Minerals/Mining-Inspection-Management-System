@@ -6,22 +6,15 @@ import { useBreadcrumbTitleEffect } from "@/hooks/useBreadcrumbTitleEffect";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronDown, ChevronRight, ClipboardList, Edit, MapPin, Plus, Power, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import Loading01 from "@/features/template/component/Loading/Loading01";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useDeleteLicenseMutation, useGetCompanyByIdQuery, useUpdateCompanyMutation } from "@/redux/api/companyApi";
+import { useGetCompanyByIdQuery, useUpdateCompanyMutation } from "@/redux/api/companyApi";
 import { CompanyLicense, LICENSE_STATUS_LABEL, LICENSE_TYPE_LABEL, LicenseStatus, areaPath } from "@/redux/types/company";
 import { formatCalendarDate } from "@/utils/date";
 import { CompanyDialog } from "./CompanyDialog";
 import { LicenseDialog } from "./LicenseDialog";
 import { LicenseAreaDialog } from "./LicenseAreaDialog";
+import { DeleteLicenseDialog } from "./DeleteLicenseDialog";
 
 const STATUS_STYLE: Record<LicenseStatus, string> = {
   active: "bg-green-100 text-green-800",
@@ -40,7 +33,6 @@ export default function CompanyDetail() {
   const { data: company, isLoading, isError } = useGetCompanyByIdQuery(companyId, { skip: !companyId });
   useBreadcrumbTitleEffect(company?.name, companyId);
   const [updateCompany, { isLoading: toggling }] = useUpdateCompanyMutation();
-  const [deleteLicense, { isLoading: deleting }] = useDeleteLicenseMutation();
 
   const [editingCompany, setEditingCompany] = useState(false);
   const [licenseDialog, setLicenseDialog] = useState<{ open: boolean; license: CompanyLicense | null }>({ open: false, license: null });
@@ -57,17 +49,6 @@ export default function CompanyDetail() {
       toast.success(company.is_active ? "Company deactivated." : "Company activated.");
     } catch (e: any) {
       toast.error(e?.data?.message || "Could not change the status.");
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!confirmDelete) return;
-    try {
-      await deleteLicense({ licenseId: confirmDelete.license_id, companyId: company.company_id }).unwrap();
-      toast.success("License deleted.");
-      setConfirmDelete(null);
-    } catch (e: any) {
-      toast.error(e?.data?.message || "Could not delete the license.");
     }
   };
 
@@ -294,25 +275,14 @@ export default function CompanyDetail() {
         onClose={() => setLicenseDialog({ open: false, license: null })}
       />
 
-      <Dialog open={!!confirmDelete} onOpenChange={(o) => !o && setConfirmDelete(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete license?</DialogTitle>
-            <DialogDescription>
-              {confirmDelete?.license_number} will be removed. If it was entered by mistake, delete it; if it ended, set its
-              status to expired or revoked instead so its history is kept.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConfirmDelete(null)} disabled={deleting}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
-              {deleting ? "Deleting…" : "Delete"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {confirmDelete && (
+        <DeleteLicenseDialog
+          license={confirmDelete}
+          companyId={company.company_id}
+          onClose={() => setConfirmDelete(null)}
+          onEditStatus={() => setLicenseDialog({ open: true, license: confirmDelete })}
+        />
+      )}
     </div>
   );
 }

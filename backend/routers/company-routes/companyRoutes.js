@@ -10,6 +10,7 @@ const {
   addLicense,
   updateLicense,
   deleteLicense,
+  licenseDeleteCheck,
   getLicenses,
   getLicenseMap,
   getCompanyStats,
@@ -68,6 +69,8 @@ licenses.put("/:licenseId", authorize("companies", "update"), validateUpdateLice
 // The surveyed area (corner points), entered in the system
 licenses.get("/:licenseId/area", authorize("companies", "read"), getLicenseArea);
 licenses.put("/:licenseId/area", authorize("companies", "update"), setLicenseArea);
+// What deleting would remove (its inspection tasks never submitted), then the delete
+licenses.get("/:licenseId/delete-check", authorize("companies", "delete"), licenseDeleteCheck);
 licenses.delete("/:licenseId", authorize("companies", "delete"), deleteLicense);
 
 /**

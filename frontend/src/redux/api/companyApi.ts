@@ -17,6 +17,13 @@ import {
 } from "../types/company";
 
 /** Companies, their licenses and the standard minerals list. */
+
+/** What deleting a license would remove */
+export interface LicenseDeleteCheck {
+  submitted: number;
+  tasks: { inspection_id: string; status: "todo" | "in_progress"; occurrence_date: string; team: string | null; schedule: string | null; answers: number; files: number }[];
+}
+
 export const companyApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     getCompanies: builder.query<{ data: Company[]; meta: PaginationMeta }, CompanyListParams>({
@@ -61,9 +68,19 @@ export const companyApi = baseApi.injectEndpoints({
       invalidatesTags: (_r, _e, { companyId }) => [{ type: "Company", id: companyId }, "Company", "Mineral"],
     }),
 
-    deleteLicense: builder.mutation<Company, { licenseId: string; companyId: string }>({
-      query: ({ licenseId }) => ({ url: `/licenses/${licenseId}`, method: "DELETE" }),
-      transformResponse: (response: any): Company => response.data,
+    /** What deleting a license would remove: its inspection tasks never submitted (submitted ones block it) */
+    getLicenseDeleteCheck: builder.query<LicenseDeleteCheck, string>({
+      query: (licenseId) => `/licenses/${licenseId}/delete-check`,
+      transformResponse: (response: { data: LicenseDeleteCheck }) => response.data,
+    }),
+    /** withTasks: also its tasks never submitted; withAnswers: needed when some of them have saved answers or files */
+    deleteLicense: builder.mutation<{ data: Company; message: string }, { licenseId: string; companyId: string; withTasks?: boolean; withAnswers?: boolean }>({
+      query: ({ licenseId, withTasks, withAnswers }) => ({
+        url: `/licenses/${licenseId}`,
+        method: "DELETE",
+        params: { ...(withTasks ? { with_tasks: 1 } : {}), ...(withAnswers ? { with_answers: 1 } : {}) },
+      }),
+      transformResponse: (response: { data: Company; message: string }) => response,
       invalidatesTags: (_r, _e, { companyId }) => [{ type: "Company", id: companyId }, "Company", "Mineral"],
     }),
 
@@ -148,6 +165,7 @@ export const {
   useAddLicenseMutation,
   useUpdateLicenseMutation,
   useDeleteLicenseMutation,
+  useGetLicenseDeleteCheckQuery,
   useGetLicensesQuery,
   useGetLicenseMapQuery,
   useGetMineralsQuery,
